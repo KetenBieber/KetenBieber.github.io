@@ -7,10 +7,12 @@
     "last": "Lin",
     "display": "Ketan Lin",
     "authorVariants": [
-      "Ketan Lin"
+      "Ketan Lin",
+      "林科潭"
     ]
   },
   "title": "Hi there, I'm Ketan Lin",
+  "tagline": "Your personal tagline here",
   "avatar": "Keten.png",
   "terminal": {
     "username": "Ketan",
@@ -30,13 +32,13 @@
       "Docker",
       "Embedded"
     ],
-    "timezone": "China/Guangzhou"
+    "timezone": "Asia/Guangzhou"
   },
   "contact": {
     "email": "linketan@mails.gdut.edu.cn",
     "academicEmail": "linketan@mails.gdut.edu.cn",
     "hiringEmail": "linketan@mails.gdut.edu.cn",
-    "location": "China"
+    "location": "Guangzhou,China"
   },
   "social": {
     "github": "https://github.com/KetenBieber",
@@ -56,7 +58,6 @@
     "projects": true,
     "articles": false,
     "experience": true,
-    "awards": true,
     "news": false,
     "pets": false,
     "guide": false
@@ -67,13 +68,10 @@
       "icon": "FaGithub",
       "label": "GitHub",
       "color": "#333"
-    },
-    {
-      "platform": "linkedin",
-      "icon": "FaLinkedin",
-      "label": "LinkedIn",
-      "color": "#0A66C2"
     }
   ],
-  "selectedPublicationIds": []
+  "selectedPublicationIds": [
+    "eaai2026-DualNav",
+    "ControlandDecision2026-Nav"
+  ]
 }
