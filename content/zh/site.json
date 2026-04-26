@@ -1,7 +1,17 @@
 {
-  "_comment": "中文版站点配置",
+  "_comment": "Your basic info. Edit the values below, then run: npm run dev",
   "template": "terminal",
   "components": {},
+  "name": {
+    "full": "Ketan Lin",
+    "first": "Ketan",
+    "nickname": "Keten",
+    "last": "Lin",
+    "display": "Ketan Lin",
+    "authorVariants": [
+      "Ketan Lin"
+    ]
+  },
   "sections": [
     "hero",
     "bio",
@@ -16,39 +26,62 @@
     "contact",
     "footer"
   ],
-  "name": {
-    "full": "Cookie",
-    "first": "Cookie",
-    "nickname": "Cookie",
-    "last": "",
-    "display": "Cookie",
-    "authorVariants": [
-      "Cookie"
-    ]
-  },
-  "title": "汪！我是 Cookie",
-  "tagline": "一只毛茸茸的博美，靠赖在主人身边写代码，一次握手换一块零食。",
+  "title": "Hi there, I'm Ketan Lin",
+  "tagline": "Your personal tagline here",
   "avatar": "cookie.jpg",
   "terminal": {
-    "username": "cookie",
+    "username": "Ketan",
     "rotatingSubtitles": [
-      "赖在主人身边",
-      "和弟弟 Lucas 玩耍",
-      "握手要零食",
-      "趴下装可怜",
-      "在主人腿上打盹"
+      "build cool projects",
+      "write some code",
+      "explore AI research",
+      "share knowledge",
+      "learn new things"
     ],
-    "skills": [],
-    "timezone": "America/Los_Angeles"
+    "skills": [
+      {
+        "name": "Shake Hands",
+        "icon": "FaHandshake"
+      },
+      {
+        "name": "Lie Down",
+        "icon": "FaBed"
+      },
+      {
+        "name": "Cuddling",
+        "icon": "FaHeart"
+      },
+      {
+        "name": "Following Hooman",
+        "icon": "FaWalking"
+      },
+      {
+        "name": "Napping",
+        "icon": "FaMoon"
+      },
+      {
+        "name": "Treat Negotiation",
+        "icon": "FaCookie"
+      },
+      {
+        "name": "Playing with Lucas",
+        "icon": "FaCat"
+      },
+      {
+        "name": "Being Fluffy",
+        "icon": "FaStar"
+      }
+    ],
+    "timezone": "Asia/Guangzhou"
   },
   "contact": {
-    "email": "limyoonaxi@gmail.com",
-    "academicEmail": "limyoonaxi@gmail.com",
-    "hiringEmail": "limyoonaxi@gmail.com",
-    "location": "Yaoyao 在哪我在哪"
+    "email": "linketan@mails.gdut.edu.cn",
+    "academicEmail": "linketan@mails.gdut.edu.cn",
+    "hiringEmail": "linketan@mails.gdut.edu.cn",
+    "location": "Guangzhou,China"
   },
   "social": {
-    "github": "https://github.com/H-Freax/TermHub",
+    "github": "https://github.com/KetenBieber",
     "linkedin": "",
     "medium": "",
     "googleScholar": "",
@@ -63,29 +96,19 @@
   "features": {
     "publications": true,
     "projects": true,
-    "articles": true,
+    "articles": false,
     "experience": true,
-    "news": true,
-    "pets": true,
-    "guide": true
+    "news": false,
+    "pets": false,
+    "guide": false
   },
   "heroSocialIcons": [
     {
-      "platform": "twitter",
-      "icon": "SiX",
-      "label": "X",
-      "color": "#000"
-    },
-    {
-      "platform": "youtube",
-      "icon": "FaYoutube",
-      "label": "YouTube",
-      "color": "#FF0000"
+      "platform": "github",
+      "icon": "FaGithub",
+      "label": "GitHub",
+      "color": "#333"
     }
   ],
-  "selectedPublicationIds": [
-    "napcon2025-cuddle-optimization",
-    "fetchml2024-warmth-seeking",
-    "arxiv2025-cross-species-play"
-  ]
+  "selectedPublicationIds": []
 }
