@@ -167,6 +167,8 @@
     "conference": "会议论文",
     "workshop": "研讨会",
     "demo": "演示专场",
-    "preprint": "预印本"
+    "preprint": "预印本",
+    "journal": "期刊论文",
+    "patent": "专利"
   }
 }

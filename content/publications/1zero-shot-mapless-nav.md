@@ -1,7 +1,5 @@
-<!-- 零样本导航 -->
-
 ---
-id: eaai2026-DualNav
+id: zero-shot-mapless-nav
 title: "DualNav: Online Planning for Zero-Shot Robot Navigation with Asynchronous Foundation Models and Active Visual-Semantic Memory"
 authors: [Hongming Lai, Ketan Lin, Jian Tan, Bo Ye, Ci Chen, Zhigang Ren]
 venue: Engineering Applications of Artificial Intelligence

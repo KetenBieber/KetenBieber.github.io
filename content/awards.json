@@ -1,27 +1,26 @@
 [
   {
-    "title": "Best Duo Award — Cookie & Lucas Play Session",
-    "org": "Living Room Championship",
-    "date": "Dec 2024",
+    "title": "National 1st Prize(Runner-up) — 24th ROBOCON (ABU China Selection, MOE Class A)",
+    "org": "Organizing Committee of National College Student Robot Competition",
+    "date": "2025",
     "kind": "competition"
   },
   {
-    "title": "1st Place in Neighborhood Paw Shake Contest",
-    "org": "Dog Park Community",
-    "date": "Apr 2024",
-    "kind": "hackathon"
+    "title": "National 1st & 2nd Prize — 24th ROBOCON (Robot Shooting & Dribbling Challenges)",
+    "org": "Organizing Committee of National College Student Robot Competition",
+    "date": "2025",
+    "kind": "competition"
   },
   {
-    "title": "Fluffy Companion Fellowship",
-    "org": "National Treat Foundation",
-    "date": "Sep 2023",
-    "kind": "scholarship",
-    "link": "#"
+    "title": "National 2nd & 3rd Prize — 23rd ROBOCON (Operation & Programming Challenges)",
+    "org": "Organizing Committee of National College Student Robot Competition",
+    "date": "2024",
+    "kind": "competition"
   },
   {
-    "title": "Top Cuddler (top 5% of graduating class)",
-    "org": "Home Sweet Home Academy",
-    "date": "May 2022",
-    "kind": "honor"
+    "title": "Provincial 2nd Prize — The Contest of LAN QIAO Cup (Guangdong,Embedded Design and Development Group)",
+    "org": "Lan Qiao Cup National College Student Software and Information Technology Competition Organizing Committee",
+    "date": "2026",
+    "kind": "competition"
   }
 ]

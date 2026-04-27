@@ -2,33 +2,30 @@
   "_comment": "Your basic info. Edit the values below, then run: npm run dev",
   "template": "terminal",
   "components": {},
-  "name": {
-    "full": "Ketan Lin",
-    "first": "Ketan",
-    "nickname": "Keten",
-    "last": "Lin",
-    "display": "Ketan Lin",
-    "authorVariants": [
-      "Ketan Lin"
-    ]
-  },
   "sections": [
     "hero",
     "bio",
-    "newsDisplay",
     "selectedPublications",
     "journey",
     "skills",
     "mentorship",
-    "talks",
-    "teaching",
     "accomplishments",
     "contact",
     "footer"
   ],
-  "title": "Hi there, I'm Ketan Lin",
-  "tagline": "Your personal tagline here",
-  "avatar": "cookie.jpg",
+  "name": {
+    "full": "林科潭",
+    "first": "科潭",
+    "nickname": "阿卷",
+    "last": "林",
+    "display": "林科潭",
+    "authorVariants": [
+      "林科潭"
+    ]
+  },
+  "title": "Hi! I'm Ketan Lin",
+  "tagline": "致力于成为一名现代机器人工程师",
+  "avatar": "Keten.png",
   "terminal": {
     "username": "Ketan",
     "rotatingSubtitles": [
@@ -39,40 +36,16 @@
       "learn new things"
     ],
     "skills": [
-      {
-        "name": "Shake Hands",
-        "icon": "FaHandshake"
-      },
-      {
-        "name": "Lie Down",
-        "icon": "FaBed"
-      },
-      {
-        "name": "Cuddling",
-        "icon": "FaHeart"
-      },
-      {
-        "name": "Following Hooman",
-        "icon": "FaWalking"
-      },
-      {
-        "name": "Napping",
-        "icon": "FaMoon"
-      },
-      {
-        "name": "Treat Negotiation",
-        "icon": "FaCookie"
-      },
-      {
-        "name": "Playing with Lucas",
-        "icon": "FaCat"
-      },
-      {
-        "name": "Being Fluffy",
-        "icon": "FaStar"
-      }
+      "C/C++",
+      "Python",
+      "ROS/ROS2",
+      "PyTorch",
+      "Embedded development",
+      "Reinforcement Learning",
+      "Deeplearning",
+      "Machine Learning"
     ],
-    "timezone": "Asia/Guangzhou"
+    "timezone": "Asia/Shanghai"
   },
   "contact": {
     "email": "linketan@mails.gdut.edu.cn",
@@ -95,10 +68,12 @@
   "pets": [],
   "features": {
     "publications": true,
+    "journal": false,
+    "patent": false,
     "projects": true,
     "articles": false,
     "experience": true,
-    "news": false,
+    "news": true,
     "pets": false,
     "guide": false
   },
@@ -110,5 +85,9 @@
       "color": "#333"
     }
   ],
-  "selectedPublicationIds": []
+  "selectedPublicationIds": [
+    "zero-shot-mapless-nav",
+    "ecat-robot-control-system",
+    "mapless-nav-2nd"
+  ]
 }

@@ -122,7 +122,7 @@ const ProjectCategoryEnum = z.enum([
   "robotics", "nlp", "web-app", "data", "tooling", "healthcare",
 ]);
 
-const VenueTypeEnum = z.enum(["conference", "workshop", "demo", "preprint"]);
+const VenueTypeEnum = z.enum(["conference", "workshop", "demo", "preprint", "journal", "patent"]);
 const PublicationStatusEnum = z.enum(["accepted", "published", "preprint"]);
 
 // ── MCP Server ──────────────────────────────────────────────────────

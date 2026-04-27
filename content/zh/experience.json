@@ -2,66 +2,29 @@
   "education": {
     "courses": [
       {
-        "course": "撒娇科学硕士",
-        "institution": "Yaoyao 的膝盖实验室",
-        "year": "2024-2026"
-      },
-      {
-        "course": "乖乖艺术学士",
-        "institution": "温馨小窝",
-        "year": "2020-2024"
+        "course": "本科 机器人工程",
+        "institution": "广东工业大学",
+        "year": "2023-2027"
       }
     ]
   },
-  "reviewing": [
-    { "venue": "国际零食公平会议 2026", "role": "审稿人" },
-    { "venue": "跨物种玩耍动力学研讨会 2025", "role": "审稿人" }
-  ],
+  "reviewing": [],
   "timeline": [
     {
-      "title": "资深撒娇研究员",
-      "company": "温暖角落",
+      "title": "研究助理",
+      "company": "广东工业大学自动化学院物联网智能信息处理与系统集成教育部重点实验室",
       "companyUrl": "#",
-      "location": "Yaoyao 身边",
-      "start": "2024-09-01",
+      "location": "广州, 中国",
+      "start": "2025-10-22",
       "category": "research",
       "roleType": "research",
       "isCurrent": true,
-      "summary": "研究方向：取暖行为优化和人类距离最小化。",
+      "summary": "Focus: 移动机器人的零样本无图化导航",
       "highlights": [
-        "在居家办公时段实现了 100% 的膝盖占领率。",
-        "发现握手可将零食获取率提升 60%。",
-        "与 Lucas 合著了一篇关于最优阳光共享时间表的论文。"
-      ]
-    },
-    {
-      "title": "初级玩耍伙伴",
-      "company": "Lucas & Cookie 联合公司",
-      "companyUrl": "#",
-      "location": "客厅",
-      "start": "2023-01-15",
-      "end": "2024-05-20",
-      "category": "research",
-      "roleType": "research",
-      "highlights": [
-        "与布偶猫弟弟 Lucas 开发了跨物种玩耍协议。",
-        "优化了追逐翻滚序列，实现最大乐趣与最小家具损伤。",
-        "在年度客厅玩耍大赛中获得最佳搭档奖。"
-      ]
-    },
-    {
-      "title": "零食品鉴实习生",
-      "company": "厨房台面实验室",
-      "companyUrl": "#",
-      "location": "厨房",
-      "start": "2025-06-01",
-      "end": "2025-08-31",
-      "category": "industry",
-      "roleType": "sde",
-      "highlights": [
-        "使用先进的闻一闻尝一尝方法评估了 200+ 种零食。",
-        "将零食浪费率降至 0%（全部样品已消耗）。",
-        "开发了握手换零食流水线，吞吐量提升 3 倍。"
+        "针对基于 LLM（大语言模型）的实时机器人导航中存在的关键延迟及语义 - 几何不一致瓶颈的问题",
+        "研发了双频异步零样本地图导航框架，实现推理与反应式控制的解耦。",
+        "配备语义记忆与视觉可见性约束，保障目标检索的鲁棒性及持续可观测性。",
+        "在仿真及实物测试中均实现了最先进的导航成功率与低定位误差。"
       ]
     }
   ]

@@ -1,7 +1,5 @@
-<!-- 零样本导航二代目 -->
-
 ---
-id: ControlandDecision2026-Nav
+id: mapless-nav-2nd
 title: "Asynchronous Zero-Shot Navigation Planning for Mobile Robots Based on Foundation Models"
 authors: [Hongming Lai 
 , Ketan Lin

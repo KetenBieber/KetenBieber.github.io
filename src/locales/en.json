@@ -167,6 +167,8 @@
     "conference": "CONFERENCE",
     "workshop": "WORKSHOP",
     "demo": "DEMO TRACK",
-    "preprint": "PREPRINT"
+    "preprint": "PREPRINT",
+    "journal": "JOURNAL",
+    "patent": "PATENT"
   }
 }
