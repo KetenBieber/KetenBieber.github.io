@@ -125,12 +125,12 @@ export const publicationVenueColors: Record<string, { bg: (dk: boolean) => strin
   },
   journal: {
     bg: dk => dk ? 'rgba(235, 203, 139, 0.15)' : 'rgba(235, 203, 139, 0.1)',
-    fg: dk => '#ebcb8b',
+      fg: () => '#ebcb8b',
     label: 'JOURNAL',
   },
   patent: {
     bg: dk => dk ? 'rgba(208, 135, 112, 0.15)' : 'rgba(208, 135, 112, 0.1)',
-    fg: dk => '#d08770',
+      fg: () => '#d08770',
     label: 'PATENT',
   },
 }
