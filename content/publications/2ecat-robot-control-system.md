@@ -1,6 +1,6 @@
 ---
 id: ecat-robot-control-system
-title: "Asynchronous Zero-Shot Navigation Planning for Mobile Robots Based on Foundation Models"
+title: "A real-time robotic control framework centered on the EtherCAT master for hardware interfacing."
 authors: [Ketan Lin, Canhui Wei, Zixi Zheng, Yu Peng]
 venue: China National Intellectual Property Administration(Chinese Invention Patent)
 venueType: patent
