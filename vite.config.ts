@@ -7,7 +7,7 @@ import { copyFileSync, mkdirSync, writeFileSync } from 'fs'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/ketenbieber.github.io/',
+  base: '/',
   plugins: [
     react(),
     markdown(),
