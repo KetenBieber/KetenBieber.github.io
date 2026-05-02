@@ -126,6 +126,7 @@ export interface ProjectItem {
   category: 'robotics' | 'nlp' | 'web-app' | 'data' | 'tooling' | 'healthcare'
   highlights?: string[]
   featuredImage?: string
+  details?: string
   isOpenSource?: boolean
   role?: 'independent' | 'lead' | 'tech-lead' | 'maintainer'
   story?: string

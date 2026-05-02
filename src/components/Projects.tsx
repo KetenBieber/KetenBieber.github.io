@@ -45,10 +45,10 @@ const buildThemes = (dk: boolean): Record<ProjectItem['category'], CatThemeWithA
 
 /* ── Role config ───────────────────────────────────────────────── */
 const roleConfig: Record<string, { textKey: string; icon: IconType; color: (d: boolean) => string }> = {
-  independent: { textKey: 'projects.independent', icon: FaUser,   color: d => d ? '#ebcb8b' : '#c47d46' },
-  lead:        { textKey: 'projects.lead',        icon: FaCrown,  color: d => d ? '#d08770' : '#b35a2e' },
-  'tech-lead': { textKey: 'projects.techLead',    icon: FaCog,    color: d => d ? '#88c0d0' : '#2a769c' },
-  maintainer:  { textKey: 'projects.maintainer',  icon: FaSync,   color: d => d ? '#a3be8c' : '#36805a' },
+  independent: { textKey: 'projects.independent', icon: FaUser, color: d => d ? '#ebcb8b' : '#c47d46' },
+  lead: { textKey: 'projects.lead', icon: FaCrown, color: d => d ? '#d08770' : '#b35a2e' },
+  'tech-lead': { textKey: 'projects.techLead', icon: FaCog, color: d => d ? '#88c0d0' : '#2a769c' },
+  maintainer: { textKey: 'projects.maintainer', icon: FaSync, color: d => d ? '#a3be8c' : '#36805a' },
 }
 
 /* ── Helpers ────────────────────────────────────────────────────── */
@@ -83,15 +83,17 @@ const FlowNode: React.FC<{
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const role = roleConfig[item.role || 'independent']
-  const hasImg = !!item.featuredImage
+
+  const coverImage = item.featuredImage
+  const hasImg = !!coverImage
+  const hasDetails = !!item.details || (item.highlights && item.highlights.length > 0) || !!item.story
+
   const res: { label: string; url: string }[] = []
   if (item.link) res.push({ label: t('projects.source'), url: item.link })
   item.extraLinks?.forEach(l => { if (!res.some(r => r.url === l.url)) res.push(l) })
-  const hasExpandable = (item.highlights && item.highlights.length > 0) || item.story
 
   return (
     <Flex gap={[3, 3, 4]} align="start" py={3} position="relative">
-      {/* Dot — hollow ring, filled for featured/last */}
       <Box flexShrink={0} mt="6px">
         <Box
           w="14px" h="14px" borderRadius="full"
@@ -103,9 +105,7 @@ const FlowNode: React.FC<{
         />
       </Box>
 
-      {/* Content */}
       <Box flex={1} minW={0}>
-        {/* Category + Role + Date label line */}
         <HStack spacing={2} mb={1} flexWrap="wrap" align="center">
           <Box h="2px" w="16px" bg={ct.color} borderRadius="full" />
           <HStack spacing={1} color={ct.color}>
@@ -127,20 +127,18 @@ const FlowNode: React.FC<{
           </Text>
         </HStack>
 
-        {/* Title */}
         <Text fontSize={['sm', 'md']} fontWeight="semibold" lineHeight="tall"
           color={termText} mb={1}
-          cursor={hasExpandable ? 'pointer' : undefined}
+          cursor={hasDetails ? 'pointer' : undefined}
           transition="color 0.15s"
-          _hover={hasExpandable ? { color: ct.color } : undefined}
-          onClick={hasExpandable ? () => setExpanded(p => !p) : undefined}>
+          _hover={hasDetails ? { color: ct.color } : undefined}
+          onClick={hasDetails ? () => setExpanded(p => !p) : undefined}>
           {item.title}
           {item.featured && (
             <Text as="span" ml={2} fontSize="xs" color={hlc.num}>★</Text>
           )}
         </Text>
 
-        {/* Badges */}
         {item.badge && (
           <HStack spacing={1.5} mb={2} flexWrap="wrap">
             <Text fontSize="2xs" fontFamily="mono" px={2} py={0.5} borderRadius="sm"
@@ -151,36 +149,15 @@ const FlowNode: React.FC<{
           </HStack>
         )}
 
-        {/* Body: image left + summary right */}
         <Flex direction={['column', 'column', hasImg ? 'row' : 'column']}
           gap={[3, 3, 4]} align="stretch">
-          {hasImg && (
-            <Box
-              flexShrink={0} w={['full', 'full', '260px']}
-              minH={['180px', '200px', 'auto']}
-              cursor="zoom-in" overflow="hidden" borderRadius="sm"
-              onClick={() => {
-                const img = item.featuredImage
-                if (img) onImageClick(withBase(img) as string, item.title)
-              }}
-            >
-              <Image src={withBase(item.featuredImage!)} alt={item.title}
-                w="full" h="full" objectFit="contain"
-                bg={isDark ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.02)'} p={1}
-                transition="transform 0.3s" _hover={{ transform: 'scale(1.03)' }} />
-            </Box>
-          )}
-
           <VStack align="start" spacing={2.5} flex={1} minW={0} justify="center">
-            {/* Summary */}
             <Text fontSize="xs" lineHeight="tall" color={termSecondary}>
               {highlightData(item.summary, hlc)}
             </Text>
 
-            {/* Divider */}
             <Box w="full" h="1px" bg={termBorder} opacity={0.4} />
 
-            {/* Links + Expand button row */}
             <HStack spacing={1.5} flexWrap="wrap">
               {res.map(r => (
                 <Link key={r.url} href={r.url} isExternal
@@ -195,7 +172,8 @@ const FlowNode: React.FC<{
                   </HStack>
                 </Link>
               ))}
-              {hasExpandable && (
+
+              {hasDetails && (
                 <HStack as="button" spacing={1.5} px={2.5} py={1} borderRadius="sm"
                   border="1px solid" fontSize="xs" fontFamily="mono"
                   borderColor={expanded ? ct.color : termBorder}
@@ -211,42 +189,91 @@ const FlowNode: React.FC<{
               )}
             </HStack>
 
-            {/* Tags as simple pills */}
-            {item.tags.length > 0 && (
+            {item.tags && item.tags.length > 0 && (
               <HStack spacing={1.5} flexWrap="wrap">
-                {item.tags.map(t => (
-                  <Text key={t} fontSize="2xs" fontFamily="mono"
+                {item.tags.map(tt => (
+                  <Text key={tt} fontSize="2xs" fontFamily="mono"
                     color={termMuted} px={1.5} py={0.5}
                     bg={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}
                     borderRadius="sm">
-                    {t}
+                    {tt}
                   </Text>
                 ))}
               </HStack>
             )}
           </VStack>
+
+          {hasImg && (
+            <Box
+              flexShrink={0} w={['full', 'full', '260px']}
+              minH={['180px', '200px', 'auto']}
+              cursor="zoom-in" overflow="hidden" borderRadius="sm"
+              onClick={() => {
+                if (coverImage) onImageClick(withBase(coverImage) as string, item.title)
+              }}
+            >
+              <Image src={withBase(coverImage!)} alt={item.title}
+                w="full" h="full" objectFit="cover"
+                transition="transform 0.3s" _hover={{ transform: 'scale(1.03)' }} />
+            </Box>
+          )}
         </Flex>
 
-        {/* Expandable details */}
         <Collapse in={expanded} animateOpacity>
           <VStack align="stretch" spacing={3} mt={3}>
-            {item.highlights && item.highlights.length > 0 && (
-              <Box>
-                {item.highlights.map((h, i) => (
-                  <Text key={i} fontSize="xs" color={termSecondary} lineHeight="1.8">
-                    <Text as="span" color={ct.color} mr={1.5}>▸</Text>{highlightData(h, hlc)}
-                  </Text>
-                ))}
+            {item.details && (
+              <Box fontSize="sm" color={termText} lineHeight="tall"
+                sx={{
+                  'img': { maxW: '100%', borderRadius: '4px', my: 2 },
+                  'div': { my: 2 },
+                  'p': { my: 1 },
+                  'a': { color: hlc.kw, textDecoration: 'underline' },
+                }}>
+                {(() => {
+                  const lines = item.details.split('\n')
+                  const elements: React.ReactNode[] = []
+                  let i = 0
+                  while (i < lines.length) {
+                    const line = lines[i]
+                    const trimmed = line.trim()
+                    if (!trimmed) {
+                      elements.push(<Box key={`blank-${i}`} h={2} />)
+                      i++
+                    } else if (trimmed.startsWith('<')) {
+                      // Collect multi-line HTML blocks
+                      let htmlBlock = trimmed
+                      i++
+                      while (i < lines.length && !lines[i].trim().startsWith('</')) {
+                        htmlBlock += '\n' + lines[i]
+                        i++
+                      }
+                      if (i < lines.length) {
+                        htmlBlock += '\n' + lines[i]
+                        i++
+                      }
+                      elements.push(
+                        <Box key={`html-${elements.length}`} dangerouslySetInnerHTML={{ __html: htmlBlock }} />
+                      )
+                    } else {
+                      elements.push(
+                        <Text key={`text-${elements.length}`}>{highlightData(line, hlc)}</Text>
+                      )
+                      i++
+                    }
+                  }
+                  return elements
+                })()}
               </Box>
             )}
-
+            {item.highlights && item.highlights.length > 0 && (
+              <VStack align="stretch" spacing={2}>
+                {item.highlights.map((h, i) => (
+                  <Text key={i} fontSize="sm" color={termText}>{highlightData(h, hlc)}</Text>
+                ))}
+              </VStack>
+            )}
             {item.story && (
-              <Box p={3} bg={isDark ? 'rgba(0,0,0,0.15)' : 'rgba(0,0,0,0.02)'}
-                borderRadius="md" borderLeft="2px solid" borderLeftColor={ct.color}>
-                <Text fontSize={['xs', 'xs']} lineHeight="tall" color={termMuted} fontStyle="italic">
-                  "{highlightData(item.story, hlc)}"
-                </Text>
-              </Box>
+              <Text fontSize="sm" color={termText}>{item.story}</Text>
             )}
           </VStack>
         </Collapse>
@@ -254,6 +281,7 @@ const FlowNode: React.FC<{
     </Flex>
   )
 }
+
 
 /* ══════════════════════════════════════════════════════════════════
    ── Main Projects Component ──
@@ -271,25 +299,25 @@ const Projects: React.FC = () => {
 
   /* Terminal palette (centralized) */
   const tc = terminalPalette.colors(isDark)
-  const termBg       = tc.bg
-  const termText     = tc.text
-  const termHeader   = tc.header
-  const termTabBar   = tc.tabBar
-  const termBorder   = tc.border
-  const termPrompt   = tc.prompt
-  const termInfo     = tc.info
+  const termBg = tc.bg
+  const termText = tc.text
+  const termHeader = tc.header
+  const termTabBar = tc.tabBar
+  const termBorder = tc.border
+  const termPrompt = tc.prompt
+  const termInfo = tc.info
   const termHighlight = tc.highlight
   const termSecondary = tc.secondary
-  const termMuted    = tc.muted
-  const termCommand  = tc.command
-  const termSuccess  = tc.success
+  const termMuted = tc.muted
+  const termCommand = tc.command
+  const termSuccess = tc.success
   const hlc = { num: termHighlight, kw: termCommand, str: termSuccess }
 
   const themes = useMemo(() => buildThemes(isDark), [isDark])
 
   const projects = useMemo<TP[]>(() =>
     projectData.map((p, i) => ({ ...p, id: `p-${i}` }))
-  , [projectData])
+    , [projectData])
 
   /* ── Tabs ── */
   const tabs = useMemo(() => {
@@ -354,7 +382,7 @@ const Projects: React.FC = () => {
           {/* ═══ Pixel RGB light bar ═══ */}
           <Flex h="3px" w="full" overflow="hidden" borderTopRadius="md">
             {(() => {
-              const palette = ['#bf616a','#d08770','#ebcb8b','#a3be8c','#88c0d0','#5e81ac','#b48ead'];
+              const palette = ['#bf616a', '#d08770', '#ebcb8b', '#a3be8c', '#88c0d0', '#5e81ac', '#b48ead'];
               const total = 28;
               const tick = Math.floor(Date.now() / 200);
               return Array.from({ length: total }, (_, i) => {

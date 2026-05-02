@@ -6,8 +6,23 @@ tags: [LLM, ROS, Path Planning, MPC, Bezier, RRT*, Sim2Real]
 link: "#"
 isOpenSource: false
 role: lead
-story: 本项目面向未知、非结构化环境下的移动机器人，提出了新型异步导航框架 DualNav。本人主导系统架构设计与 ROS 软件栈模块化开发，采用异步双环多线程架构，解耦高频运动控制与低频语义推理。通过 Gazebo 仿真平台复现并验证基线算法，集成 Informed RRT* 路径搜索、Bezier 轨迹平滑与 MPC 跟踪算法，显著提升导航鲁棒性与动力学性能。最终完成 TurtleBot3 实机部署与 sim2real 多场景验证，相关成果以第三作者身份发表于 EA-AI（审稿中），并以第二作者身份发表于 Control Theory & Applications（审稿中）。
+featured: true
+featuredImage: /images/projects/zero-result1.jpg
+details: |
+  本人主导系统架构设计与 ROS 模块化软件栈实现，开发了异步双环多线程架构以解耦高频运动控制与低频语义推理，并搭建 Gazebo 仿真平台用于基线算法复现与验证。
+
+  集成了 Informed RRT* 路径搜索、Bezier 轨迹平滑与 MPC 跟踪算法以实现鲁棒导航，并将整套系统部署至 TurtleBot3 实机平台，完成 sim2real 迁移与多场景验证。
+
+  以第三作者身份参与论文《DualNav—Online Planning for Zero-Shot Robot Navigation with Asynchronous Foundation Models and Active Visual-Semantic Memory》（EA-AI，审稿中），以第二作者身份参与《Zero-Shot Asynchronous Navigation for Mobile Robots with Foundation Models》（Control Theory & Applications，审稿中）。
+
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;">
+    <img src="/images/projects/zero-result1.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/zero-result2.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/zero-result3.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/zero-result4.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/zero-result5.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/zero-result6.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+  </div>
 ---
 
-
-本项目提出了 DualNav 异步导航框架，针对大模型推理延迟与语义-几何约束不一致等问题，创新性地将低频语义推理与高频运动控制解耦，并通过增量式视觉-语义记忆实现轻量级环境建模。集成 Informed RRT* 路径搜索、Bezier 轨迹平滑与 MPC 跟踪算法，显著提升了导航的动力学性能与鲁棒性。项目成果已在仿真与实机多场景下完成验证。
+提出了面向未知非结构化环境下移动机器人的新型异步导航框架（DualNav），利用大模型进行低频语义推理，结合高频控制回路实现实时运动。增量式视觉-语义记忆实现了轻量级环境建模。集成 Informed RRT* 路径搜索、Bezier 轨迹平滑与 MPC 跟踪算法，显著提升动力学性能与路径质量。
