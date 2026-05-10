@@ -16,12 +16,12 @@ details: |
   I contributed as third author to the paper "DualNav—Online Planning for Zero-Shot Robot Navigation with Asynchronous Foundation Models and Active Visual-Semantic Memory" (EA-AI, under review) and as second author to "Zero-Shot Asynchronous Navigation for Mobile Robots with Foundation Models" (Control Theory & Applications, under review).
 
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;">
-    <img src="/images/projects/zero-result1.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
-    <img src="/images/projects/zero-result2.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
-    <img src="/images/projects/zero-result3.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
-    <img src="/images/projects/zero-result4.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
-    <img src="/images/projects/zero-result5.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
-    <img src="/images/projects/zero-result6.jpg" style="width: 100%; border-radius: 6px; object-fit: cover; aspect-ratio: 1;" />
+    <img src="/images/projects/video1.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video2.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video3.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video4.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video5.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video6.gif" style="width: 100%; border-radius: 6px;" />
   </div>
 ---
 
