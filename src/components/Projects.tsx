@@ -87,13 +87,16 @@ const FlowNode: React.FC<{
     const hash = window.location.hash.replace(/^#/, '')
     if (hash && item.details?.includes(`id="${hash}"`)) {
       setExpanded(true)
-      const timer = setTimeout(() => {
+      // Try multiple times: Collapse animation may not have finished
+      const tryScroll = (attempt: number) => {
         const el = document.getElementById(hash)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        } else if (attempt < 5) {
+          setTimeout(() => tryScroll(attempt + 1), 200)
         }
-      }, 500)
-      return () => clearTimeout(timer)
+      }
+      setTimeout(() => tryScroll(0), 350)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const role = roleConfig[item.role || 'independent']
