@@ -16,12 +16,12 @@ details: |
   以第三作者身份参与论文《DualNav—Online Planning for Zero-Shot Robot Navigation with Asynchronous Foundation Models and Active Visual-Semantic Memory》（EA-AI，审稿中），以第二作者身份参与《Zero-Shot Asynchronous Navigation for Mobile Robots with Foundation Models》（Control Theory & Applications，审稿中）。
 
   <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px;">
-    <img src="/images/projects/video1.gif" style="width: 100%; border-radius: 6px;" />
-    <img src="/images/projects/video2.gif" style="width: 100%; border-radius: 6px;" />
-    <img src="/images/projects/video3.gif" style="width: 100%; border-radius: 6px;" />
-    <img src="/images/projects/video4.gif" style="width: 100%; border-radius: 6px;" />
-    <img src="/images/projects/video5.gif" style="width: 100%; border-radius: 6px;" />
-    <img src="/images/projects/video6.gif" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video1.gif" id="dualnav-1" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video2.gif" id="dualnav-2" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video3.gif" id="dualnav-3" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video4.gif" id="dualnav-4" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video5.gif" id="dualnav-5" style="width: 100%; border-radius: 6px;" />
+    <img src="/images/projects/video6.gif" id="dualnav-6" style="width: 100%; border-radius: 6px;" />
   </div>
 ---
 
