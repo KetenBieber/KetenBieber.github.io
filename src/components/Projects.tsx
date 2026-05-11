@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Box, Collapse, Flex, HStack, Icon, Input, Link, Text, VStack,
   Image, useColorMode, useColorModeValue,
@@ -79,9 +80,23 @@ const FlowNode: React.FC<{
   termSecondary: string; termMuted: string; termBorder: string
   hlc: { num: string; kw: string; str: string }
   onImageClick: (src: string, alt: string) => void
-}> = ({ item, ct, isDark, isLast: _isLast, termText, termSecondary, termMuted, termBorder, hlc, onImageClick }) => {
+  autoExpandHash?: string
+}> = ({ item, ct, isDark, isLast: _isLast, termText, termSecondary, termMuted, termBorder, hlc, onImageClick, autoExpandHash }) => {
   const { t } = useTranslation()
-  const [expanded, setExpanded] = useState(false)
+  const shouldAutoExpand = !!(autoExpandHash && item.details?.includes(`id="${autoExpandHash}"`))
+  const [expanded, setExpanded] = useState(shouldAutoExpand)
+
+  useEffect(() => {
+    if (shouldAutoExpand && expanded && autoExpandHash) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(autoExpandHash)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        }
+      }, 400)
+      return () => clearTimeout(timer)
+    }
+  }, [shouldAutoExpand, expanded, autoExpandHash])
   const role = roleConfig[item.role || 'independent']
 
   const coverImage = item.featuredImage
@@ -291,6 +306,11 @@ const Projects: React.FC = () => {
   const isDark = colorMode === 'dark'
   const { t } = useTranslation()
   const { projects: projectData, siteOwner } = useLocalizedData()
+  const location = useLocation()
+  const videoHash = useMemo(() => {
+    const raw = location.hash.replace(/^#/, '')
+    return raw || null
+  }, [location.hash])
 
   const [activeTab, setActiveTab] = useState<TabKey>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -526,7 +546,8 @@ const Projects: React.FC = () => {
                           termSecondary={termSecondary} termMuted={termMuted}
                           termBorder={termBorder}
                           hlc={hlc}
-                          onImageClick={onImgClick} />
+                          onImageClick={onImgClick}
+                          autoExpandHash={videoHash ?? undefined} />
                       ))}
                     </VStack>
                   </Box>
