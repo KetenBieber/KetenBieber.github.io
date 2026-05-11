@@ -37,7 +37,7 @@ details: |
 
   <div style="display: flex; gap: 12px; margin-top: 16px;">
     <div style="flex: 1; display: flex; flex-direction: column;">
-      <video src="/images/projects/ecat-sync2.0.mp4" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
+      <video src="/images/projects/ecat-sync2.0.mp4" id="ecat-sync" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
       <span style="display: block; margin-top: 6px; font-size: 13px; color: #88c0d0; text-align: center;">Dual ECAT synchronization, 250μs sync cycle, ns-level jitter</span></div>
     <div style="flex: 1;">
       <img src="/images/projects/monitor.png" style="width: 100%; border-radius: 6px;" /></div>

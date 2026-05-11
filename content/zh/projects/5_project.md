@@ -19,7 +19,7 @@ details: |
   在 Orange Pi 5 Pro（RK3588S）上完成 YOLOv5 目标检测模型的部署，调用板载 3 核 NPU 对推理进行硬件加速。处理固定视频流时，峰值推理速度可达 170 fps（线程池模式）；接入 30 fps 相机实时视频流时，推理帧率基本跑满相机帧率，满足比赛对实时性的严苛要求。
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/ball-recongnize.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/ball-recongnize.mp4" id="ball-recognize" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 
   <strong style="color: #a3be8c;">2. 实时评分决策系统</strong>
@@ -33,7 +33,7 @@ details: |
   系统对以上维度进行加权求和，输出当前最优抓取目标，并将决策结果（视野内 XY 偏差 + 径向距离偏差）通过串口实时回传至嵌入式运动控制器，驱动底盘与执行机构完成目标逼近与搜集，实现上位机感知决策与下位机运动控制的闭环协同。
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/find-ball.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/find-ball.mp4" id="find-ball" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 ---
 

@@ -20,10 +20,10 @@ details: |
   </ul>
 
   <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 24px;">
-    <video src="/images/projects/move-show.mp4" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
-    <video src="/images/projects/shoot-light.mp4" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
-    <video src="/images/projects/shoot-long-distance.mp4" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
-    <video src="/images/projects/shoot-with-Lu.mp4" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/move-show.mp4" id="move-show" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/shoot-light.mp4" id="shoot-light" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/shoot-long-distance.mp4" id="shoot-long" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/shoot-with-Lu.mp4" id="shoot-with-lu" controls style="width: 100%; border-radius: 6px;" preload="metadata"></video>
   </div>
 ---
 

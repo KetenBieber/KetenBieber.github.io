@@ -14,7 +14,7 @@ details: |
   本机为参赛 R2 机器人，采用三全向轮底盘，具备相机视觉识别、颜色传感器二次校核、正交码盘全场定位等多模态感知能力，能够在场地内全自主完成稻谷目标的识别、收集、转运与入仓。
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/24rc.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/24rc.mp4" id="24rc" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
   <div style="margin: 12px 0;">
     <video src="/images/projects/harvest.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>

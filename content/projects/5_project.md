@@ -19,7 +19,7 @@ details: |
   Deployed the YOLOv5 object detection model on an Orange Pi 5 Pro (RK3588S), leveraging the onboard 3-core NPU for hardware-accelerated inference. Peak throughput reaches 170 fps on pre-recorded video streams (thread-pool mode), and the system comfortably saturates a 30 fps live camera feed, meeting the stringent real-time demands of the competition.
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/ball-recongnize.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/ball-recongnize.mp4" id="ball-recognize" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 
   <strong style="color: #a3be8c;">2. Real-Time Scoring & Decision System</strong>
@@ -33,7 +33,7 @@ details: |
   The system computes a weighted score for each candidate and selects the optimal target. The resulting decision (XY offset + radial distance deviation in the camera frame) is streamed via serial to the embedded motion controller, which drives the chassis and actuator to approach and collect the target — forming a closed-loop architecture where host-side perception and decision-making are tightly coupled with low-level motion control.
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/find-ball.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/find-ball.mp4" id="find-ball" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 
 ---

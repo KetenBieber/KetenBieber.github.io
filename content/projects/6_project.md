@@ -14,11 +14,11 @@ details: |
   This entry is the R2 robot, built on a three-omni-wheel chassis with multi-modal perception — camera-based target recognition, color sensor secondary verification, and orthogonal encoder full-field odometry — enabling fully autonomous identification, collection, transport, and granary deposit of rice-grain targets.
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/24rc.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/24rc.mp4" id="24rc" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 
   <div style="margin: 12px 0;">
-    <video src="/images/projects/harvest.mp4" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
+    <video src="/images/projects/harvest.mp4" id="harvest" controls style="width: 100%; max-width: 640px; border-radius: 6px;" preload="metadata"></video>
   </div>
 
   <strong style="font-size: 16px; display: block; margin: 16px 0 8px 0; color: #a3be8c;">Technical Overview</strong>
