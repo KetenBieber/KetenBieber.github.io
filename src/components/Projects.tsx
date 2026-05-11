@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import {
   Box, Collapse, Flex, HStack, Icon, Input, Link, Text, VStack,
   Image, useColorMode, useColorModeValue,
@@ -80,23 +79,23 @@ const FlowNode: React.FC<{
   termSecondary: string; termMuted: string; termBorder: string
   hlc: { num: string; kw: string; str: string }
   onImageClick: (src: string, alt: string) => void
-  autoExpandHash?: string
-}> = ({ item, ct, isDark, isLast: _isLast, termText, termSecondary, termMuted, termBorder, hlc, onImageClick, autoExpandHash }) => {
+}> = ({ item, ct, isDark, isLast: _isLast, termText, termSecondary, termMuted, termBorder, hlc, onImageClick }) => {
   const { t } = useTranslation()
-  const shouldAutoExpand = !!(autoExpandHash && item.details?.includes(`id="${autoExpandHash}"`))
-  const [expanded, setExpanded] = useState(shouldAutoExpand)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
-    if (shouldAutoExpand && expanded && autoExpandHash) {
+    const hash = window.location.hash.replace(/^#/, '')
+    if (hash && item.details?.includes(`id="${hash}"`)) {
+      setExpanded(true)
       const timer = setTimeout(() => {
-        const el = document.getElementById(autoExpandHash)
+        const el = document.getElementById(hash)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' })
         }
-      }, 400)
+      }, 500)
       return () => clearTimeout(timer)
     }
-  }, [shouldAutoExpand, expanded, autoExpandHash])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const role = roleConfig[item.role || 'independent']
 
   const coverImage = item.featuredImage
@@ -306,11 +305,6 @@ const Projects: React.FC = () => {
   const isDark = colorMode === 'dark'
   const { t } = useTranslation()
   const { projects: projectData, siteOwner } = useLocalizedData()
-  const location = useLocation()
-  const videoHash = useMemo(() => {
-    const raw = location.hash.replace(/^#/, '')
-    return raw || null
-  }, [location.hash])
 
   const [activeTab, setActiveTab] = useState<TabKey>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -546,8 +540,7 @@ const Projects: React.FC = () => {
                           termSecondary={termSecondary} termMuted={termMuted}
                           termBorder={termBorder}
                           hlc={hlc}
-                          onImageClick={onImgClick}
-                          autoExpandHash={videoHash ?? undefined} />
+                          onImageClick={onImgClick} />
                       ))}
                     </VStack>
                   </Box>
