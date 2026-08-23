@@ -56,6 +56,8 @@
     "download": "下载",
     "copyLink": "复制链接",
     "copied": "已复制",
+    "like": "为这篇笔记点赞",
+    "liked": "你已点赞这篇笔记",
     "close": "关闭阅读器",
     "empty": "还没有笔记。将 PDF 放入 content/notes 后重新部署即可。",
     "noResults": "没有符合搜索条件的笔记。"

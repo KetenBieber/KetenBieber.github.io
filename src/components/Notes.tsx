@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Badge, Box, Button, Container, Flex, Heading, HStack, IconButton, Input,
   Link, Modal, ModalBody, ModalContent, ModalHeader, ModalOverlay, SimpleGrid,
   Text, VStack, useClipboard, useColorModeValue,
 } from '@chakra-ui/react'
 import { CloseIcon, DownloadIcon, ExternalLinkIcon, SearchIcon } from '@chakra-ui/icons'
-import { FaFileAlt, FaFilePdf, FaLink } from 'react-icons/fa'
+import { FaEye, FaFileAlt, FaFilePdf, FaHeart, FaLink, FaRegHeart } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 
 type NoteMeta = {
@@ -74,6 +74,23 @@ const notes: Note[] = [...pdfNotes, ...markdownNotes].sort((a, b) => {
   return (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)
 })
 
+type CounterResponse = { value?: number }
+type Counts = Record<string, number>
+
+const getCounterUrl = (action: 'note-view' | 'note-like', slug: string, readOnly = false) => {
+  const namespace = (import.meta.env.VITE_COUNTER_NAMESPACE || window.location.hostname || 'portfolio')
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+  const base = `https://counterapi.com/api/${encodeURIComponent(namespace)}/${action}/${encodeURIComponent(slug)}`
+  return readOnly ? `${base}?readOnly=true` : base
+}
+
+const readCount = async (action: 'note-view' | 'note-like', slug: string) => {
+  const response = await fetch(getCounterUrl(action, slug, true))
+  if (!response.ok) return 0
+  const data = await response.json() as CounterResponse
+  return typeof data.value === 'number' ? data.value : 0
+}
+
 const Notes = () => {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -82,11 +99,53 @@ const Notes = () => {
     const slug = new URLSearchParams(window.location.search).get('note')
     return notes.find(note => note.slug === slug) ?? null
   })
+  const [views, setViews] = useState<Counts>({})
+  const [likes, setLikes] = useState<Counts>({})
+  const [liked, setLiked] = useState<Record<string, boolean>>(() => Object.fromEntries(
+    notes.map(note => [note.slug, localStorage.getItem(`note-liked:${note.slug}`) === 'true']),
+  ))
   const border = useColorModeValue('gray.200', 'gray.700')
   const muted = useColorModeValue('gray.600', 'gray.400')
   const cardBg = useColorModeValue('white', 'black')
   const shareUrl = selected ? `${window.location.origin}${import.meta.env.BASE_URL}notes?note=${encodeURIComponent(selected.slug)}` : ''
   const { onCopy, hasCopied } = useClipboard(shareUrl)
+
+  useEffect(() => {
+    Promise.all(notes.map(async note => {
+      const [viewCount, likeCount] = await Promise.all([
+        readCount('note-view', note.slug), readCount('note-like', note.slug),
+      ])
+      return { slug: note.slug, viewCount, likeCount }
+    })).then(results => {
+      setViews(Object.fromEntries(results.map(item => [item.slug, item.viewCount])))
+      setLikes(Object.fromEntries(results.map(item => [item.slug, item.likeCount])))
+    }).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    if (!selected) return
+    const sessionKey = `note-viewed:${selected.slug}`
+    if (sessionStorage.getItem(sessionKey)) return
+    sessionStorage.setItem(sessionKey, 'true')
+    fetch(getCounterUrl('note-view', selected.slug))
+      .then(response => response.ok ? response.json() as Promise<CounterResponse> : Promise.reject())
+      .then(data => typeof data.value === 'number' && setViews(previous => ({ ...previous, [selected.slug]: data.value! })))
+      .catch(() => undefined)
+  }, [selected])
+
+  const likeNote = async (note: Note) => {
+    if (liked[note.slug]) return
+    try {
+      const response = await fetch(getCounterUrl('note-like', note.slug))
+      if (!response.ok) return
+      const data = await response.json() as CounterResponse
+      localStorage.setItem(`note-liked:${note.slug}`, 'true')
+      setLiked(previous => ({ ...previous, [note.slug]: true }))
+      if (typeof data.value === 'number') setLikes(previous => ({ ...previous, [note.slug]: data.value! }))
+    } catch {
+      // Engagement counters are optional and must never block reading.
+    }
+  }
 
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase()
@@ -142,7 +201,22 @@ const Notes = () => {
                   {getCategories(note).map(item => <Badge key={item} variant="outline">{item}</Badge>)}
                   {(note.tags ?? []).slice(0, 3).map(tag => <Badge key={tag} variant="subtle">{tag}</Badge>)}
                 </HStack>
-                <Button size="sm" variant="outline" rightIcon={<ExternalLinkIcon />} onClick={() => setSelected(note)}>{t('notes.open')}</Button>
+                <Flex align="center" gap={3}>
+                  <Button flex="1" size="sm" variant="outline" rightIcon={<ExternalLinkIcon />} onClick={() => setSelected(note)}>{t('notes.open')}</Button>
+                  <HStack spacing={1} color={muted} fontSize="xs" flexShrink={0}>
+                    <Box as={FaEye} />
+                    <Text>{views[note.slug] ?? 0}</Text>
+                  </HStack>
+                  <Button
+                    size="xs" variant="ghost" minW="auto" px={1.5}
+                    leftIcon={liked[note.slug] ? <FaHeart /> : <FaRegHeart />}
+                    color={liked[note.slug] ? 'var(--text-color)' : muted}
+                    onClick={() => likeNote(note)}
+                    aria-label={liked[note.slug] ? t('notes.liked') : t('notes.like')}
+                  >
+                    {likes[note.slug] ?? 0}
+                  </Button>
+                </Flex>
               </VStack>
             ))}
           </SimpleGrid>

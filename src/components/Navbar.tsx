@@ -6,7 +6,7 @@ import {
 import { MoonIcon, SunIcon, HamburgerIcon, CloseIcon } from '@chakra-ui/icons'
 import { Link, useLocation } from 'react-router-dom'
 import { FaGithub, FaLinkedin, FaMedium, FaEnvelope } from 'react-icons/fa'
-import { SiGooglescholar } from 'react-icons/si'
+import { SiGooglescholar, SiZhihu } from 'react-icons/si'
 import { useTranslation } from 'react-i18next'
 import { navItems, siteOwner } from '@/site.config'
 
@@ -26,6 +26,7 @@ const Navbar: React.FC = () => {
     { icon: FaLinkedin, href: siteOwner.social.linkedin, label: 'LinkedIn' },
     { icon: FaMedium, href: siteOwner.social.medium, label: 'Medium' },
     { icon: SiGooglescholar, href: siteOwner.social.googleScholar, label: 'Google Scholar' },
+    { icon: SiZhihu, href: siteOwner.social.zhihu, label: 'Zhihu' },
   ].filter(link => link.href)
 
   return (

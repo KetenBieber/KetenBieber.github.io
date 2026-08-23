@@ -61,7 +61,7 @@
     "twitter": "",
     "youtube": "",
     "bilibili": "",
-    "zhihu": "",
+    "zhihu": "https://www.zhihu.com/people/33-20-55-56",
     "csdn": "",
     "blog": ""
   },
@@ -83,6 +83,12 @@
       "icon": "FaGithub",
       "label": "GitHub",
       "color": "#333"
+    },
+    {
+      "platform": "zhihu",
+      "icon": "SiZhihu",
+      "label": "Zhihu",
+      "color": "#666"
     }
   ],
   "selectedPublicationIds": [
