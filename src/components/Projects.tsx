@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Box, Collapse, Flex, HStack, Icon, Input, Link, Text, VStack,
-  Image, useColorMode, useColorModeValue,
+  Image, useColorMode,
   Modal, ModalOverlay, ModalContent, ModalBody, ModalCloseButton,
   useDisclosure,
 } from '@chakra-ui/react'
@@ -45,10 +45,10 @@ const buildThemes = (dk: boolean): Record<ProjectItem['category'], CatThemeWithA
 
 /* ── Role config ───────────────────────────────────────────────── */
 const roleConfig: Record<string, { textKey: string; icon: IconType; color: (d: boolean) => string }> = {
-  independent: { textKey: 'projects.independent', icon: FaUser, color: d => d ? '#ebcb8b' : '#c47d46' },
-  lead: { textKey: 'projects.lead', icon: FaCrown, color: d => d ? '#d08770' : '#b35a2e' },
-  'tech-lead': { textKey: 'projects.techLead', icon: FaCog, color: d => d ? '#88c0d0' : '#2a769c' },
-  maintainer: { textKey: 'projects.maintainer', icon: FaSync, color: d => d ? '#a3be8c' : '#36805a' },
+  independent: { textKey: 'projects.independent', icon: FaUser, color: d => d ? '#d8d8d8' : '#292929' },
+  lead: { textKey: 'projects.lead', icon: FaCrown, color: d => d ? '#d8d8d8' : '#292929' },
+  'tech-lead': { textKey: 'projects.techLead', icon: FaCog, color: d => d ? '#d8d8d8' : '#292929' },
+  maintainer: { textKey: 'projects.maintainer', icon: FaSync, color: d => d ? '#d8d8d8' : '#292929' },
 }
 
 /* ── Helpers ────────────────────────────────────────────────────── */
@@ -390,34 +390,16 @@ const Projects: React.FC = () => {
   const promptPath = activeTab === 'all' ? '~' : `~/${activeTab}`
 
   return (
-    <Box w="full" minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')} py={8}>
+    <Box w="full" minH="100vh" bg="var(--bg-color)" py={8}>
       <VStack maxW="1400px" mx="auto" spacing={4} px={[2, 4, 8]}>
         <Box
-          w="full" borderRadius="md" fontFamily="mono" overflow="hidden"
-          boxShadow={`0 0 0 1px ${termBorder}, 0 4px 16px ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)'}`}
+          w="full" borderRadius="2px" fontFamily="mono" overflow="hidden"
+          border={`1px solid ${termBorder}`}
         >
           {/* ═══ Pixel RGB light bar ═══ */}
-          <Flex h="3px" w="full" overflow="hidden" borderTopRadius="md">
-            {(() => {
-              const palette = ['#bf616a', '#d08770', '#ebcb8b', '#a3be8c', '#88c0d0', '#5e81ac', '#b48ead'];
-              const total = 28;
-              const tick = Math.floor(Date.now() / 200);
-              return Array.from({ length: total }, (_, i) => {
-                const colorIdx = (i + tick) % palette.length;
-                const brightness = 0.6 + 0.4 * Math.abs(Math.sin((i + tick * 0.5) * 0.3));
-                return <Box key={i} flex={1} h="full" bg={palette[colorIdx]} opacity={brightness} />;
-              });
-            })()}
-          </Flex>
-
           {/* ═══ TITLE BAR ═══ */}
           <Flex bg={termHeader} px={4} py={2} align="center" justify="space-between" fontSize="xs" color={termText}>
             <HStack spacing={3}>
-              <HStack spacing={1.5}>
-                <Box w="10px" h="10px" borderRadius="full" bg="#bf616a" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#ebcb8b" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#a3be8c" />
-              </HStack>
               <Text>
                 <Box as="span" color={tc.param}>const </Box>
                 <Box as="span" color={termPrompt} fontWeight="bold">projects</Box>

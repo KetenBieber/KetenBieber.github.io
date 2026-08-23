@@ -5,7 +5,6 @@ import {
   HStack,
   Text,
   Link,
-  useColorModeValue,
   Flex,
   Badge,
   useColorMode,
@@ -201,30 +200,17 @@ const PublicationsTerminal: React.FC = () => {
   }, [openImageModal])
   
   return (
-    <Box w="full" minH="100vh" bg={useColorModeValue('gray.50', 'gray.900')} py={8}>
+    <Box w="full" minH="100vh" bg="var(--bg-color)" py={8}>
       <VStack spacing={6} maxW="1400px" mx="auto" px={[2, 4, 6]}>
         {/* Terminal Container */}
         <Box
           w="full"
-          borderRadius="md"
+          borderRadius="2px"
           fontFamily="mono"
-          boxShadow={`0 0 0 1px ${termBorder}, 0 4px 16px ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)'}`}
+          border={`1px solid ${termBorder}`}
           overflow="hidden"
         >
           {/* ═══ Pixel RGB light bar ═══ */}
-          <Flex h="3px" w="full" overflow="hidden">
-            {(() => {
-              const palette = ['#bf616a','#d08770','#ebcb8b','#a3be8c','#88c0d0','#5e81ac','#b48ead'];
-              const total = 28;
-              const tick = Math.floor(currentTime.getTime() / 200);
-              return Array.from({ length: total }, (_, i) => {
-                const colorIdx = (i + tick) % palette.length;
-                const brightness = 0.6 + 0.4 * Math.abs(Math.sin((i + tick * 0.5) * 0.3));
-                return <Box key={i} flex={1} h="full" bg={palette[colorIdx]} opacity={brightness} />;
-              });
-            })()}
-          </Flex>
-
           {/* ═══ Title bar ═══ */}
           <Flex
             bg={termHeader}
@@ -238,11 +224,6 @@ const PublicationsTerminal: React.FC = () => {
             fontWeight="medium"
           >
             <HStack spacing={3}>
-              <HStack spacing={1.5}>
-                <Box w="10px" h="10px" borderRadius="full" bg="#bf616a" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#ebcb8b" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#a3be8c" />
-              </HStack>
               <Text>
                 <Box as="span" color={termParam}>const </Box>
                 <Box as="span" color={termPrompt} fontWeight="bold">papers</Box>

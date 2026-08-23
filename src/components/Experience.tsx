@@ -23,11 +23,11 @@ const categoryFilter: Record<string, FilterType> = {
 }
 
 const roleTypeConfig: Record<RoleType, { labelKey: string; color: (dk: boolean) => string }> = {
-  research:   { labelKey: 'experience.roleResearch',   color: dk => dk ? '#b48ead' : '#9a56a2' },
-  mle:        { labelKey: 'experience.roleMLE',        color: dk => dk ? '#88c0d0' : '#2a769c' },
-  sde:        { labelKey: 'experience.roleSDE',        color: dk => dk ? '#d08770' : '#b35a2e' },
-  teaching:   { labelKey: 'experience.roleTeaching',   color: dk => dk ? '#a3be8c' : '#34744e' },
-  leadership: { labelKey: 'experience.roleLeadership', color: dk => dk ? '#ebcb8b' : '#c47d46' },
+  research:   { labelKey: 'experience.roleResearch',   color: dk => dk ? '#d8d8d8' : '#292929' },
+  mle:        { labelKey: 'experience.roleMLE',        color: dk => dk ? '#d8d8d8' : '#292929' },
+  sde:        { labelKey: 'experience.roleSDE',        color: dk => dk ? '#d8d8d8' : '#292929' },
+  teaching:   { labelKey: 'experience.roleTeaching',   color: dk => dk ? '#d8d8d8' : '#292929' },
+  leadership: { labelKey: 'experience.roleLeadership', color: dk => dk ? '#d8d8d8' : '#292929' },
 }
 
 /* ── Logos helper ────────────────────────────────────────────── */
@@ -66,7 +66,7 @@ const Experience: React.FC = () => {
 
   /* Palette (centralized) */
   const tc = terminalPalette.colors(isDark)
-  const bg = isDark ? 'gray.900' : 'gray.50'
+  const bg = 'var(--bg-color)'
   const termBg = tc.bg
   const termText = tc.text
   const termHeader = tc.header
@@ -182,24 +182,12 @@ const Experience: React.FC = () => {
         {/* ── Terminal container ────────────────────────────── */}
         <Box
           w="full"
-          borderRadius="md"
+          borderRadius="2px"
           fontFamily="mono"
-          boxShadow={`0 0 0 1px ${termBorder}, 0 4px 16px ${isDark ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.1)'}`}
+          border={`1px solid ${termBorder}`}
           overflow="hidden"
         >
           {/* ═══ Pixel RGB light bar ═══ */}
-          <Flex h="3px" w="full" overflow="hidden" borderTopRadius="md">
-            {(() => {
-              const total = 28
-              const tick = Math.floor(Date.now() / 200)
-              return Array.from({ length: total }, (_, i) => {
-                const colorIdx = (i + tick) % terminalPalette.rainbow.length
-                const brightness = 0.6 + 0.4 * Math.abs(Math.sin((i + tick * 0.5) * 0.3))
-                return <Box key={i} flex={1} h="full" bg={terminalPalette.rainbow[colorIdx]} opacity={brightness} />
-              })
-            })()}
-          </Flex>
-
           {/* ═══ Title bar ═══ */}
           <Flex
             bg={termHeader} px={4} py={2}
@@ -208,11 +196,6 @@ const Experience: React.FC = () => {
             fontSize="xs" fontWeight="medium"
           >
             <HStack spacing={3}>
-              <HStack spacing={1.5}>
-                <Box w="10px" h="10px" borderRadius="full" bg="#bf616a" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#ebcb8b" />
-                <Box w="10px" h="10px" borderRadius="full" bg="#a3be8c" />
-              </HStack>
               <Text>
                 <Box as="span" color={termParam}>const </Box>
                 <Box as="span" color={termPrompt} fontWeight="bold">career</Box>
