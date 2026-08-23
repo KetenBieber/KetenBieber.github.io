@@ -8,6 +8,7 @@ const monochrome = {
 
 const theme = extendTheme({
   colors: {
+    gray: monochrome,
     cyan: monochrome, blue: monochrome, yellow: monochrome, orange: monochrome,
     red: monochrome, green: monochrome, purple: monochrome, pink: monochrome,
   },

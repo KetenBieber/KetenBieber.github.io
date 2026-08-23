@@ -39,7 +39,7 @@ const HeroSection = ({ title, avatar, research = [], researchLogos = {}, educati
   const { siteOwner, siteConfig } = useLocalizedData()
   const headingColor = useColorModeValue('gray.800', 'white')
   const textColor = useColorModeValue('gray.600', 'gray.400')
-  const bg = useColorModeValue('gray.50', 'gray.900')
+  const bg = 'var(--bg-color)'
   const accentBg = useColorModeValue('blackAlpha.50', 'whiteAlpha.100')
 
   return (

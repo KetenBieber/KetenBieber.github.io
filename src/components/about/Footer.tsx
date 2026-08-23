@@ -5,7 +5,7 @@ import VisitorCounter from '../VisitorCounter'
 
 const Footer: React.FC = () => {
   const { siteOwner } = useLocalizedData()
-  const footerBg = useColorModeValue('gray.50', 'gray.900')
+  const footerBg = 'var(--bg-color)'
   const textColor = useColorModeValue('gray.600', 'gray.400')
 
   return (

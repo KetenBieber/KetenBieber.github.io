@@ -1,5 +1,5 @@
 :root {
-  --bg-color: #f7f7f5;
+  --bg-color: #ffffff;
   --text-color: #111111;
   --accent-color: #111111;
   --accent-light: rgba(17, 17, 17, 0.07);
@@ -12,15 +12,15 @@
 }
 
 [data-theme='dark'] {
-  --bg-color: #0c0c0c;
+  --bg-color: #000000;
   --text-color: #f2f2ef;
   --accent-color: #ffffff;
   --accent-light: rgba(255,255,255,0.09);
   --secondary-text: #a0a09b;
   --border-color: #323230;
-  --card-bg: #151515;
-  --header-bg: #191919;
-  --hover-color: #242424;
+  --card-bg: #0a0a0a;
+  --header-bg: #0d0d0d;
+  --hover-color: #191919;
   --strong-border: #f2f2ef;
 }
 
