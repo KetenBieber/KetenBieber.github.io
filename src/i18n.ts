@@ -21,7 +21,8 @@ i18n
       escapeValue: false,
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // Respect an explicit choice, but never infer Chinese from the browser on first visit.
+      order: ['localStorage'],
       caches: ['localStorage'],
     },
   })

@@ -2,6 +2,7 @@ import React from 'react'
 import { Box, Container, VStack, HStack, Text, Link, Image, useColorModeValue } from '@chakra-ui/react'
 import { useTranslation } from 'react-i18next'
 import { useLocalizedData } from '@/hooks/useLocalizedData'
+import VisitorCounter from '../VisitorCounter'
 
 const Footer: React.FC = () => {
   const { t } = useTranslation()
@@ -21,6 +22,7 @@ const Footer: React.FC = () => {
     >
       <Container maxW="7xl" px={[4, 6, 8]}>
         <VStack spacing={[3, 4]} textAlign="center">
+          <VisitorCounter />
           {/* Logo */}
           <Link
             href="https://github.com/H-Freax/TermHub"
@@ -45,7 +47,7 @@ const Footer: React.FC = () => {
             <Link
               href="https://github.com/H-Freax/TermHub"
               isExternal
-              color="cyan.500"
+              color="var(--text-color)"
               fontWeight="medium"
               _hover={{ textDecoration: 'underline' }}
             >

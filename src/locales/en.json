@@ -39,6 +39,12 @@
   "footer": {
     "poweredBy": "Powered by"
   },
+  "like": {
+    "eyebrow": "A SMALL SIGNAL",
+    "prompt": "Enjoyed the visit? Leave a little appreciation.",
+    "button": "Like this site",
+    "liked": "Thanks"
+  },
   "experience": {
     "education": "EDUCATION",
     "academicReviewing": "ACADEMIC REVIEWING",

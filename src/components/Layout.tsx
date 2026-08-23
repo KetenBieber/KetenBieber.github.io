@@ -10,9 +10,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const Navbar = useSlot('navbar')
 
   return (
-    <Box minH="100vh" w="100vw" className={colorMode === 'dark' ? 'dark-theme' : ''}>
+    <Box minH="100vh" w="100%" className={colorMode === 'dark' ? 'dark-theme' : ''}>
       <Navbar />
-      <Box w="full" px={4}>
+      <Box w="full" px={{ base: 3, md: 6 }}>
         {children}
       </Box>
     </Box>

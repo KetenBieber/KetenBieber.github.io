@@ -39,7 +39,7 @@ const HeroSection = ({ title, avatar, research = [], researchLogos = {}, educati
   const headingColor = useColorModeValue('gray.800', 'white')
   const textColor = useColorModeValue('gray.600', 'gray.400')
   const bg = useColorModeValue('gray.50', 'gray.900')
-  const accentBg = useColorModeValue('blue.50', 'blue.900')
+  const accentBg = useColorModeValue('blackAlpha.50', 'whiteAlpha.100')
 
   return (
     <Box
@@ -251,7 +251,9 @@ const HeroSection = ({ title, avatar, research = [], researchLogos = {}, educati
               <Image
                 src={withBase(`images/${avatar}`)}
                 alt={title}
-                borderRadius="xl"
+                borderRadius="2px"
+                border="1px solid"
+                borderColor="var(--border-color)"
                 boxSize={["150px", "180px", "220px"]}
                 objectFit="cover"
               />

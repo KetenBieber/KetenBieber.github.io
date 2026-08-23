@@ -6,6 +6,7 @@ import { useLocalizedData } from '@/hooks/useLocalizedData'
 import { useSlot } from '@/templates/context'
 import { DEFAULT_SECTIONS } from '@/templates/slots'
 import type { SlotName } from '@/templates/slots'
+import LikeSection from './LikeSection'
 
 const researchLogos = institutionLogos
 const universityLogos = institutionLogos
@@ -70,7 +71,7 @@ function About() {
           </Box>
         )
       case 'footer':
-        return <Footer key={key} />
+        return <Box key={key}><LikeSection /><Footer /></Box>
       case 'bio':
         return <Bio key={key} />
       case 'skills':

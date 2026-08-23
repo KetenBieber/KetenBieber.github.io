@@ -37,6 +37,7 @@ const Navbar: React.FC = () => {
       position="sticky"
       top={0}
       bg="var(--bg-color)"
+      sx={{ backdropFilter: 'blur(14px)', backgroundColor: 'color-mix(in srgb, var(--bg-color) 88%, transparent)' }}
       zIndex={1000}
       w="full"
     >
@@ -92,7 +93,7 @@ const Navbar: React.FC = () => {
                 style={{
                   color: 'var(--text-color)',
                   textDecoration: 'none',
-                  borderBottom: isActive ? '2px solid var(--accent-color)' : 'none',
+                  borderBottom: isActive ? '1px solid var(--accent-color)' : '1px solid transparent',
                   paddingBottom: '2px',
                   fontSize: '1rem',
                   fontWeight: isActive ? '600' : '400',

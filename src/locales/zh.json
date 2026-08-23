@@ -39,6 +39,12 @@
   "footer": {
     "poweredBy": "由以下技术驱动"
   },
+  "like": {
+    "eyebrow": "一个小小的信号",
+    "prompt": "喜欢这个网站的话，可以留下一颗心。",
+    "button": "为网站点赞",
+    "liked": "谢谢你"
+  },
   "experience": {
     "education": "教育背景",
     "academicReviewing": "学术审稿",
