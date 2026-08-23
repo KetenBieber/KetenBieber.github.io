@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Box, Button, Container, HStack, Text, VStack } from '@chakra-ui/react'
+import { Button, HStack, Text } from '@chakra-ui/react'
 import { FaRegHeart, FaHeart } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 
@@ -42,32 +42,25 @@ const LikeSection = () => {
   }
 
   return (
-    <Container maxW="7xl" px={[2, 4, 8]}>
-      <Box borderY="1px solid" borderColor="var(--border-color)" py={[7, 9]}>
-        <VStack spacing={4} textAlign="center">
-          <Text fontSize="xs" color="var(--secondary-text)" letterSpacing="0.16em">
-            {t('like.eyebrow')}
-          </Text>
-          <Text fontSize={["sm", "md"]}>{t('like.prompt')}</Text>
-          <Button
-            onClick={handleLike}
-            isLoading={loading}
-            isDisabled={liked}
-            leftIcon={liked ? <FaHeart /> : <FaRegHeart />}
-            variant={liked ? 'solid' : 'outline'}
-            borderRadius="full"
-            px={6}
-            _disabled={{ opacity: 1, cursor: 'default' }}
-            aria-label={liked ? t('like.liked') : t('like.button')}
-          >
-            <HStack spacing={2}>
-              <Text>{liked ? t('like.liked') : t('like.button')}</Text>
-              {count !== null && <Text opacity={0.65}>/ {count.toLocaleString()}</Text>}
-            </HStack>
-          </Button>
-        </VStack>
-      </Box>
-    </Container>
+    <Button
+      onClick={handleLike}
+      isLoading={loading}
+      isDisabled={liked}
+      leftIcon={liked ? <FaHeart /> : <FaRegHeart />}
+      variant="ghost"
+      size="sm"
+      borderRadius="full"
+      color="var(--secondary-text)"
+      px={3}
+      _hover={{ color: 'var(--text-color)', bg: 'var(--hover-color)' }}
+      _disabled={{ opacity: 1, cursor: 'default' }}
+      aria-label={liked ? t('like.liked') : t('like.button')}
+    >
+      <HStack spacing={2}>
+        <Text fontSize="xs">{liked ? t('like.liked') : t('like.button')}</Text>
+        {count !== null && <Text fontSize="xs" opacity={0.65}>{count.toLocaleString()}</Text>}
+      </HStack>
+    </Button>
   )
 }
 

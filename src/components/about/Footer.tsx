@@ -1,11 +1,9 @@
 import React from 'react'
-import { Box, Container, VStack, HStack, Text, Link, Image, useColorModeValue } from '@chakra-ui/react'
-import { useTranslation } from 'react-i18next'
+import { Box, Container, VStack, Text, useColorModeValue } from '@chakra-ui/react'
 import { useLocalizedData } from '@/hooks/useLocalizedData'
 import VisitorCounter from '../VisitorCounter'
 
 const Footer: React.FC = () => {
-  const { t } = useTranslation()
   const { siteOwner } = useLocalizedData()
   const footerBg = useColorModeValue('gray.50', 'gray.900')
   const textColor = useColorModeValue('gray.600', 'gray.400')
@@ -23,38 +21,6 @@ const Footer: React.FC = () => {
       <Container maxW="7xl" px={[4, 6, 8]}>
         <VStack spacing={[3, 4]} textAlign="center">
           <VisitorCounter />
-          {/* Logo */}
-          <Link
-            href="https://github.com/H-Freax/TermHub"
-            isExternal
-            _hover={{ opacity: 0.85, transform: 'translateY(-1px)' }}
-            transition="all 0.2s"
-          >
-            <Image
-              src={`${import.meta.env.BASE_URL}logo.svg`}
-              alt="TermHub"
-              h={["40px", "48px"]}
-              objectFit="contain"
-            />
-          </Link>
-
-          <HStack
-            spacing={1}
-            color={textColor}
-            fontSize={["xs", "sm"]}
-          >
-            <Text>{t('footer.poweredBy')}</Text>
-            <Link
-              href="https://github.com/H-Freax/TermHub"
-              isExternal
-              color="var(--text-color)"
-              fontWeight="medium"
-              _hover={{ textDecoration: 'underline' }}
-            >
-              TermHub
-            </Link>
-          </HStack>
-
           <Text
             fontSize={["2xs", "xs"]}
             color={textColor}

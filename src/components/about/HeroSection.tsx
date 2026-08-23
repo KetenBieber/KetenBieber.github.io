@@ -5,6 +5,7 @@ import DynamicIcon from '../DynamicIcon'
 import { useTranslation } from 'react-i18next'
 import { heroSocialIcons } from '@/site.config'
 import { useLocalizedData } from '@/hooks/useLocalizedData'
+import LikeSection from '../LikeSection'
 
 const MotionBox = motion(Box)
 const MotionText = motion(Text)
@@ -257,6 +258,7 @@ const HeroSection = ({ title, avatar, research = [], researchLogos = {}, educati
                 boxSize={["150px", "180px", "220px"]}
                 objectFit="cover"
               />
+              <LikeSection />
               {/* Social icons row below avatar */}
               <HStack spacing={[1, 1.5]} justify="center">
                 {heroSocialIcons.map((item) => (
