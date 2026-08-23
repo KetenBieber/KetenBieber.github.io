@@ -13,11 +13,17 @@ type NoteMeta = {
   description?: string
   date?: string
   category?: string
+  categories?: string[]
   tags?: string[]
   featured?: boolean
 }
 
 type Note = NoteMeta & { slug: string; title: string; url: string }
+
+const NOTE_CATEGORIES = [
+  'LLM', 'VLM', 'VLA', 'Robotics', 'RL', 'Paper Reading', 'Learning Note',
+  'Programming Learning', 'Project Recording',
+] as const
 
 const pdfFiles = import.meta.glob('/content/notes/**/*.pdf', {
   eager: true, query: '?url', import: 'default',
@@ -30,6 +36,11 @@ const metadataFiles = import.meta.glob('/content/notes/**/*.json', {
 const humanize = (value: string) => value
   .replace(/[-_]+/g, ' ')
   .replace(/\b\w/g, letter => letter.toUpperCase())
+
+const getCategories = (note: NoteMeta) => Array.from(new Set([
+  ...(note.categories ?? []),
+  ...(note.category ? [note.category] : []),
+]))
 
 const notes: Note[] = Object.entries(pdfFiles).map(([path, url]) => {
   const base = path.replace(/\.pdf$/i, '')
@@ -55,15 +66,12 @@ const Notes = () => {
   const shareUrl = selected ? `${window.location.origin}${import.meta.env.BASE_URL}notes?note=${encodeURIComponent(selected.slug)}` : ''
   const { onCopy, hasCopied } = useClipboard(shareUrl)
 
-  const categories = useMemo(
-    () => Array.from(new Set(notes.map(note => note.category).filter(Boolean) as string[])),
-    [],
-  )
   const filtered = useMemo(() => {
     const search = query.trim().toLowerCase()
     return notes.filter(note => {
-      const matchesCategory = category === 'all' || note.category === category
-      const haystack = [note.title, note.description, note.category, ...(note.tags ?? [])]
+      const noteCategories = getCategories(note)
+      const matchesCategory = category === 'all' || noteCategories.includes(category)
+      const haystack = [note.title, note.description, ...noteCategories, ...(note.tags ?? [])]
         .filter(Boolean).join(' ').toLowerCase()
       return matchesCategory && (!search || haystack.includes(search))
     })
@@ -84,7 +92,7 @@ const Notes = () => {
             <Input value={query} onChange={event => setQuery(event.target.value)} placeholder={t('notes.search')} border="0" px={1} _focusVisible={{ boxShadow: 'none' }} />
           </HStack>
           <HStack spacing={2} flexWrap="wrap">
-            {['all', ...categories].map(item => (
+            {['all', ...NOTE_CATEGORIES].map(item => (
               <Button key={item} size="sm" variant={category === item ? 'solid' : 'outline'} onClick={() => setCategory(item)}>
                 {item === 'all' ? t('notes.all') : item}
               </Button>
@@ -109,7 +117,7 @@ const Notes = () => {
                   {note.description && <Text fontSize="sm" color={muted} noOfLines={3}>{note.description}</Text>}
                 </Box>
                 <HStack flexWrap="wrap">
-                  {note.category && <Badge variant="outline">{note.category}</Badge>}
+                  {getCategories(note).map(item => <Badge key={item} variant="outline">{item}</Badge>)}
                   {(note.tags ?? []).slice(0, 3).map(tag => <Badge key={tag} variant="subtle">{tag}</Badge>)}
                 </HStack>
                 <Button size="sm" variant="outline" rightIcon={<ExternalLinkIcon />} onClick={() => setSelected(note)}>{t('notes.open')}</Button>

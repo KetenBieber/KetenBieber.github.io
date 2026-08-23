@@ -2,7 +2,10 @@
   "title": "CS336_Assignment1_Building_Transformer_LM_zh",
   "description": "CS336-assignment1",
   "date": "2026-08-23",
-  "category": "LLM",
+  "categories": [
+    "LLM",
+    "Learning Note"
+  ],
   "tags": [
     "LLM",
     "Transformer"
