@@ -6,6 +6,7 @@
     "projects": "Projects",
     "articles": "Articles",
     "guide": "Guide",
+    "notes": "Notes",
     "navigation": "Navigation"
   },
   "aria": {
@@ -44,6 +45,20 @@
     "prompt": "Enjoyed the visit? Leave a little appreciation.",
     "button": "Like this site",
     "liked": "Thanks"
+  },
+  "notes": {
+    "eyebrow": "PERSONAL LIBRARY",
+    "title": "Notes",
+    "description": "Reading notes, technical documents and ideas worth keeping.",
+    "search": "Search notes...",
+    "all": "All",
+    "open": "Read note",
+    "download": "Download",
+    "copyLink": "Copy link",
+    "copied": "Copied",
+    "close": "Close reader",
+    "empty": "No notes yet. Add a PDF to content/notes and deploy again.",
+    "noResults": "No notes match this search."
   },
   "experience": {
     "education": "EDUCATION",

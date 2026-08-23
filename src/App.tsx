@@ -38,6 +38,7 @@ function App() {
               {features.guide !== false && pages.guideDocs && (
                 <Route path="/docs" element={<pages.guideDocs />} />
               )}
+              {pages.notes && <Route path="/notes" element={<pages.notes />} />}
             </Routes>
           </TemplateLayout>
         </Router>

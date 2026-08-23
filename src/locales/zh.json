@@ -6,6 +6,7 @@
     "projects": "项目展示",
     "articles": "博客文章",
     "guide": "使用指南",
+    "notes": "笔记",
     "navigation": "导航"
   },
   "aria": {
@@ -44,6 +45,20 @@
     "prompt": "喜欢这个网站的话，可以留下一颗心。",
     "button": "为网站点赞",
     "liked": "谢谢你"
+  },
+  "notes": {
+    "eyebrow": "个人资料库",
+    "title": "笔记",
+    "description": "阅读笔记、技术文档，以及值得保留的想法。",
+    "search": "搜索笔记……",
+    "all": "全部",
+    "open": "阅读笔记",
+    "download": "下载",
+    "copyLink": "复制链接",
+    "copied": "已复制",
+    "close": "关闭阅读器",
+    "empty": "还没有笔记。将 PDF 放入 content/notes 后重新部署即可。",
+    "noResults": "没有符合搜索条件的笔记。"
   },
   "experience": {
     "education": "教育背景",

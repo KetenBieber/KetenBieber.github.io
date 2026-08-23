@@ -31,6 +31,7 @@ export interface TemplatePages {
   experience?: React.ComponentType
   guide?: React.ComponentType
   guideDocs?: React.ComponentType
+  notes?: React.ComponentType
 }
 
 /**

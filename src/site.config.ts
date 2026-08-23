@@ -40,6 +40,7 @@ export const navItems = [
   ...(siteConfig.features.experience ? [{ path: '/experience', labelKey: 'nav.experience' }] : []),
   ...(siteConfig.features.projects ? [{ path: '/projects', labelKey: 'nav.projects' }] : []),
   ...(siteConfig.features.articles ? [{ path: '/articles', labelKey: 'nav.articles' }] : []),
+  { path: '/notes', labelKey: 'nav.notes' },
   ...(siteConfig.features.guide !== false ? [{ path: '/guide', labelKey: 'nav.guide' }] : []),
 ] as const
 

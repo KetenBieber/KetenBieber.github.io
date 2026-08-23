@@ -12,6 +12,7 @@ import Articles from '../../components/Articles'
 import Experience from '../../components/Experience'
 import GuideLanding from '../../components/GuideLanding'
 import GuideDocs from '../../components/GuideDocs'
+import Notes from '../../components/Notes'
 
 import Navbar from '../../components/Navbar'
 import HeroSection from '../../components/about/HeroSection'
@@ -42,6 +43,7 @@ const terminalTemplate: TemplateConfig = {
     experience: Experience,
     guide: GuideLanding,
     guideDocs: GuideDocs,
+    notes: Notes,
   },
   slots: {
     navbar: Navbar,
