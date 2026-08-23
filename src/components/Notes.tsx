@@ -5,7 +5,7 @@ import {
   Text, VStack, useClipboard, useColorModeValue,
 } from '@chakra-ui/react'
 import { CloseIcon, DownloadIcon, ExternalLinkIcon, SearchIcon } from '@chakra-ui/icons'
-import { FaFilePdf, FaLink } from 'react-icons/fa'
+import { FaFileAlt, FaFilePdf, FaLink } from 'react-icons/fa'
 import { useTranslation } from 'react-i18next'
 
 type NoteMeta = {
@@ -18,7 +18,14 @@ type NoteMeta = {
   featured?: boolean
 }
 
-type Note = NoteMeta & { slug: string; title: string; url: string }
+type MarkdownModule = NoteMeta & { body: string }
+type Note = NoteMeta & {
+  slug: string
+  title: string
+  kind: 'pdf' | 'markdown'
+  url?: string
+  body?: string
+}
 
 const NOTE_CATEGORIES = [
   'LLM', 'VLM', 'VLA', 'Robotics', 'RL', 'Paper Reading', 'Learning Note',
@@ -33,6 +40,10 @@ const metadataFiles = import.meta.glob('/content/notes/**/*.json', {
   eager: true, import: 'default',
 }) as Record<string, NoteMeta>
 
+const markdownFiles = import.meta.glob('/content/notes/**/*.md', {
+  eager: true, import: 'default',
+}) as Record<string, MarkdownModule>
+
 const humanize = (value: string) => value
   .replace(/[-_]+/g, ' ')
   .replace(/\b\w/g, letter => letter.toUpperCase())
@@ -42,12 +53,23 @@ const getCategories = (note: NoteMeta) => Array.from(new Set([
   ...(note.category ? [note.category] : []),
 ]))
 
-const notes: Note[] = Object.entries(pdfFiles).map(([path, url]) => {
+const pdfNotes: Note[] = Object.entries(pdfFiles).map(([path, url]) => {
   const base = path.replace(/\.pdf$/i, '')
   const slug = base.split('/').pop() ?? base
   const meta = metadataFiles[`${base}.json`] ?? {}
-  return { ...meta, slug, title: meta.title ?? humanize(slug), url }
-}).sort((a, b) => {
+  return { ...meta, slug, title: meta.title ?? humanize(slug), kind: 'pdf', url }
+})
+
+const markdownNotes: Note[] = Object.entries(markdownFiles)
+  .filter(([path]) => !path.endsWith('/README.md'))
+  .map(([path, document]) => {
+    const base = path.replace(/\.md$/i, '')
+    const slug = base.split('/').pop() ?? base
+    const meta = { ...document, ...(metadataFiles[`${base}.json`] ?? {}) }
+    return { ...meta, slug, title: meta.title ?? humanize(slug), kind: 'markdown', body: document.body }
+  })
+
+const notes: Note[] = [...pdfNotes, ...markdownNotes].sort((a, b) => {
   if (a.featured !== b.featured) return a.featured ? -1 : 1
   return (b.date ?? '').localeCompare(a.date ?? '') || a.title.localeCompare(b.title)
 })
@@ -109,7 +131,7 @@ const Notes = () => {
             {filtered.map(note => (
               <VStack key={note.slug} align="stretch" spacing={4} p={5} border="1px solid" borderColor={border} bg={cardBg} transition="all .18s" _hover={{ borderColor: 'var(--text-color)', transform: 'translateY(-2px)' }}>
                 <Flex justify="space-between" align="start">
-                  <Box as={FaFilePdf} boxSize={5} />
+                  <Box as={note.kind === 'pdf' ? FaFilePdf : FaFileAlt} boxSize={5} />
                   {note.date && <Text fontSize="xs" color={muted}>{note.date}</Text>}
                 </Flex>
                 <Box flex="1">
@@ -133,13 +155,33 @@ const Notes = () => {
           <ModalHeader borderBottom="1px solid" borderColor={border}>
             <Flex align="center" gap={{ base: 1, md: 3 }}>
               <Heading size="sm" flex="1" noOfLines={1}>{selected?.title}</Heading>
-              <IconButton as={Link} href={selected?.url} download aria-label={t('notes.download')} icon={<DownloadIcon />} size="sm" variant="outline" />
+              {selected?.url && <IconButton as={Link} href={selected.url} download aria-label={t('notes.download')} icon={<DownloadIcon />} size="sm" variant="outline" />}
               <IconButton aria-label={hasCopied ? t('notes.copied') : t('notes.copyLink')} icon={<FaLink />} size="sm" variant="outline" onClick={onCopy} />
               <IconButton aria-label={t('notes.close')} icon={<CloseIcon />} size="sm" variant="ghost" onClick={() => setSelected(null)} />
             </Flex>
           </ModalHeader>
           <ModalBody p={0}>
-            {selected && <Box as="iframe" title={selected.title} src={selected.url} w="full" h="calc(100vh - 65px)" border="0" bg="white" />}
+            {selected?.kind === 'pdf' && <Box as="iframe" title={selected.title} src={selected.url} w="full" h="calc(100vh - 65px)" border="0" bg="white" />}
+            {selected?.kind === 'markdown' && (
+              <Container maxW="4xl" py={[8, 12]}>
+                <Box
+                  className="note-markdown"
+                  fontSize="sm"
+                  lineHeight="1.85"
+                  dangerouslySetInnerHTML={{ __html: selected.body ?? '' }}
+                  sx={{
+                    'h1, h2, h3, h4': { fontWeight: 600, mt: 8, mb: 3, lineHeight: 1.35 },
+                    h1: { fontSize: '2xl', mt: 0 }, h2: { fontSize: 'xl', borderBottom: '1px solid var(--border-color)', pb: 2 },
+                    h3: { fontSize: 'lg' }, p: { my: 3 }, 'ul, ol': { pl: 6, my: 3 }, li: { my: 1 },
+                    blockquote: { borderLeft: '2px solid var(--text-color)', pl: 4, my: 4, color: 'var(--secondary-text)' },
+                    pre: { border: '1px solid var(--border-color)', borderRadius: '2px' },
+                    table: { w: 'full', borderCollapse: 'collapse', my: 5 },
+                    'th, td': { border: '1px solid var(--border-color)', px: 3, py: 2, textAlign: 'left' },
+                    a: { textDecoration: 'underline' }, img: { maxW: 'full', my: 5 },
+                  }}
+                />
+              </Container>
+            )}
           </ModalBody>
         </ModalContent>
       </Modal>

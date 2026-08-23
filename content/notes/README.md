@@ -1,6 +1,6 @@
 # Notes folder
 
-Drop PDF files in this folder and redeploy the site. They will appear on `/notes` automatically.
+Drop PDF or Markdown files in this folder and redeploy the site. They will appear on `/notes` automatically.
 
 Optionally add a JSON file with the same name, for example `world-models.pdf` and `world-models.json`:
 
