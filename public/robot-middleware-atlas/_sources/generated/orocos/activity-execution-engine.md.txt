@@ -1,0 +1,220 @@
+# Activity 与 ExecutionEngine：一次周期内的调度顺序
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+TaskContext 定义组件状态，Activity 提供执行机会，ExecutionEngine 决定一次执行机会里先处理哪些工作。三者组合后，`updateHook()` 才真正获得 CPU。
+
+源码入口：[`Activity.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/Activity.hpp)、[`ExecutionEngine.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ExecutionEngine.hpp) 与 [`ExecutionEngine.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ExecutionEngine.cpp)。
+
+## Activity 封装线程参数与触发方式
+
+Activity 的配置通常包含 scheduler、priority、period 和 CPU affinity：
+
+```cpp
+RTT::Activity activity(
+    ORO_SCHED_RT,
+    80,
+    0.001,   // 1 ms period
+    task.engine()
+);
+task.setActivity(&activity);
+```
+
+具体构造器随版本与重载而变化，但语义一致：Activity 把 Runnable 绑定到某种执行机制。
+
+周期 Activity 由定时循环驱动：
+
+```text
+period boundary
+  -> Activity::step()
+  -> ExecutionEngine::step()
+  -> 等待下一个 period
+```
+
+非周期 Activity 通常休眠，直到 `trigger()` 或消息到达后被唤醒：
+
+```text
+wait condition
+  <- operation queued / port event / explicit trigger
+  -> ExecutionEngine processes work
+  -> no more work: wait again
+```
+
+SlaveActivity 没有独立线程，而由 master 调用其 step。它适合把多个组件放在同一个确定性执行序列中，减少线程切换；代价是任一组件超时都会拖延整个序列。
+
+## Runnable 接口反转线程与业务的依赖
+
+Activity 不需要知道 TaskContext 的具体类型，只依赖 Runnable：
+
+```cpp
+class RunnableInterface {
+public:
+    virtual bool initialize() = 0;
+    virtual void step() = 0;
+    virtual void loop() = 0;
+    virtual bool breakLoop() = 0;
+    virtual void finalize() = 0;
+};
+```
+
+ExecutionEngine 实现该接口。于是 Activity 负责“何时调用”，Engine 负责“调用什么”。这是依赖倒置：调度器依赖最小执行协议，而不是包含组件业务。
+
+## ExecutionEngine 汇聚四类工作
+
+一次 Engine 运行需要面对：
+
+1. 跨线程 Operation 产生的 message；
+2. 输入 Port 的 data-on-port callback；
+3. 显式提交的可执行函数或异步命令；
+4. TaskCore 的 `updateHook` 或 `errorHook`。
+
+概念顺序可表示为：
+
+```cpp
+void ExecutionEngine::step() {
+    processMessages();
+    processPortCallbacks();
+
+    switch (owner_->getTaskState()) {
+    case Running:
+        owner_->updateHook();
+        break;
+    case RunTimeError:
+        owner_->errorHook();
+        break;
+    default:
+        break;
+    }
+}
+```
+
+这段是便于阅读的结构化重写。真实实现还包含函数队列、异常捕获、状态检查和唤醒协作。
+
+处理顺序是可观察语义。例如一个 OwnThread Operation 在本周期先修改目标值，随后 `updateHook` 就可能使用新目标；若顺序反转，则新目标要到下一周期生效。复刻时不能把不同队列随意交给线程池并发执行，否则会破坏组件内串行假设。
+
+## `hasWork()` 决定非周期线程是否继续运行
+
+非周期 Activity 需要知道是否仍有工作。Engine 的 `hasWork()` 一类检查会查看消息、回调或待执行函数：
+
+```text
+trigger/wakeup
+  -> while engine.hasWork()
+         engine.step()
+  -> sleep
+```
+
+如果生产者在“检查为空”和“进入睡眠”之间入队，就可能发生丢失唤醒。正确队列需要把入队与唤醒协议配套：生产者在状态从 empty 变为 non-empty 时 signal，消费者在同一同步协议下复查条件。
+
+周期 Activity 即使无事件也要调用 updateHook，因此不能简单使用相同的“无工作就睡眠”逻辑。
+
+## 工作队列 drain 策略决定控制周期上界
+
+假设一个周期开始时有 `M` 个 Operation message 和 `P` 个 Port callback，每个最坏执行时间分别为 `C_m` 和 `C_p`，hook 的最坏执行时间为 `C_u`。若一次 step 全部 drain：
+
+```text
+WCET_step >= M × C_m + P × C_p + C_u + framework overhead
+```
+
+当 `M` 或 `P` 无上界时，周期 WCET 也无上界，`updateHook` 甚至可能饥饿。可分析实现需要至少一种限制：
+
+- 队列有界并在满时明确失败；
+- 每周期最多处理固定批量；
+- 不同工作设预算或优先级；
+- 关键控制 hook 使用独立 Activity，不与非关键 RPC 共用队列。
+
+批量上限又带来吞吐与延迟权衡：批量太小，Operation 排队时间上升；批量太大，控制周期 jitter 上升。
+
+## 异常必须在 Engine 边界收敛
+
+用户 hook 或 Operation 抛出的 C++ 异常若穿出线程入口，会导致 `std::terminate` 或让 Activity 悄然死亡。ExecutionEngine 是合适的异常边界：
+
+```cpp
+try {
+    owner_->updateHook();
+} catch (const std::exception& e) {
+    owner_->setExceptionState();
+    log(e.what());
+} catch (...) {
+    owner_->setExceptionState();
+    log("unknown exception");
+}
+```
+
+捕获异常后不能假装本周期成功。状态必须阻止后续普通 update，并让部署器能够观察与执行 stop/cleanup 或重建组件。
+
+在硬实时路径上通常还会禁用异常或要求 hook 不抛异常，因为栈展开成本难以界定；但框架边界仍需防御未遵守契约的组件。
+
+## 周期调度的时间模型
+
+对周期 `T`，基本可调度条件是：
+
+```text
+C_engine + C_messages + C_callbacks + C_update <= T
+```
+
+还必须加入 OS 唤醒延迟、抢占干扰、cache miss 和优先级反转。实际测量至少记录：
+
+- release jitter：预期周期边界到线程真正运行的差；
+- execution time：step 从进入到退出；
+- deadline miss：完成时刻超过下一周期边界；
+- queue depth：周期开始与结束的 backlog；
+- page fault 与动态分配次数；
+- CPU migration 和被更高优先级任务抢占的时间。
+
+只报告平均周期没有意义，应该给 p99.9、最大值和测试持续时间，并说明是否使用 PREEMPT_RT、CPU isolation 与 memory locking。
+
+## Stop 是协议而不是一个原子布尔值
+
+停止 Activity 至少包含：
+
+```text
+request stop
+  -> 阻止/标记不再开始新 loop
+  -> 唤醒可能正在等待的线程
+  -> 当前 hook 到达安全返回点
+  -> loop 退出
+  -> finalize Runnable
+  -> join/确认底层线程终止
+```
+
+若 hook 阻塞在不可取消 I/O，设置 stop flag 不会让线程立即退出。若调用者只看到 `stop()` 返回，却没有 join 保证，就不能马上析构 Engine 或 TaskContext。
+
+组件关闭顺序应是：停止外部输入与新 Operation，停止 Activity 并确认线程不再进入 Engine，然后断开 Port/Service，最后析构组件对象。
+
+## 多 Activity 与单 Activity 的取舍
+
+| 部署方式 | 优点 | 风险 |
+|---|---|---|
+| 每组件独立 Activity | 故障隔离、独立周期和优先级 | 线程多、切换与同步成本高 |
+| 多组件共享 master | 顺序确定、数据可同周期传播 | 一个慢组件拖累全部组件 |
+| 非周期事件 Activity | 空闲时不占周期 CPU | 输入风暴导致执行频率失控 |
+| 周期 Activity | 调度分析直接 | 即使无新数据也运行，可能读旧值 |
+
+部署选择应依据端到端控制链，而不是机械地给每个组件一个线程。例如传感器处理、状态估计和控制器若必须同周期顺序运行，可放在受控 master 序列；日志和诊断应隔离到低优先级执行上下文。
+
+## 最小调度器复刻
+
+可以先实现单线程周期 Activity：
+
+```cpp
+class PeriodicActivity {
+public:
+    void run(std::stop_token stop) {
+        auto next = Clock::now();
+        while (!stop.stop_requested()) {
+            next += period_;
+            runnable_->step();
+            std::this_thread::sleep_until(next);
+        }
+        runnable_->finalize();
+    }
+};
+```
+
+然后逐步增加：绝对时间睡眠避免相对 sleep 漂移、deadline miss 计数、优先级与 affinity、非周期 condition-variable 唤醒、队列批量上限、异常状态传播和可证明的 join。
+
+复刻完成的关键不是线程能循环，而是任何工作来源都有容量边界，任何停止路径都能证明不再访问已经析构的 Runnable。

@@ -1,0 +1,402 @@
+# 项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Apollo Planning 不是为了展示 Cyber API 而写的样例，而是 Cyber RT 的核心生产级使用者。它把 Prediction、Chassis、Localization 等高频输入组织为一次规划触发，把 Routing、Traffic Light、Pad、Story 等异步输入维护为辅助状态，最后发布 ADCTrajectory。
+
+项目入口固定到 Apollo 提交 `d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`：先读 [Planning Component 官方说明](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/docs/08_Planning/planning_component.md)，再进入 [`planning_component.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/modules/planning/planning_component/planning_component.cc) 与同目录头文件、DAG。固定版本后，配置中的 Reader、源码字段和本文调用链才属于同一个事实集合。
+
+## 功能需求先决定通信形状
+
+规划模块需要同时满足：
+
+- 主输入到达后尽快产生新轨迹；
+- 低频辅助输入可在两次规划间更新；
+- 多输入来自不同频率，不能要求严格同时到达；
+- 规划算法与 Cyber 生命周期、Reader/Writer 创建分离；
+- 可由 DAG/Launch 装载、用 Record 回放复现。
+
+因此它没有把所有 channel 都放进一个任意多输入 callback，而是区分触发输入和状态型 Reader。这一功能划分先于代码结构。
+
+## 先区分版本稳定结构与会变化的消息集合
+
+Apollo master 上的辅助输入会随规划架构演进。当前 `PlanningComponent::Init()` 可见 `PlanningCommand`、控制交互消息以及导航模式下的 `MapMsg` 等 Reader；较早文档会列出 RoutingResponse、TrafficLightDetection、PadMessage 和 Stories。阅读时应把“辅助状态通过显式 Reader 进入组件”视为稳定模式，把具体 topic 清单视为版本事实。
+
+这也是源码分析必须固定 commit 的原因。DAG、配置 proto 和 C++ 代码若来自不同版本，Reader 名称、配置字段和算法入口可能无法互相对应。
+
+## 组件对象图
+
+```text
+PlanningComponent : Component<PredictionObstacles, Chassis, LocalizationEstimate>
+  ├─ Proc(prediction, chassis, localization)   主触发路径
+  ├─ readers created in Init()
+  │    ├─ RoutingResponse
+  │    ├─ TrafficLightDetection
+  │    ├─ PadMessage
+  │    └─ Stories / MapMsg ...
+  ├─ planning algorithm object
+  └─ Writer<ADCTrajectory>
+```
+
+模板参数把三种主输入带入 DataVisitor/Component 调度链；普通 Reader callback 更新共享的辅助状态。这里体现了 Cyber 的两种使用方式：模板输入负责调度边界，显式 Reader 负责异步状态摄取。
+
+## 从 DAG 到一次规划
+
+```text
+planning.launch
+  -> planning.dag
+  -> mainboard loads PlanningComponent library
+  -> Component::Initialize creates Node and Readers
+  -> main input updates DataVisitor
+  -> Scheduler wakes CRoutine
+  -> PlanningComponent::Proc(...)
+  -> algorithm RunOnce / Plan
+  -> planning_writer_->Write(adc_trajectory)
+```
+
+官方文档明确指出最终轨迹通过 `planning_writer_->Write(adc_trajectory_pb)` 送回 Cyber。这个 Writer 不在每次 Proc 中创建，而是组件初始化时建立长期实体。
+
+## 部署文件、组件类和配置必须形成一个闭环
+
+Apollo 的运行实体不是单个 `.cc` 文件，而是一组必须版本一致的产物：
+
+```text
+launch
+  -> 选择 process/mainboard 与 dag
+dag
+  -> shared library + class name + component config
+class registration
+  -> 字符串类名映射到 PlanningComponent factory
+component config proto
+  -> topic、算法配置、运行模式
+C++ Init
+  -> 读取 config，创建 Reader/Writer/algorithm
+```
+
+任意一层错位都会产生不同故障：库路径错导致无法装载；注册类名错导致 factory 查找失败；DAG Reader 与模板签名/配置不一致会让输入永不触发；topic 配置错会让组件存在但数据链为空；算法配置版本错则可能在 Init 或首次 Proc 才失败。
+
+部署审查应把以下字段放在同一张表中，而不是逐文件人工猜测：
+
+| 契约 | 定义位置 | 运行时消费者 |
+|---|---|---|
+| component library | DAG | ClassLoader |
+| class name | DAG + registration macro | ClassFactory |
+| instance name | DAG | topology/scheduler/monitor |
+| trigger channels | Component 模板/DAG reader config | DataVisitor |
+| auxiliary channels | Planning config | `Init()` 中 CreateReader |
+| output channel | Planning config | `CreateWriter` |
+| algorithm mode/config | flags + proto | `PlanningBase::Init` |
+
+这张表也是发布包升级检查单。只替换 `.so` 而沿用旧 DAG/proto，可能仍能装载，却在输入数量、topic 或配置字段上产生隐蔽不兼容。
+
+## `Init()` 如何把配置变成运行时对象
+
+官方源码的结构可以精简为：
+
+```cpp
+bool PlanningComponent::Init() {
+  injector_ = std::make_shared<DependencyInjector>();
+
+  if (FLAGS_use_navigation_mode) {
+    planning_base_ = std::make_unique<NaviPlanning>(injector_);
+  } else {
+    planning_base_ = std::make_unique<OnLanePlanning>(injector_);
+  }
+
+  ACHECK(ComponentBase::GetProtoConfig(&config_));
+  planning_base_->Init(config_);
+
+  planning_command_reader_ = node_->CreateReader<PlanningCommand>(
+      config_.topic_config().planning_command_topic(),
+      [this](const std::shared_ptr<PlanningCommand>& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        planning_command_.CopyFrom(*message);
+      });
+
+  planning_writer_ = node_->CreateWriter<ADCTrajectory>(
+      config_.topic_config().planning_trajectory_topic());
+  return true;
+}
+```
+
+`DependencyInjector` 是共享依赖容器，向规划算法提供 vehicle state、planning context、history 等服务。`unique_ptr<PlanningBase>` 表示 PlanningComponent 独占具体规划模式；`shared_ptr<DependencyInjector>` 则允许多个内部对象共享依赖而不复制状态。
+
+`ACHECK` 表达“缺少组件配置时无法继续启动”的不可恢复条件。Reader callback 复制 protobuf 到组件成员，并用同一互斥量保护。复制增加成本，却把消息寿命从 callback 的 `shared_ptr` 中解耦，方便组件建立稳定快照。
+
+lambda 捕获 `[this]` 要求 Reader 在 PlanningComponent 析构前停止回调。若框架关闭顺序反过来，mutex 和成员都会成为悬空访问；因此 Reader 实体寿命必须被组件/Node 管理并在组件析构前撤销。
+
+### Init 是资源事务而不是字段赋值集合
+
+实际初始化至少包含依赖容器、具体 PlanningBase、配置、多个 Reader、Writer 和算法内部资源。更稳妥的自研组件使用局部候选对象，全部成功后再提交到成员：
+
+```cpp
+bool PlanningComponent::Init() {
+  auto injector = std::make_shared<DependencyInjector>();
+  auto planner = MakePlanner(injector, FLAGS_use_navigation_mode);
+  PlanningConfig config;
+  if (!ComponentBase::GetProtoConfig(&config)) return false;
+  if (!planner->Init(config)) return false;
+
+  auto command_reader = node_->CreateReader<PlanningCommand>(
+      config.topic_config().planning_command_topic(),
+      [this](const auto& msg) { OnPlanningCommand(msg); });
+  auto trajectory_writer = node_->CreateWriter<ADCTrajectory>(
+      config.topic_config().planning_trajectory_topic());
+  if (!command_reader || !trajectory_writer) return false;
+
+  injector_ = std::move(injector);
+  planning_base_ = std::move(planner);
+  planning_command_reader_ = std::move(command_reader);
+  planning_writer_ = std::move(trajectory_writer);
+  config_ = std::move(config);
+  return true;
+}
+```
+
+局部 `unique_ptr/shared_ptr` 在失败返回时自动回收，最后一段 move 是提交点。仍需注意 callback 在 Reader 创建后是否可能立刻触发：如果 lambda 捕获的 `this` 依赖尚未提交的成员，就必须先让组件进入明确 Initializing 状态，或把 callback state 独立构造后再注册。
+
+## `Proc()` 开始处应冻结一次 LocalView
+
+一次规划不能在算法执行一半时突然换成新 PlanningCommand。源码通过锁保护共享辅助输入，再组成 `local_view_`。其等价思路是：
+
+```cpp
+bool PlanningComponent::Proc(
+    const std::shared_ptr<PredictionObstacles>& prediction,
+    const std::shared_ptr<Chassis>& chassis,
+    const std::shared_ptr<LocalizationEstimate>& localization) {
+  LocalView view;
+  view.prediction_obstacles = prediction;
+  view.chassis = chassis;
+  view.localization_estimate = localization;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    view.planning_command =
+        std::make_shared<PlanningCommand>(planning_command_);
+    view.relative_map = std::make_shared<MapMsg>(relative_map_);
+  }
+  local_view_ = std::move(view);
+  // CheckInput -> RunOnce -> publish
+  return true;
+}
+```
+
+锁区只复制快照，不在锁内运行规划算法。若持锁执行 `RunOnce()`，新的辅助消息可能等待几十毫秒甚至更久，下一周期拿到更陈旧的数据。局部视图还使一次规划内部的输入集合保持一致。
+
+这里仍不是严格时间同步：三个模板输入和辅助快照可能来自不同时间。组件必须检查 header timestamp、序列和业务超时，不能把“同时放入 LocalView”误解为“同一物理时刻采样”。
+
+### LocalView 需要携带可验证的时间契约
+
+一次快照至少应能回答每个输入的源时间、接收时间和序号。可把检查规则写成表：
+
+| 输入 | 触发/状态 | 最大年龄 | 跨输入约束 | 失效输出 |
+|---|---|---:|---|---|
+| Prediction | 主触发 | 由规划周期定义 | 与 Localization/Chassis 时间差受限 | not-ready trajectory |
+| Chassis | 主输入最新值 | 控制状态阈值 | gear/speed 与定位时刻近似 | 安全停车/不规划 |
+| Localization | 主输入最新值 | 最严格之一 | pose timestamp 单调 | not-ready + reason |
+| PlanningCommand | 辅助状态 | 可按 command 生命周期 | command ID 与 routing 对应 | 等待新命令 |
+| TrafficLight/Story | 辅助状态 | 场景相关 | map/route 版本匹配 | 忽略陈旧感知或降级 |
+
+“最大年龄”应来自配置并进入监控，不应散落成魔法常量。回放时还要决定使用消息 header 时间还是回放 Clock；否则同一 Record 在不同墙钟速度下会得到不同过期判断。
+
+## 线程与共享状态地图
+
+```text
+transport/Reader callback context
+  -> CopyFrom/替换辅助状态
+  -> 更新 timestamp/sequence
+
+Planning CRoutine on Processor
+  -> DataVisitor 取主输入
+  -> 锁内冻结辅助 LocalView
+  -> 锁外 CheckInput + RunOnce
+  -> Writer::Write trajectory/status
+
+shutdown/control thread
+  -> 停 Reader ingress
+  -> 等 callback/CRoutine 退出
+  -> 析构 planner/injector/writer
+```
+
+mutex 保护的是一组辅助状态的一致快照，而不是 PlanningBase 的全部状态。若 callback 和 Proc 使用不同锁分别读取 command、map、traffic light，一次 LocalView 可能跨越更新边界；可以接受时要记录各字段版本，不接受时应在同一临界区取得完整快照。
+
+History、PlanningContext 和 Injector 中的服务也可能跨周期可变。它们通常由规划 CRoutine 单线程推进，比“所有字段都加锁”更容易证明；异步 callback 不应直接修改 Scenario/Frame 内部结构，而应只提交下一周期消费的状态。
+
+## C++ 设计一：模板输入定义调度协议
+
+`Component<A, B, C>` 不只是函数签名便利。它让框架在编译期知道三种 protobuf 类型，构造对应 DataVisitor，并把类型化 `shared_ptr` 传给 Proc。代价是支持的输入数量和组合由模板特化决定，编译时间、错误信息和 ABI 都更复杂。
+
+设计能力是：用模板表达稳定的类型关系，用非模板 `ComponentBase` 提供动态插件边界。静态安全和运行时装配不是二选一，而是在不同边界同时使用。
+
+## C++ 设计二：辅助 Reader 的共享状态
+
+辅助 Reader callback 与 Proc 可能运行在不同调度上下文。实际模块必须明确这些字段是互斥保护、原子快照，还是由框架保证串行。只看到 `CreateReader` 不足以判定线程安全，要继续追踪 callback executor 和被写字段。
+
+可改进的通用结构是把每类辅助输入保存为不可变 `shared_ptr<const T>` 快照，callback 原子替换，Proc 在开始时一次性加载局部副本。这样一次规划内看到的辅助状态不会中途变化。
+
+源码选择 `CopyFrom + mutex` 的优点是行为直观，protobuf 对象地址稳定；缺点是 callback 和 Proc 快照都可能发生深复制。不可变 `shared_ptr` 交换可以减少复制，却会把外部消息对象的寿命延长，并需要明确原子 shared pointer 或 mutex 语义。两种方案没有脱离 payload 大小与更新频率的绝对优劣。
+
+## 为什么多输入不是严格同步
+
+DataVisitor 的 AllLatest 更接近“主输入到达时取其他输入最新值”。这适合规划低延迟，但可能组合不同时间的 Chassis 与 Localization。Planning 必须依赖 header timestamp、状态估计和超时检查判断数据是否仍可用。
+
+优秀之处是框架没有强制昂贵的全输入 barrier；取舍是时间一致性责任进入业务模块。
+
+## 从组件进入具体规划算法
+
+默认车道规划的主线为：
+
+```text
+PlanningComponent::Proc
+  -> CheckInput
+  -> OnLanePlanning::RunOnce
+  -> 初始化 Frame / ReferenceLine
+  -> PublicRoadPlanner::Plan
+  -> ScenarioManager::Update
+  -> selected Scenario::Process
+  -> current Stage::Process
+  -> ordered Task::Execute / Process
+  -> 组合 ADCTrajectory
+```
+
+这是 Strategy + State Machine + Pipeline 的组合。`PlanningBase` 在导航模式与车道模式间提供策略边界；ScenarioManager 按当前世界状态选择场景；Scenario 内按 Stage 推进状态；Stage 再按配置顺序运行 Task。
+
+Task 顺序不是普通容器细节。前一个 Task 产生的 path boundary、reference line 或 speed decision 可能是后一个 Task 的输入；改变配置顺序等于改变算法数据依赖。要扩展新 Task，必须说明它读取和写入 Frame/ReferenceLineInfo 的哪些字段。
+
+## 增加一个 Planning Task 的工程步骤
+
+新 Task 不应从“复制现有类并改算法”开始，而应先定义数据契约：
+
+1. 写出输入字段：Frame 中的障碍物、ReferenceLineInfo、PlanningContext 或配置；
+2. 写出输出字段：path boundary、speed profile、decision 或 debug 信息；
+3. 标注前置 Task：哪些字段必须已经产生；
+4. 标注后继 Task：谁会读取本 Task 输出；
+5. 定义失败语义：跳过、尝试 fallback、终止当前 reference line 还是发布 not-ready；
+6. 估计复杂度和最大候选规模；
+7. 最后把 Task 注册并放入对应 Stage 配置顺序。
+
+最小类结构通常是：
+
+```cpp
+class SpeedGuardTask final : public Task {
+ public:
+  bool Init(const std::string& config_dir,
+            const std::string& name,
+            const std::shared_ptr<DependencyInjector>& injector) override;
+
+  Status Execute(Frame* frame,
+                 ReferenceLineInfo* reference_line_info) override;
+
+ private:
+  SpeedGuardConfig config_;
+};
+```
+
+`Frame*` 和 `ReferenceLineInfo*` 是一次规划周期的借用对象，Task 不应把它们保存到下一周期。`DependencyInjector` 可共享跨周期服务，但不能让 Task 通过它偷偷写入没有生命周期协议的全局状态。`Status` 要带可诊断原因，不能只返回 false 让上层猜测。
+
+测试时先构造最小 Frame/ReferenceLineInfo 验证纯 Task，再把 Task 放进单 Stage，最后才通过完整 PlanningComponent 和 Record 验证。这样失败能定位到算法、流水线配置或 Cyber 接入中的某一层。
+
+## 输入未就绪也要发布可解释输出
+
+官方 `CheckInput()` 会检查 localization、chassis、地图以及规划命令等条件。未就绪时，它不是静默跳过，而是构造带 `not_ready.reason` 的轨迹消息，填充 header 并发布，然后终止本周期。
+
+这种设计让 Control 和监控系统区分“Planning 没有运行”与“Planning 运行了但输入未准备好”。安全系统中，负结果也是协议的一部分。只打日志而不发布状态，会让下游只能等超时猜测故障。
+
+同理，正常发布轨迹后组件还发布 command execution status，并把轨迹加入 history。输出、反馈和历史是三个不同职责：Control 消费轨迹，命令发起方观察执行状态，规划内部使用历史形成跨周期上下文。
+
+## Rerouting 展示 Client 与共享状态交互
+
+当 planning context 标记需要重新路由时，组件构造 `LaneFollowCommand`，通过 Cyber Client 异步发出请求，再清除 `need_rerouting`。这里的危险是重复发送和状态竞争：检查、构造请求、发送与清标志应有明确串行上下文或锁。
+
+若发送失败，直接清除标志可能丢失重试；若不清除，又可能每周期重复发请求。工业实现需要 request id、in-flight 状态、退避和结果回调，而不是单个 bool 承担完整协议。
+
+## DAG 与进程边界的工程作用
+
+Launch 中的 `process_name` 决定组件是否共进程，进而影响 INTRA/SHM/RTPS 路径和故障隔离。Planning 与其他模块共进程可减少传输成本，但一个未捕获异常可能扩大故障域。生产配置应把性能收益和独立重启需求一起评估。
+
+DAG 还把组件库、类名、配置文件和 Reader 参数绑定成部署契约。ClassLoader 能加载类型并不表示配置兼容；发布包必须让 `.so`、DAG 和 proto 配置来自一致版本。动态插件边界也要求注册宏、符号可见性和基类 ABI 匹配。
+
+## 性能预算与数据结构
+
+单周期成本可近似拆为：输入 protobuf 深复制、LocalView 构造、参考线更新、Scenario/Stage/Task 计算、轨迹序列化与发布。规划算法通常远大于 Dispatcher 查表成本，但大消息复制与调试字段也可能显著增加尾延迟。
+
+History 和 Frame 缓存必须有界，否则长时间运行会线性增长。轨迹点数量决定序列化成本，障碍物数量与候选路径/参考线数量又会放大算法复杂度。性能报告应同时给出障碍物规模、参考线数量、场景、debug 开关和 percentile，而不能只有平均 Proc 时间。
+
+CRoutine 是协作式任务；一个过长且不 yield 的 Planning Proc 会占住对应 Processor。增加调度线程不能自动解决同一组件的最坏执行时间，也可能带来更多缓存争用。
+
+### 一次周期的预算表
+
+```text
+Tcycle = Tvisitor_fetch
+       + Tsnapshot_copy
+       + Tinput_validation
+       + Tframe/reference_line
+       + Σ(Tscenario_stage_task)
+       + Ttrajectory_build
+       + Tserialize_publish
+```
+
+还要单独统计主输入到达至 routine 获得 Processor 的调度等待。若规划目标周期为 100 ms，平均算法 40 ms 不代表安全：障碍物峰值、双 reference line、debug 字段和同 Processor 上其他长 routine 可能把 p99 推过 deadline。
+
+LocalView 中 protobuf 深复制的成本近似字段总大小；不可变 shared pointer 快照可以减少复制，却会延长消息寿命。History 若保留 H 个 Frame，每帧障碍物/候选轨迹规模为 S，内存主项近似 `O(H×S)`，必须有固定淘汰策略。
+
+## 可复用实现模式
+
+1. 将输入按“触发”与“状态”分类；
+2. 用类型化主输入固定执行签名；
+3. 辅助输入保存不可变快照并记录时间；
+4. Proc 开始时冻结本轮输入视图；
+5. 算法层不直接依赖 Reader/Writer；
+6. 输出统一在组件边界发布；
+7. 用 Record 固化输入，用 sequence/timestamp 验证重放。
+
+## 从零搭建一个缩小版规划项目
+
+可以先实现 `MiniPlanningComponent`，而不是直接复制 Apollo 全部 Planning：
+
+```text
+主输入：Prediction + Chassis + Localization
+辅助输入：PlanningCommand
+输出：MiniTrajectory + PlanningStatus
+算法：固定速度直线/安全停车两种策略
+```
+
+开发顺序：
+
+1. 定义 proto，并让输出携带 header、input sequence、status reason；
+2. 创建 `Component<A,B,C>`，Proc 只检查输入并发布直线轨迹；
+3. 在 Init 中创建辅助 Reader，锁内保存不可变 command 快照；
+4. Proc 开始冻结 LocalView，检查年龄和跨输入 skew；
+5. 抽出 `MiniPlanningBase::RunOnce(LocalView, Output*)`，不依赖 Node；
+6. 增加 Strategy：正常规划与安全停车；
+7. 编写 DAG/config/launch，使 library、class、topic 完整闭环；
+8. 录制输入 channel，用回放 Clock 验证相同 sequence 产生可比较输出。
+
+这个缩小版已经覆盖 Cyber 组件开发最关键的能力：模板主输入、异步辅助状态、快照、算法隔离、Writer、部署装配、回放与关闭。Scenario/Stage/Task 应在这些边界稳定后再加入。
+
+## Record 回放的可重复工作流
+
+```text
+采集：记录所有主输入、辅助输入、配置版本和代码 commit
+准备：固定 DAG/proto/flags，选择回放 Clock
+回放：按记录时间注入，记录每次 Proc 的 input sequence set
+比较：trajectory/status 按容差比较，不只比较字节
+诊断：区分输入差异、调度差异、随机性和算法变化
+```
+
+规划输出常含时间戳、debug 顺序或浮点差异，不宜要求整条 protobuf 字节完全相同。应选择具有业务意义的字段和容差，同时确认每次 Proc 使用的 LocalView 输入集合一致。若输入集合不同，先修复触发/快照时序，再讨论算法确定性。
+
+## 项目中的不足与约束
+
+大量 protobuf 复制和共享状态会增加延迟；多输入 latest 语义不能证明严格同步；动态 DAG 与包版本必须一致；Planning 算法本身的 WCET 仍会占住 CRoutine 所在 Processor。Cyber 提供隔离边界，但不会自动使复杂规划算法满足实时上界。
+
+## 自行实现相同模式的顺序
+
+先建立只有一个触发输入和一个 Writer 的 Component；再添加一个 mutex 保护的辅助状态 Reader；随后引入 LocalView 快照和输入就绪检查；把算法抽成不依赖 Cyber 的 PlanningBase；再增加 Scenario/Stage/Task 配置流水线；最后才接 Client、history、record replay 和多进程部署。
+
+完成标准是：辅助 callback 不与算法形成数据竞争；一次 Proc 使用冻结输入；缺失/过期输入发布明确状态；算法可以用构造的 LocalView 单元测试；Record 重放能复现同一输入序列；关闭后 Reader callback 不再访问组件；DAG 切换进程边界不改变业务接口。
+
+还应证明：Task 读取/写入字段和配置顺序有文档；每周期数据年龄与处理耗时可观测；PlanningCommand/reroute 使用 request ID 而非单布尔状态；Writer/Reader 创建失败不会留下半初始化组件；mainboard 关闭返回时没有 Planning routine 或 callback 仍访问插件代码。

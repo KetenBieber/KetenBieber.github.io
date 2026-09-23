@@ -1,0 +1,221 @@
+# Orocos RTT 阅读基础：实时组件、执行上下文与有界数据流
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Orocos RTT 的目标不是提供一个通用互联网消息系统，而是把设备驱动、控制器和信号处理模块组织成具有明确生命周期与执行边界的实时组件。它最关心的问题是：一段代码由哪个线程执行、何时执行、最坏要处理多少工作，以及输入数据过快时保留最新值还是完整序列。
+
+RTT 是 Real-Time Toolkit。这里的“实时”不等于平均速度快，而是能够分析并约束最坏响应时间。一次 10 微秒和一次 10 毫秒交替出现的实现，平均值可能很好，但不适合 1 kHz 控制环。
+
+## 从应用视角认识一个 RTT 组件
+
+典型组件继承 `RTT::TaskContext`，通过 hook 填入业务逻辑：
+
+```cpp
+class ArmController : public RTT::TaskContext {
+public:
+    ArmController(const std::string& name)
+        : TaskContext(name),
+          command_out_("command"),
+          state_in_("state") {
+        addPort(state_in_);
+        addPort(command_out_);
+    }
+
+    bool configureHook() override {
+        // 检查参数，分配运行期所需资源
+        return true;
+    }
+
+    bool startHook() override {
+        // 验证输入已连接、设备可用
+        return true;
+    }
+
+    void updateHook() override {
+        RobotState state;
+        if (state_in_.read(state) == RTT::NewData) {
+            command_out_.write(compute(state));
+        }
+    }
+
+private:
+    RTT::InputPort<RobotState> state_in_;
+    RTT::OutputPort<Command> command_out_;
+};
+```
+
+这段代码表面上像普通面向对象继承，但背后同时存在五类对象：
+
+```text
+TaskContext                     组件与生命周期边界
+  ├─ TaskCore state             PreOperational/Stopped/Running/Error...
+  ├─ ExecutionEngine            可执行工作的汇聚点
+  ├─ ActivityInterface          线程、周期、优先级、CPU affinity
+  ├─ Service/Operation          命令与反射接口
+  └─ InputPort/OutputPort       类型化数据接口
+         └─ ChannelElement 链   存储、转换、本地或远端传输
+```
+
+只读 `updateHook()` 看不懂 RTT，因为 hook 既不拥有线程，也不直接知道数据来自哪个连接。线程由 Activity 提供，调用时机由 ExecutionEngine 决定，数据语义由 Port 后面的 ChannelElement 和 ConnPolicy 决定。
+
+## 组件、线程和数据连接是三个独立维度
+
+RTT 有意把三件事分开：
+
+- `TaskContext` 定义组件能做什么和处于什么状态；
+- `Activity` 定义这些工作在哪个执行上下文运行；
+- `ConnPolicy` 定义端口连接如何保存和传递数据。
+
+同一个控制器组件可以运行在 1 kHz 周期线程，也可以运行在输入事件触发的非周期线程。相同的两个 Port 可以通过单值 DATA 对象连接，也可以通过有界 BUFFER 连接。组件业务代码无需为每种组合重新写一套类。
+
+这是 Strategy 模式：稳定的组件逻辑依赖抽象接口，部署阶段注入执行策略和连接策略。
+
+## C++ 虚函数与 Template Method
+
+`configureHook()`、`startHook()` 和 `updateHook()` 是虚函数。基类通过虚函数表在运行时调用派生类实现：
+
+```cpp
+TaskContext* task = new ArmController("arm");
+task->configure(); // 基类固定状态检查，再间接调用 ArmController::configureHook()
+```
+
+用户不能直接决定完整状态转换，而是只覆盖 hook。基类算法大致是：
+
+```cpp
+bool TaskContext::configure() {
+    if (state() != PreOperational) return false;
+    if (!configureHook()) return false;
+    setState(Stopped);
+    return true;
+}
+```
+
+这种“框架固定骨架、子类填入步骤”的结构叫 Template Method。好处是所有组件共享相同前置条件与错误转换；风险是 hook 内任何阻塞、异常和动态分配都会进入框架的关键路径。
+
+## Runnable、Activity 与 ExecutionEngine
+
+`ActivityInterface` 表示一个可启动、可停止、可触发的执行载体。它驱动一个 `base::RunnableInterface`：
+
+```text
+OS Thread / periodic timer
+  -> Activity::loop() 或 step()
+       -> RunnableInterface::step()
+            -> ExecutionEngine
+                 -> operation messages
+                 -> port callbacks
+                 -> TaskContext hooks
+```
+
+这类似于“线程拥有事件循环，事件循环拥有组件工作”，而不是组件对象内部硬编码一个 `std::thread`。替换 Activity 就能改变周期、调度策略或是否由另一个 master activity 驱动。
+
+## OwnThread 与 ClientThread
+
+Operation 是组件对外暴露的函数。调用者必须知道它在哪个线程执行：
+
+```text
+ClientThread
+  caller -> 直接执行函数 -> 返回
+
+OwnThread
+  caller -> 封装为消息 -> ExecutionEngine queue
+         -> 组件 Activity 执行 -> 完成/返回
+```
+
+`ClientThread` 少一次入队与上下文切换，但多个调用者可能并发进入组件。`OwnThread` 把状态修改串行化到组件线程，却引入队列等待和优先级反转可能性。线程选项不是 API 装饰，而是组件并发模型的一部分。
+
+## Port 是端点，ChannelElement 才是数据路径
+
+`InputPort<T>` 和 `OutputPort<T>` 提供类型安全入口。建立连接后，实际数据穿过一条 ChannelElement 链：
+
+```text
+OutputPort<T>
+  -> output endpoint
+  -> storage: DATA / BUFFER / CIRCULAR_BUFFER
+  -> optional stream/protocol element
+  -> input endpoint
+  -> InputPort<T>
+```
+
+每个 element 只负责链上的一种行为，例如保存最新值、排队、跨进程传输或转发。这个结构接近 Chain of Responsibility：连接由多个可组合节点形成，而 Port 不需要知道每个节点的具体类型。
+
+## DATA、BUFFER 与 CIRCULAR_BUFFER
+
+三种连接表达三种数据语义：
+
+| 策略 | 满载或新值到达时 | 适合 |
+|---|---|---|
+| DATA | 覆盖单个旧值 | 位姿、关节状态、设定值 |
+| BUFFER | 有界队列满时拒绝/丢新值 | 每条事件都有意义且旧事件优先 |
+| CIRCULAR_BUFFER | 有界队列满时覆盖最旧值 | 最新状态优先，允许跳过历史 |
+
+选择 DATA 并不表示没有并发控制，只表示接收端观察单个“当前值”。选择 BUFFER 也不自动提供端到端可靠性；满队列如何处理仍由策略和具体实现决定。
+
+## `FlowStatus` 比布尔值多表达一层时间语义
+
+读取端返回：
+
+```cpp
+enum FlowStatus {
+    NoData,
+    OldData,
+    NewData
+};
+```
+
+- `NoData`：从未得到值，或 clear 后当前无值；
+- `OldData`：这次没有新样本，但调用允许复制上次值；
+- `NewData`：本次确实消费了一个新样本。
+
+控制器若把三者压缩成“读取成功/失败”，会把传感器停更误判为稳定测量。`OldData` 应结合时间戳或 watchdog 使用，决定是否还能安全输出控制命令。
+
+## Lock-free 不等于整条路径确定
+
+RTT 提供 lock-free 的 DataObject 和 Buffer，但这只描述容器同步算法。一次端口读写仍可能执行 `T` 的复制构造或赋值：
+
+```cpp
+RobotState sample;
+input.read(sample); // sample 的赋值可能分配 vector 内存
+```
+
+若 `RobotState` 内部使用会扩容的 `std::vector`、带锁共享对象或不可预测序列化，容器本身 lock-free 也无法保证整个操作无阻塞。实时审计必须覆盖：
+
+- 容器算法的进展保证；
+- 样本类型的复制/移动最坏成本；
+- 内存是否在 start 前预分配；
+- Activity 的 OS scheduler、priority 与 affinity；
+- 每周期最多处理多少 operation 和 callback；
+- 用户 hook 的 WCET。
+
+## 状态机是资源使用协议
+
+RTT 生命周期不是为了界面整齐，而是把资源活动范围固定下来：
+
+```text
+PreOperational
+  -- configure() / configureHook --> Stopped
+Stopped
+  -- start() / startHook ---------> Running
+Running
+  -- stop() / stopHook -----------> Stopped
+Stopped
+  -- cleanup() / cleanupHook -----> PreOperational
+```
+
+工程上常见的分工是：构造函数只建立对象形状；`configureHook` 分配内存并检查静态参数；`startHook` 验证运行条件；`updateHook` 避免分配和阻塞；`stopHook` 停止活动资源；`cleanupHook` 释放配置资源。
+
+把资源分配推迟到 `updateHook` 会把不可预测 allocator 延迟带入控制周期；把硬件访问放在构造函数又会让部署器无法以状态机管理失败。
+
+## 后续阅读路线
+
+接下来的章节按实际依赖关系展开：
+
+1. TaskContext 生命周期与 Service 图，解释组件如何暴露接口；
+2. Activity 和 ExecutionEngine，解释一次周期真正处理哪些工作；
+3. Operation 线程模型，解释同步调用如何跨线程排队；
+4. Port 与 ChannelElement，解释数据所有权和缓存策略；
+5. 实时性能与关闭，建立可分析的延迟和资源回收边界；
+6. 设计总结，把模式与最小复刻顺序连接起来。

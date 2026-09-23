@@ -16,6 +16,7 @@ type NoteMeta = {
   categories?: string[]
   tags?: string[]
   featured?: boolean
+  externalUrl?: string
 }
 
 type MarkdownModule = NoteMeta & { body: string }
@@ -202,7 +203,22 @@ const Notes = () => {
                   {(note.tags ?? []).slice(0, 3).map(tag => <Badge key={tag} variant="subtle">{tag}</Badge>)}
                 </HStack>
                 <Flex align="center" gap={3}>
-                  <Button flex="1" size="sm" variant="outline" rightIcon={<ExternalLinkIcon />} onClick={() => setSelected(note)}>{t('notes.open')}</Button>
+                  <Button
+                    flex="1"
+                    size="sm"
+                    variant="outline"
+                    rightIcon={<ExternalLinkIcon />}
+                    onClick={() => {
+                      if (note.externalUrl) {
+                        const relative = note.externalUrl.replace(/^\/+/, '')
+                        window.location.assign(`${import.meta.env.BASE_URL}${relative}`)
+                        return
+                      }
+                      setSelected(note)
+                    }}
+                  >
+                    {note.externalUrl ? t('notes.openSite') : t('notes.open')}
+                  </Button>
                   <HStack spacing={1} color={muted} fontSize="xs" flexShrink={0}>
                     <Box as={FaEye} />
                     <Text>{views[note.slug] ?? 0}</Text>

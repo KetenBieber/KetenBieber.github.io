@@ -1,0 +1,144 @@
+# Port 与 ChannelElement：连接策略、数据所有权和 FlowStatus
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+RTT 的 Port 负责类型与连接入口，真正的读写行为由 ChannelElement 链和 ConnPolicy 组合。理解这一层，才能回答 `write()` 是否复制、`readNewest()` 为什么可能线性耗时，以及 buffer 满时丢哪一条。
+
+源码入口：[`InputPort.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/InputPort.hpp)、[`OutputPort.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/OutputPort.hpp) 与 [`ConnPolicy.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ConnPolicy.hpp)。
+
+## 类型化 Port 建立静态边界
+
+```cpp
+RTT::OutputPort<JointState> out("state");
+RTT::InputPort<JointState> in("state");
+
+RTT::ConnPolicy policy = RTT::ConnPolicy::data();
+out.connectTo(&in, policy);
+```
+
+模板参数 `JointState` 让同进程连接在编译期确定数据类型。类型擦除接口用于部署和反射，实际读写最终回到类型化 data source/channel endpoint。
+
+一个 OutputPort 可以连接多个输入，因此一次 write 可能扇出到多条 channel。各连接可以有不同 ConnPolicy；慢连接不应在没有明确策略时拖住全部目的地。
+
+## ConnPolicy 描述语义而不是实现类名
+
+关键字段包括：
+
+- `type`：DATA 或 BUFFER；
+- `size`：有界队列容量；
+- `lock_policy`：LOCKED、LOCK_FREE 或 UNSYNC；
+- `pull`：PUSH 或 PULL 方向；
+- `init`：连接建立后是否提供初始样本；
+- `mandatory`：某些传输场景的强制连接语义；
+- transport/name/data_size 等远程连接信息。
+
+Policy 是配置值对象，channel factory 根据它建立具体元素链。这样公开 Port 不依赖 `BufferLockFree<T>` 等实现类型。
+
+## PUSH 与 PULL 改变谁承担复制
+
+PUSH 连接由 writer 主动把样本送入下游存储：
+
+```text
+OutputPort::write(sample)
+  -> channel.write(sample)
+  -> input-side storage updated
+```
+
+PULL 连接则让 reader 在读取时向上游请求当前值：
+
+```text
+InputPort::read(sample)
+  -> channel.read(sample)
+  -> upstream data source supplies value
+```
+
+PUSH 的发布延迟包含所有下游写入，读取便宜；PULL 写入便宜，读取时承担上游访问，并可能跨越不合适的线程边界。控制回路通常偏好明确的 PUSH 与本地有界存储。
+
+## DATA 是单值状态对象
+
+DATA connection 保存当前值和新旧状态。连续写入 A、B、C 而读者只读一次时，通常观察 C；中间历史不是该策略的契约。
+
+读接口的 `copy_old` 参数决定没有新值时是否复制旧值：
+
+```cpp
+FlowStatus status = input.read(sample, true);
+```
+
+若返回 `OldData`，`sample` 可被填为上次值；若 `copy_old=false`，调用方不能假设输出对象已更新。
+
+## BUFFER 与 CIRCULAR_BUFFER 的丢弃方向
+
+有界队列容量为 3：
+
+```text
+BUFFER 满载 [A B C] + D -> 保留 [A B C]，D 失败/被丢弃
+CIRCULAR     [A B C] + D -> 保留 [B C D]，A 被覆盖
+```
+
+普通 BUFFER 保护已经接收的历史，适合命令与事件；CIRCULAR 保护新鲜度，适合状态流。两者空间都是 `O(capacity × sizeof(T))`，push/pop 目标为 `O(1)`。
+
+系统必须暴露 dropped counter。没有计数时，消费者只看到数据继续到来，无法判断是否跨过了若干关键状态。
+
+## `readNewest()` 通过 drain 获得最新值
+
+其语义可写为：
+
+```cpp
+FlowStatus readNewest(T& sample) {
+    FlowStatus result = read(sample, true);
+    while (read(sample, false) == NewData) {
+        result = NewData;
+    }
+    return result;
+}
+```
+
+真实代码细节可能不同，但核心是反复消费 backlog。队列中有 `N` 条时，它是 `O(N)`，不是对尾元素的 `O(1)` peek。若生产速度持续超过 drain 速度，单周期读成本会失去上界。
+
+需要恒定时间最新值时应选择 DATA，或设计能原子替换最新快照的结构，而不是用大 BUFFER 加 `readNewest()` 模拟。
+
+## Lock-free DataObject 使用多槽避免读写同一对象
+
+概念上，writer 寻找未被 reader 占用的槽位，写完后发布新的 current index；reader 增加槽位读计数，复制完成后减少：
+
+```text
+slots: [0][1][2]
+current = 1
+reader: pin slot 1 -> copy -> unpin
+writer: choose slot != current and readers==0 -> assign -> publish index
+```
+
+多个槽位避免 writer 原地修改 reader 正在复制的 `T`。但 writer 可能需要扫描槽位；读者长期持有也会减少可用槽。lock-free 保证系统中总有线程推进，不保证每次调用固定步骤完成。
+
+## 样本类型决定隐藏成本
+
+对 `std::vector<double>`，赋值可能重新分配。改进方法包括：
+
+- configure 阶段 reserve 固定上限；
+- 使用固定容量数组或 bounded vector；
+- 用 loaned buffer/引用计数块传递大 payload；
+- 将元数据和大块存储分离，队列只移动句柄。
+
+零拷贝句柄会增加生命周期复杂度：producer 不能在最后一个 consumer 释放前复用内存，慢 consumer 会耗尽 buffer pool。因此必须设定 pool 数和耗尽策略。
+
+## ChannelElement 链的故障传播
+
+链上任一 element 可能拒绝写入、断开或报告 transport 错误。上游 write 需要聚合多个连接的结果：全部成功、部分成功或全部失败。复刻时不应只返回单个 bool 而丢失哪个连接失败。
+
+断开连接必须同时从 OutputPort 和 InputPort 的连接表移除，并保证正在遍历连接快照的 write 安全结束。常见实现是锁内复制 connection handles，锁外逐一写入；删除只移除 registry 所有权，活动 write 通过共享 handle 延长 channel 生命周期。
+
+## 数据路径性能表
+
+| 操作 | 典型复杂度 | 最坏风险 |
+|---|---:|---|
+| DATA write/read | 近似 `O(1)` + `T` 复制 | 大对象分配、reader pin 延长 |
+| BUFFER push/pop | `O(1)` + `T` 复制 | 满队列丢新或阻塞策略 |
+| CIRCULAR push/pop | `O(1)` + `T` 复制 | 覆盖旧数据不可追溯 |
+| `readNewest` | `O(backlog)` | 输入风暴耗尽周期预算 |
+| OutputPort fan-out | `O(connections)` | 一个慢 channel 放大发布延迟 |
+
+端口性能报告必须说明 payload 类型、连接数、policy、是否同进程、是否预分配以及 drop 行为；只有消息/秒没有可比性。

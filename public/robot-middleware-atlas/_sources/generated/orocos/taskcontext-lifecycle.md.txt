@@ -1,0 +1,192 @@
+# TaskContext 生命周期：组件状态、Hook 与 Service 图
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+`TaskContext` 是 Orocos RTT 的组件边界。它同时聚合生命周期状态、ExecutionEngine、Port、Property、Attribute、Operation、Service 与 Peer。要复刻它，不能从“写一个基类再加几个虚函数”开始，而要先定义每个状态允许哪些操作，以及失败时状态如何保持一致。
+
+源码入口：[`TaskContext.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/TaskContext.hpp) 与 [`TaskContext.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/TaskContext.cpp)。
+
+## 对象图从 TaskCore 向外扩展
+
+概念对象图如下：
+
+```text
+TaskContext
+  ├─ TaskCore
+  │    ├─ TaskState
+  │    └─ configure/start/update/stop/cleanup/error hooks
+  ├─ ExecutionEngine
+  │    └─ ActivityInterface -> OS thread or master activity
+  ├─ root Service
+  │    ├─ OperationInterfacePart entries
+  │    ├─ PropertyBag
+  │    ├─ Attribute entries
+  │    └─ child Services
+  ├─ DataFlowInterface
+  │    ├─ InputPortInterface
+  │    └─ OutputPortInterface
+  └─ peers: name -> TaskContext*
+```
+
+`TaskCore` 只关心状态机和 hook；`TaskContext` 在此基础上加入组件间交互能力。这个分层让状态机逻辑不必依赖每一种 Service 或 Port 类型。
+
+## 构造阶段建立控制接口
+
+TaskContext 初始化时建立根 Service，并把标准生命周期动作注册成 Operation。可以把它理解为：
+
+```cpp
+TaskContext::TaskContext(std::string name)
+  : TaskCore(name),
+    engine_(new ExecutionEngine(this)),
+    service_(new Service("this", this)) {
+    service_->addOperation("configure", &TaskContext::configure, this);
+    service_->addOperation("start",     &TaskContext::start, this);
+    service_->addOperation("stop",      &TaskContext::stop, this);
+    service_->addOperation("cleanup",   &TaskContext::cleanup, this);
+    service_->addOperation("trigger",   &TaskContext::trigger, this);
+}
+```
+
+这不是逐字源码，而是依赖关系的等价展开。生命周期函数既能被 C++ 直接调用，也能通过 RTT 的 Service/Operation 反射入口被部署器或脚本调用。
+
+根 Service 是命名空间。子服务可将驱动诊断、校准或控制参数分组，避免所有 Operation 平铺在组件根部。`ServiceRequester` 则是对所需外部服务的声明，使组件能在连接后调用 peer 服务。
+
+## 状态转换先检查前置条件
+
+稳定状态主线是：
+
+```text
+PreOperational --configure成功--> Stopped --start成功--> Running
+       ^                          |                    |
+       |                          |                    |
+       +------cleanup成功---------+<------stop---------+
+```
+
+正确实现需要把 hook 返回值和状态提交分开：
+
+```cpp
+bool configure() {
+    if (getTaskState() != PreOperational) return false;
+    try {
+        if (!configureHook()) return false;
+        setTaskState(Stopped);
+        return true;
+    } catch (...) {
+        setExceptionState();
+        return false;
+    }
+}
+```
+
+只有 hook 成功后才能提交新状态。若先写入 `Stopped` 再调用 hook，失败组件会对外谎称已经配置完成。这个结构等价于一个小事务：验证前置条件，执行用户步骤，成功后提交状态，异常时进入明确错误状态。
+
+## Hook 的资源职责
+
+| Hook | 进入条件 | 应承担的工作 | 不应承担的工作 |
+|---|---|---|---|
+| `configureHook` | PreOperational | 校验属性、预分配缓冲、打开可回滚资源 | 启动持续数据流 |
+| `startHook` | Stopped | 检查连接和设备、复位运行计数 | 大规模分配、长时间探测 |
+| `updateHook` | Running | 有界读、计算、写 | 阻塞 I/O、不可控分配 |
+| `stopHook` | Running→Stopped | 停输出、使设备进入安全态 | 释放下次 start 仍需的配置 |
+| `cleanupHook` | Stopped | 释放 configure 阶段资源 | 假设 update 线程仍运行 |
+| `errorHook` | RunTimeError | 有界降级或尝试恢复 | 无限重试掩盖故障 |
+
+这种分工让部署器可以 configure 一次后多次 start/stop，而无需每次重建所有资源。
+
+## 错误状态不是一个布尔标志
+
+RTT 区分运行期错误、异常和致命错误等状态。它们表示不同恢复能力：某些错误允许进入 `errorHook` 并在条件恢复后继续；异常表示 hook 抛出了未被业务代码处理的异常；致命错误通常要求停止和重新部署。
+
+状态必须由 ExecutionEngine 的执行结果驱动，不能只在调用者线程修改。否则 Activity 正在运行 `updateHook` 时，另一个线程把状态改成 Stopped，可能导致同一周期仍继续写输出。
+
+## Peer 关系提供对象导航而非数据传输
+
+Peer registry 允许通过名字找到另一个 TaskContext，再访问其 Service 或 Operation：
+
+```text
+controller.addPeer(driver)
+controller.getPeer("driver")
+          -> driver.provides("diagnostics")
+```
+
+Peer 本身不等于 Port connection，也不自动建立线程安全。它只是组件图中的命名引用。数据流应通过 Port，命令调用应通过 Operation，并为二者分别选择策略。
+
+保存裸 `TaskContext*` 一类非拥有引用时，部署器必须保证 peer 的移除和析构顺序。更安全的复刻可以使用显式 connection token 或 weak handle，避免组件销毁后留下悬空 peer。
+
+## Activity 可替换但不能在任意时刻替换
+
+TaskContext 把 `ExecutionEngine` 交给 Activity 驱动。`setActivity()` 必须检查旧 Activity 是否正在运行，以及调用是否来自旧 Activity 自身线程。若正在执行 `updateHook` 时销毁承载它的 Activity，当前调用栈会继续访问已释放对象。
+
+安全替换顺序是：
+
+```text
+阻止新的 trigger
+  -> stop old Activity
+  -> 确认底层线程已退出或不再进入 Runnable
+  -> 从旧 Activity 解绑 ExecutionEngine
+  -> 绑定新 Activity
+  -> 按组件状态决定是否启动
+```
+
+仅调用 `stop()` 不一定等于线程已经 join。析构前要使用 Activity 实现提供的完整终止保证。
+
+## Operation、Property 和 Attribute 的边界
+
+- Operation 表示一个动作，可能在 ClientThread 或 OwnThread 执行；
+- Property 是可配置、可序列化的参数，通常在 configure 前后由部署器设置；
+- Attribute 是运行时可读写值，可能映射内部变量或常量；
+- Port 表示持续数据流，不适合用大量 Operation 调用替代。
+
+把高速测量做成 Operation 会引入调用和返回同步；把一次性校准命令做成 Port 又需要人为设计确认协议。接口类型应根据时间和交互语义选择。
+
+## 锁边界与用户 Hook
+
+框架内部需要保护状态转换，但不应在持有全局状态锁时运行任意用户 hook。用户 hook 可能访问 peer、触发自身 Operation 或调用部署接口，从而回入 TaskContext。
+
+可复刻实现可以使用“状态转换门闩”而非覆盖 hook 全程的大锁：
+
+```text
+[lock] 验证当前状态，标记 transition in progress [unlock]
+       执行用户 hook
+[lock] 若成功提交新状态；若失败恢复/进入错误态 [unlock]
+```
+
+这需要明确并发调用 configure/start/stop 时的结果，例如其他转换立即失败或等待条件变量。不能允许两个调用同时通过相同前置条件。
+
+## 生命周期性能与可行性
+
+生命周期函数不在每个控制周期中调用，可以容忍比 `updateHook` 更高的开销，但它们仍应有超时和回滚能力。尤其是 `startHook` 若执行不可取消的设备 I/O，部署器就无法及时停止系统。
+
+TaskContext 模型适合资源活动范围明确的控制组件。对于大量短生命周期、无状态函数任务，它的 Service 和状态机成本可能过重；对于设备驱动和控制器，这种显式状态反而能减少隐式初始化和退出竞态。
+
+## 最小状态机复刻
+
+第一版可实现以下结构：
+
+```cpp
+class TaskCore {
+public:
+    enum class State { PreOperational, Stopped, Running,
+                       RunTimeError, Exception, FatalError };
+
+    bool configure();
+    bool start();
+    void update();
+    void stop();
+    void cleanup();
+
+protected:
+    virtual bool configureHook() { return true; }
+    virtual bool startHook() { return true; }
+    virtual void updateHook() {}
+    virtual void stopHook() {}
+    virtual void cleanupHook() {}
+    virtual void errorHook() {}
+};
+```
+
+随后为每条公开转换写表驱动测试：起始状态、hook 返回/抛异常、目标状态、hook 调用次数。状态机先正确，再连接 Activity；否则并发执行会放大一个本来就不确定的转换协议。

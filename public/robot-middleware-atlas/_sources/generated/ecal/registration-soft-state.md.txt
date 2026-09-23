@@ -1,0 +1,241 @@
+# Registration 控制面：周期软状态、超时与连接状态机
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Publisher 与 Subscriber 需要在没有中央协调器的情况下相遇。eCAL 通过周期 registration 解决：每个进程不断广播当前实体快照，接收者刷新过期时间并把变化交给各个 Gate。
+
+这套机制允许异常退出后自动收敛，也意味着“连接存在”不是一次报文写下的永久事实，而是必须持续续租的软状态。
+
+## 发送侧同时发布快照与增量
+
+[`CRegistrationProvider`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/registration/ecal_registration_provider.cpp) 启动周期线程。每次 tick：
+
+```text
+create sample list
+  -> add current process registration
+  -> ask PubGate for current publishers
+  -> ask SubGate for current subscribers
+  -> ask service/client gates
+  -> append queued explicit register/unregister samples
+  -> clear one-shot queue
+  -> send complete list through registration transport
+```
+
+周期快照提供最终一致性：即使某次新增通知丢失，下一轮完整实体列表仍会再次声明它。
+
+显式增量降低常见变化的发现延迟。`RegisterSample()` 入队后会主动 trigger 线程；`UnregisterSample()` 在该版本中只入队，通常等下一周期发送。
+
+## Soft state 的租约模型
+
+每个远端实体都可以理解为一份带截止时间的租约：
+
+```text
+first registration  -> create lease, deadline = now + timeout
+refresh              -> move deadline forward
+explicit unregister  -> remove immediately
+no refresh           -> expiration thread removes after deadline
+```
+
+它不要求进程崩溃时还能发送“我已退出”。只要刷新停止，系统最终删除失效实体。
+
+代价是故障检测时间至少接近 timeout。Timeout 过短会把网络抖动误判成离线；过长会让 Publisher 继续向不存在的连接写数据。
+
+## Registration transport 与 payload transport 分离
+
+Registration 可以经 SHM 或 UDP 接收，但它描述的是控制状态，而不是业务 payload。
+
+```text
+registration receiver thread
+  -> deserialize list of entity samples
+  -> CSampleApplier
+  -> multiple control consumers
+```
+
+即使业务 topic 选择 TCP，Publisher/Subscriber 相遇仍依赖 registration transport。排查“TCP 没数据”时，可能根因是控制面 registration 被防火墙或 domain 配置隔离，而不是 TCP socket 本身。
+
+## CSampleApplier 是控制面分发器
+
+[`CSampleApplier`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/registration/ecal_registration_sample_applier.cpp) 先执行接受过滤，再把样本分发给命名 callback 集合：
+
+```text
+"gates"    -> Publisher/Subscriber/Service/Client gates
+"timeout"  -> refresh expiration state
+"descgate" -> datatype descriptions
+"monitor"  -> monitoring view
+```
+
+一条 registration 因此可以同时改变连接、刷新寿命并更新监控。
+
+如果 applier 持 callback-map mutex 执行所有 consumers，某个慢 consumer 会阻塞添加/删除 callback 和后续 control samples。更安全的实现可以锁内复制 callback 快照、锁外调用，与数据面 Gate 的快照模式一致。
+
+## 接受过滤决定可见域
+
+Registration sample 不是无条件接受。过滤会考虑：
+
+- host 是否相同；
+- SHM domain 是否相同；
+- sample 是否来自同一 process；
+- loopback 是否启用；
+- network mode 是否允许远端实体。
+
+这决定了一个进程能看见哪些实体。Topic name 相同但 domain/网络范围不同的进程可能永远不会建立连接。
+
+可见域属于部署拓扑，不属于业务 topic API。诊断工具应把“收到但过滤”与“从未收到”区分开。
+
+## ExpirationMap 的双索引结构
+
+Timeout provider 需要两种操作：按 entity 快速刷新，以及按时间顺序快速找出已过期项。
+
+单一 `std::map<Identity, Entry>` 便于查 identity，却无法快速找到最早 deadline。单一按时间排序结构又不便更新指定 entity。
+
+eCAL 的 expiration map 使用：
+
+```text
+ordered/hash map: identity -> entry + list iterator
+recency list: oldest -----------------> newest
+```
+
+Refresh 时 map 查找约 `O(log N)`，再用 list iterator `splice` 到尾部 `O(1)`。过期扫描从头开始，遇到第一个未过期项即可停止。
+
+这是 LRU/expiry index 常见的“双结构一致性”模式。删除时必须同时移除 map 节点和 list 节点。
+
+## 超时被转换成合成 Unregister
+
+Expiration thread 不直接操作 PubGate/SubGate 内部 map。它生成与真实 unregister 相同形状的 registration sample，再交回 `CSampleApplier`：
+
+```text
+lease expires
+  -> construct synthetic unregister sample
+  -> CSampleApplier::ApplySample
+  -> gates receive normal unregister path
+```
+
+这避免“显式退出”和“超时退出”维护两套清理逻辑。连接事件、layer counter 和 reader resource 都沿同一状态转换处理。
+
+统一命令形状是 event-sourced 系统可复用的设计：不同原因先归一成同一领域事件，下游不关心事件是网络发来还是本地合成。
+
+## Connection identity 的组成
+
+理想 identity 应包含 host、process、entity 或一个真正全局唯一 ID。该源码快照的部分 `SampleIdentifier` 比较主要依赖 entity id，并注释其全局唯一假设。
+
+如果两个进程随机生成相同 entity id，connection map 和 timeout state 可能把它们合并。概率或许很低，但安全设计应让 key 明确包含命名空间：
+
+```cpp
+struct EntityKey {
+  HostId host;
+  ProcessId process;
+  EntityId entity;
+};
+```
+
+Hash 与 equality 必须使用相同字段。日志和监控也应输出完整 identity，便于诊断碰撞与重启。
+
+## Subscriber 侧的两阶段激活
+
+Publisher registration 到达 SubGate 后，先把 TCP 端口、SHM memfile list 等 layer parameters 交给 reader layer，再更新每个 SubscriberImpl 的 connection map。
+
+状态机为：
+
+```text
+ABSENT
+  -- first registration --> SEEN_INACTIVE
+
+SEEN_INACTIVE
+  -- next registration --> ACTIVE + connected event
+  -- unregister/timeout -> ABSENT
+
+ACTIVE
+  -- refresh -----------> ACTIVE
+  -- unregister/timeout -> ABSENT + disconnected event
+```
+
+第一次样本建立记录但不增加公共 publisher count，第二次持续出现才确认 active。这会增加约一个 refresh 周期的 connected 延迟，却过滤只出现一次的瞬态样本。
+
+源码没有在状态机旁完整说明设计意图，因此应把“抑制瞬态”视为合理解释，而把“两次 registration 才 active”视为确定行为。
+
+## Publisher 侧的连接激活
+
+PublisherImpl 也为 Subscriber 维护 connection entry。首次 registration 已经选层并可能增加内部发送 layer counter，后续 refresh 才进入 established 和公共 subscriber count。
+
+这形成两个时间概念：
+
+- data path layer 已准备；
+- public connection event 已确认。
+
+公共 `Send()` 若要求 established count 大于零，就不会在 pending 窗口发送业务数据。自研实现应避免一半代码检查 layer counter、另一半检查 public count，却没有文档说明二者差别。
+
+## 注册更新带来传输资源变化
+
+Publisher registration 不只更新“在线”状态，还可能改变：
+
+- TCP listening port；
+- SHM memory-file list；
+- datatype descriptor；
+- layer enable/active flags；
+- process/host metadata。
+
+Subscriber reader layer 应先应用 layer parameter，再宣布 connection active。否则 connected callback 触发后，业务立刻发送/读取却发现 TCP endpoint 尚未配置。
+
+## Event callback 的锁域
+
+Connected/disconnected callback 是用户代码。若在 Gate shared lock、connection-map mutex 或 SampleApplier callback-map mutex 内同步执行，慢 callback 会阻塞控制面推进。
+
+更稳健的结构为：
+
+```text
+lock state
+  -> apply transition
+  -> copy Event object + callback handle
+unlock state
+enqueue event to bounded executor
+```
+
+异步事件会改变“注册函数返回前 callback 已完成”的兼容行为，所以需要在 API 文档中明确。至少应避免用户 callback 反向调用同一锁域生命周期 API。
+
+## 时间复杂度与规模边界
+
+设已知实体 N，本次过期 K 个，同 topic 本地对象 T：
+
+```text
+refresh expiry entry       O(log N) + O(1) list splice
+erase K expired            O(K log N)
+gate lookup/fan-out         map-dependent + O(T)
+periodic full snapshot      O(number of local entities)
+```
+
+Registration 不是每条 payload 的热路径，但实体很多、refresh 很短时会形成持续控制流量与序列化成本。
+
+每进程周期发送完整快照使恢复简单，规模极大时则需要增量序列、版本向量或集中目录。eCAL 的取舍更适合局域网内有限机器人进程集合。
+
+## 可复刻的最小软状态表
+
+```cpp
+class LeaseTable {
+ public:
+  std::vector<EntityKey> Refresh(EntitySample sample, TimePoint now);
+  std::vector<EntityKey> Expire(TimePoint now);
+
+ private:
+  struct Entry {
+    EntitySample sample;
+    TimePoint deadline;
+    RecencyList::iterator order;
+    enum { Seen, Active } state;
+  };
+
+  std::unordered_map<EntityKey, Entry> entries_;
+  RecencyList by_deadline_;
+};
+```
+
+先实现单线程纯状态机，用虚拟时钟验证 first/second refresh、explicit unregister 和 timeout。再把产生的 `Connected`/`Disconnected` 事件交给 Gate。最后才加入网络 receiver 和周期线程。
+
+## Registration 的设计结论
+
+eCAL 控制面通过周期快照获得崩溃恢复，通过显式增量降低正常变化延迟，通过 ExpirationMap 把失联转成统一 unregister，再由 Gate 将实体状态转换成具体 reader/writer 资源。
+
+它的优点是无中心、可自愈、传输参数可动态传播；代价是最终一致、发现延迟和多个锁域中的用户事件。设计同类系统时，最重要的是把租约、连接状态和数据路径 ready 状态分开命名，而不是统称“已连接”。

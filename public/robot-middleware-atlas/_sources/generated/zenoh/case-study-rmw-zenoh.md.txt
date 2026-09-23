@@ -1,0 +1,465 @@
+# 项目案例：ROS 2 `rmw_zenoh` 如何映射 DDS 风格接口到 Zenoh
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+[`ros2/rmw_zenoh`](https://github.com/ros2/rmw_zenoh) 是 ROS 2 的 Zenoh RMW 实现，使用 zenoh-cpp 把 ROS Node、Publisher、Subscription、Service 和 Client 映射到 Session、Pub/Sub、Queryable 与 Query。它展示了怎样在不改变上层 ROS API 的前提下替换通信语义。
+
+本文源码坐标固定到 rolling 提交 [`3b5b9bf4`](https://github.com/ros2/rmw_zenoh/tree/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe)。RMW 能力会随 ROS 发行版分支演进，部署时要用目标发行版分支重新核对 QoS、事件、共享内存和 Router 配置，不能把 rolling 的实现状态直接套到旧版二进制。
+
+## 适配目标
+
+RMW 层必须同时实现：ROS graph discovery、topic 数据、QoS、服务请求响应、wait set、序列化消息、GID 与时间戳。Zenoh 原生抽象并不与 DDS/ROS 一一同名，因此核心工作是语义映射，而不是包装函数。
+
+## 从仓库结构建立阅读顺序
+
+官方仓库将实现放在 `rmw_zenoh_cpp`，Zenoh 依赖由 `zenoh_cpp_vendor` 管理，系统级行为测试位于 `test_rmw_zenoh_cpp`。阅读时不要从巨大的 RMW 导出函数列表逐个跳转，而应沿实体生命周期推进：
+
+```text
+rmw_init / context Data
+  -> Zenoh Session + graph cache + wait infrastructure
+rmw_create_node
+  -> NodeData + NN liveliness token
+rmw_create_publisher / subscription
+  -> PublisherData / SubscriptionData + MP/MS token
+rmw_publish -> CDR + attachment -> Zenoh put
+Zenoh callback -> owned queue -> guard/wait -> rmw_take
+rmw_destroy_* -> stop ingress -> undeclare entity/token -> release storage
+rmw_shutdown -> Session close
+```
+
+Context 对应一个共享 Session，而不是每个 Node 建一条连接。Node 在 Zenoh 中没有直接对应物，所以创建 Node 主要建立 RMW 状态和 `NN` liveliness token；Publisher、Subscription、Service、Client 才创建数据通信实体。
+
+### 固定源码入口
+
+| 功能 | 源码入口 | 阅读目标 |
+|---|---|---|
+| RMW C API | [`rmw_zenoh.cpp`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/rmw_zenoh_cpp/src/rmw_zenoh.cpp) | 参数校验、identifier、opaque data 与错误码 |
+| Publisher | [`rmw_publisher_data.cpp`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/rmw_zenoh_cpp/src/detail/rmw_publisher_data.cpp) | key、CDR、attachment、liveliness、SHM |
+| Subscription | [`rmw_subscription_data.cpp`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/rmw_zenoh_cpp/src/detail/rmw_subscription_data.cpp) | callback、history queue、wait condition、take |
+| Graph | [`graph_cache.cpp`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/rmw_zenoh_cpp/src/detail/graph_cache.cpp) | token add/del、索引和 guard event |
+| 设计协议 | [`docs/design.md`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/docs/design.md) | key、token、attachment、QoS 与 entity 映射 |
+| 默认 Session | [`DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5`](https://github.com/ros2/rmw_zenoh/blob/3b5b9bf424443f9800dd148b5f1cc2053bbc37fe/rmw_zenoh_cpp/config/DEFAULT_RMW_ZENOH_SESSION_CONFIG.json5) | Router、scouting、SHM 与队列配置 |
+
+阅读时应先选一条 RMW 生命周期链，例如 create publisher → publish → graph query → destroy，而不是在一个巨型 C API 文件中按函数名顺序阅读。
+
+## 总体对象图
+
+```text
+rcl/rclcpp
+  -> rmw_zenoh_cpp
+       ├─ Context / NodeData
+       ├─ PublisherData / SubscriptionData
+       ├─ ClientData / ServiceData
+       ├─ Zenoh Session
+       ├─ liveliness tokens for ROS graph
+       └─ waitables / queues / guards
+            -> zenoh router
+```
+
+默认部署使用独立 Router 和 Session 配置；官方 README 说明节点默认通过 Router gossip 获取发现信息，并允许用环境变量覆盖两类 JSON5 配置。
+
+Router 主要用于发现和跨主机通信，并不意味着同主机数据都经过中心 broker。Context 中多个实体共享 Session，降低连接数量，却也意味着 Session 关闭是所有实体共同依赖的生命周期屏障。
+
+### Context 的依赖图
+
+```text
+rmw_context_t
+  -> ContextImpl
+       |-- shared Zenoh Session
+       |-- GraphCache + liveliness subscriber
+       |-- wait/event infrastructure
+       |-- Nodes
+             |-- PublisherData / SubscriptionData
+             `-- ClientData / ServiceData
+```
+
+正确关闭必须从叶子向根：先阻止实体 callback 和新请求，再销毁 Zenoh entity/liveliness token，随后清 Node/graph waitable，最后关闭 Session。若先 close Session，实体析构中的 undeclare 可能失败；若先释放 SubscriptionData，Zenoh callback 仍可能使用旧 `this`。
+
+## C ABI 入口如何进入 C++ 对象
+
+RMW 对上暴露 C 结构体与函数。一个创建入口的结构可抽象为：
+
+```cpp
+extern "C" rmw_publisher_t* rmw_create_publisher(
+    const rmw_node_t* node,
+    const rosidl_message_type_support_t* type_support,
+    const char* topic,
+    const rmw_qos_profile_t* qos,
+    const rmw_publisher_options_t* options) {
+  if (!ValidateNode(node) || topic == nullptr || qos == nullptr) return nullptr;
+  try {
+    auto data = PublisherData::make(NodeDataFrom(node), topic,
+                                    type_support, *qos, *options);
+    auto handle = AllocateRmwPublisher();
+    handle->implementation_identifier = kImplementationIdentifier;
+    handle->data = data.release();
+    return handle;
+  } catch (...) {
+    SetRmwErrorFromCurrentException();
+    return nullptr;
+  }
+}
+```
+
+这是结构等价代码，不是仓库逐字摘录。关键不变量有三个：所有入口检查 implementation identifier；C++ 异常不越过 C ABI；只有 PublisherData 完整创建后才把所有权提交给公开 handle。
+
+`handle->data` 是类型擦除指针。销毁函数必须用相同 allocator、相同真实类型恢复它，并先销毁 Zenoh entity 与 liveliness token，最后释放 RMW handle。部分构造失败不能留下已发布的 graph token。
+
+### 创建 Publisher 是跨三层的提交事务
+
+```text
+验证 node / type support / topic / QoS
+  -> 规范化 ROS name 与 type hash
+  -> 声明 Zenoh publisher/advanced publisher
+  -> 声明 MP liveliness token
+  -> 构造 PublisherData
+  -> allocator 分配 rmw_publisher_t/name
+  -> 最后写 handle->data 并返回
+```
+
+任一步失败都要逆序撤销。尤其不能先发布 MP token，再因 RMW handle 分配失败留下“图上存在、进程内没有对象”的幽灵 Publisher。可用局部 RAII 对象保存 Zenoh entity/token 和 allocator allocation，最后 `release()` 提交所有权。
+
+销毁则先把公开 handle 从新调用路径隔离，停止发布并撤销 token，再释放 PublisherData、topic name 和 handle。RMW allocator 可能由调用方提供，不能用普通 `delete/free` 混用；创建和销毁必须使用同一 allocator 契约。
+
+### C ABI 的错误状态也是线程局部协议
+
+RMW 函数通常返回空指针或 `rmw_ret_t`，并设置详细错误。边界 catch 要把 `std::bad_alloc`、Zenoh error 和参数错误映射成稳定 RMW 错误，而不是让异常穿过 C。错误字符串的寿命和线程局部存储也要遵守 rcutils 约定；不能返回临时 `std::string::c_str()`。
+
+## Topic 映射
+
+ROS Publisher 映射为 Zenoh publisher/put，Subscription 映射为 subscriber callback。RMW 还要把 ROS 名称、类型哈希、QoS 和节点命名空间编码进 key expression 或附件，使同名但类型不兼容的实体不会被误认为有效匹配。
+
+收到 Sample 后不能直接调用任意 rclcpp 用户回调；RMW 将数据放入 subscription queue，并触发 ROS wait set。这样 Zenoh 接收线程与 ROS Executor 分离，符合上层执行模型。
+
+官方设计给出的数据 key 形式是：
+
+```text
+<domain_id>/<fully_qualified_name>/<type_name>/<type_hash>
+```
+
+把 `ROS_DOMAIN_ID` 放入 key 可隔离共享 Zenoh 基础设施上的不同 ROS domain；把类型名和类型哈希放入 key，可阻止同名 topic 的不兼容类型直接通信。字符转义必须是规范化的：若发布端和订阅端对 `/`、`%` 或空名称采用不同编码，逻辑上相同的 ROS 名字也无法匹配。
+
+Publish 除 CDR payload 外还携带 attachment：8 字节 sequence、8 字节源时间戳、1 字节 GID 长度以及当前 16 字节 GID。所有多字节字段使用明确的小端编码，不能 `memcpy` 整个 C++ struct，因为 padding、对齐和宿主端序不属于稳定 wire format。
+
+```cpp
+void EncodeI64LE(std::vector<std::byte>& out, std::int64_t value) {
+  const auto bits = static_cast<std::uint64_t>(value);
+  for (unsigned shift = 0; shift != 64; shift += 8) {
+    out.push_back(static_cast<std::byte>((bits >> shift) & 0xff));
+  }
+}
+```
+
+这个小函数看似低级，却比直接序列化结构体更能保证跨编译器和跨架构一致。
+
+### Publish 的完整数据动作
+
+```text
+ROS message
+  -> rosidl typesupport serialize to CDR
+  -> build attachment(sequence, source time, GID)
+  -> choose ordinary buffer or Zenoh SHM buffer
+  -> zenoh Publisher::put
+  -> return RMW status
+```
+
+serialized publish 从调用者接收已经编码的 CDR，应避免再次 decode/encode；typed publish 则需要 typesupport。两条路径最终必须产生相同 wire payload 与 attachment，否则 rosbag、intra-process bridge 或原始序列化 API 会出现行为差异。
+
+sequence 分配是 PublisherData 的跨线程状态，应使用同一 mutex 或原子 fetch-add，并定义溢出行为。source timestamp 是采样/调用时刻，不等于 Zenoh 接收时间；订阅侧 `rmw_message_info_t` 应区分 source 与 received timestamps。
+
+## Subscription 队列与 ROS Wait Set
+
+Zenoh callback 取得 Sample 所有权后，把消息转交给 `SubscriptionData` 的队列，并通知等待设施：
+
+```text
+Zenoh receive task
+  -> validate key/attachment
+  -> create owned Message
+  -> lock subscription queue
+  -> apply history/depth policy
+  -> unlock
+  -> trigger condition / on-new-data callback
+
+ROS executor thread
+  -> rmw_wait marks subscription ready
+  -> rmw_take removes one Message
+  -> deserialize or return serialized payload
+```
+
+如果队列在持锁状态触发上层 callback，callback 可能重新进入 take 或销毁 subscription，形成死锁。安全顺序是在锁内只更新队列和计数，锁外通知。`KEEP_LAST(depth)` 的空间复杂度约为 `O(depth × message_size)`；`KEEP_ALL` 若没有系统级资源上限，就可能在消费者停顿时无限增长。
+
+### WaitSet 注册与消息到达存在竞态
+
+`rmw_wait` 不能只做“检查队列为空 → 注册 condition → 睡眠”，因为消息可能恰好在检查后、注册前到达，callback 看不到 waiter，执行器则永久睡眠。可靠协议需要把检查与附加 condition 放在同一同步域，或在附加后再次检查 generation/ready 状态。
+
+缩小模型如下：
+
+```cpp
+bool SubscriptionData::AttachIfEmpty(WaitCondition& condition) {
+  std::lock_guard lock(queue_mutex_);
+  if (!queue_.empty() || shutting_down_) return false;
+  wait_condition_ = &condition;
+  return true;
+}
+
+void SubscriptionData::Add(Message message) {
+  WaitCondition* condition = nullptr;
+  {
+    std::lock_guard lock(queue_mutex_);
+    ApplyHistoryPolicy(queue_, std::move(message));
+    condition = std::exchange(wait_condition_, nullptr);
+  }
+  if (condition) condition->Trigger();
+}
+```
+
+这只说明局部结构。真实 wait set 会同时锁多个 subscription/service/client/guard，必须规定全局锁顺序。若执行器持 WaitSet 锁再取 Subscription 锁，而 Zenoh callback 持 Subscription 锁再触发 WaitSet，就形成 ABBA。安全设计是在实体锁内只改变 ready/generation，释放后再通知；WaitSet 也不应在持自己的 condition 锁时调用未知实体方法。
+
+### History 策略需要时间与内存两份指标
+
+`KEEP_LAST(d)` 限制条数，但消息大小可变时内存仍约为 `Σsize(message_i)`，不能只报 depth。覆盖最旧消息适合状态流，却要增加 lost/change 事件统计；`KEEP_ALL` 需要系统级 resource limit 和拒绝语义。队列中的最老 source timestamp 比队列长度更能反映 Executor 是否正在消费陈旧数据。
+
+## Service 映射为 Queryable
+
+官方设计文档说明 Service Server 使用 `Session::declare_queryable`，Client 使用 `Session::get`。请求附件携带 sequence、时间戳和 client GID；回复把相同 sequence 带回，用于关联并发请求。
+
+```text
+rmw_send_request
+  -> allocate sequence
+  -> Session::get(service key, request + attachment)
+  -> Queryable callback
+  -> rmw_take_request
+  -> user service executes
+  -> rmw_send_response / Query::reply
+  -> ClientData queue
+  -> rmw_take_response
+```
+
+Zenoh Query 可以多回复，而 ROS Service 期望特定请求-响应关联；适配层必须限制和过滤语义，并处理 timeout 与迟到 Reply。
+
+Client 的 sequence 必须在线程安全的单调计数器中生成。仅按 sequence 查找请求还不够，不同 Client 可能出现相同值，因此响应 attachment 同时带 client GID。等待项可以用 `(client_gid, sequence)` 作为复合键，平均查找 `O(1)`；超时路径和回复路径要竞争同一个完成状态，确保 promise/guard 只完成一次。
+
+Server 端 `Query` 对象必须活到 `rmw_send_response`。如果 `rmw_take_request` 只返回裸指针而不保存拥有型 ZenohQuery，异步执行服务时就会悬空。适配层需要让 pending-request 表持有 Query，并在回复、取消或关闭时删除。
+
+### Server 端把一次请求拆成“数据”和“回复能力”
+
+`rmw_take_request` 与 `rmw_send_response` 不是同一次函数调用。前者在 Executor 线程中取走请求，用户回调运行一段时间之后，后者才发送响应。因此，Server 不能只把反序列化后的 request 放进队列；它还必须保存能够向原 Query 回复的拥有型句柄。可以把队列元素理解为下面的结构等价代码：
+
+```cpp
+struct RequestId {
+  std::array<std::uint8_t, 16> client_gid;
+  std::int64_t sequence;
+
+  bool operator==(const RequestId&) const = default;
+};
+
+struct PendingServerRequest {
+  RequestId id;                         // ROS 侧可见的关联键
+  std::vector<std::byte> cdr_request;   // 请求正文，拥有自己的存储
+  std::shared_ptr<OwnedZenohQuery> query; // 以后执行 reply 所需的能力
+  std::chrono::steady_clock::time_point received_at;
+};
+```
+
+这里有三个容易被忽略的 C++ 设计点。
+
+第一，`std::span<std::byte>` 只是一段借用视图，不能跨越 Zenoh callback 保存；入队对象要拥有 payload，或者持有能够延长底层 Sample 生命周期的 owning handle。第二，`steady_clock` 适合计算本地超时，因为系统时钟校准不会让时间倒退；wire attachment 里的 source timestamp 则属于跨进程可观察时间，二者不能混用。第三，`shared_ptr` 并非天然正确：它只解决对象寿命，不解决“只能回复一次”。唯一完成权仍要由状态机约束。
+
+```text
+RECEIVED -> TAKEN -> REPLIED
+    |          |        |
+    +----------+--------+--> CANCELLED / SHUTDOWN
+```
+
+`rmw_take_request` 只把 `RECEIVED` 改为 `TAKEN`；`rmw_send_response` 以 `(client_gid, sequence)` 查表，并用锁内状态转换取得一次性的 reply 权。真正调用 `query->reply()` 应放在锁外，否则网络发送可能阻塞整个 Service 队列。若发送失败，条目是否允许重试必须预先定义，不能依赖异常发生后“再决定”。
+
+### Client 端让回复与超时竞争同一个状态
+
+Client 不必为每个请求创建一条线程。更紧凑的结构是：一个原子 sequence 产生器、一张 in-flight 表、一个收到 Zenoh Reply 的 callback，以及由 `rmw_wait` 消费的 completed 队列。
+
+```cpp
+enum class Completion : std::uint8_t { waiting, reply_ready, timed_out, closed };
+
+struct InFlight {
+  Completion state{Completion::waiting};  // 受 ClientData mutex 保护
+  std::vector<std::byte> reply;
+  std::chrono::steady_clock::time_point deadline;
+};
+
+using InFlightMap = std::unordered_map<RequestId, InFlight, RequestIdHash>;
+```
+
+收到回复和发现超时都执行同一种临界区操作：查找条目、确认仍是 `waiting`、转换状态、把 ready 事件移入完成队列。只有赢得状态转换的一方在解锁后触发 WaitSet。这样迟到回复只会被记录或丢弃，不会第二次唤醒已经超时的请求。
+
+哈希表平均查找是 `O(1)`，但容量仍等于并发未完成请求数 `R`，内存近似为 `R × (键 + 状态 + allocator 开销)`；若每个条目还保存请求副本用于重试，则要再加 `Σrequest_size`。超时扫描若每次遍历整张表是 `O(R)`，高并发场景可用按 deadline 排序的小根堆把下一次到期查询降为 `O(1)`、插入和删除变为 `O(log R)`。是否值得增加这套结构，要由最大并发请求量决定。
+
+## Liveliness 实现 Graph
+
+ROS graph 需要知道 Node、Publisher、Subscriber、Service、Client 是否存在。rmw_zenoh 使用 liveliness token 发布实体存在性，订阅 token 变化维护 graph cache。对象析构时撤销 token，异常断连则依靠 Zenoh liveliness 收敛。
+
+优秀之处是复用 Zenoh 原生分布式存在性，而不是复制 DDS discovery；代价是必须设计稳定 key schema，并处理 Router、Session 与 ROS daemon 的启动顺序。
+
+Graph cache 要支持两阶段初始化：先用 `liveliness_get` 获取当前快照，再订阅后续变化。若二者之间存在空窗，恰好上线或离线的实体会永久遗漏。实现还要把匹配计数变化转成 ROS graph guard condition，使 `rclcpp` 查询和事件机制及时醒来。
+
+官方 token 会编码 domain、session、node/entity id、实体种类、namespace、名称、类型和 QoS 等信息。这提高了无中心解析能力，也让 key schema 成为协议 ABI：字段顺序或 escaping 改变必须考虑混合版本部署。
+
+### Graph 不是实体列表，而是一份最终一致的派生索引
+
+收到 token 后，GraphCache 通常不会只保存原始字符串。ROS API 会按 node、namespace、topic、type 查询，因此缓存需要把一次事件投影到多种索引：
+
+```text
+entity_id -> EntityInfo
+(node_name, namespace) -> entity_ids
+topic_name -> publisher_ids / subscription_ids / type_names
+service_name -> service_ids / client_ids / type_names
+```
+
+原始实体表是事实源，其他表是派生索引。新增和删除必须在同一个写临界区内更新，否则查询线程可能看到“entity 已存在、topic 索引尚未存在”的半完成状态。一个简单实现可以用单个 `std::mutex` 保证一致性；只有确认 graph 查询成为热点后，才值得改成读写锁或不可变快照。Graph 更新频率通常远低于消息频率，优先保证不变量比过早拆锁更重要。
+
+Liveliness 事件还可能发生重排：删除通知可能先于本地观察到的创建通知，快照查询与持续订阅也可能重叠。因此 add/remove 操作必须幂等，不能把“删除未知实体”当作缓存损坏。最小规则如下：
+
+```text
+add(id, metadata): 不存在则插入；内容相同则无动作；内容变化则原子替换索引
+remove(id):        存在则删除全部索引；不存在则记诊断并无动作
+```
+
+如果传输层能提供 incarnation/session identity，应把它纳入实体键，防止进程重启后复用 entity id，使旧删除事件误删新实体。若没有全序版本号，系统只能承诺最终一致，而不能承诺每一瞬间的 graph 查询都是全局强一致。
+
+初始化时更稳妥的顺序是“先建立持续订阅，再取得快照，最后去重合并”，这样不会在快照结束与订阅开始之间留下事件空窗。代价是同一实体可能从快照和订阅各出现一次，所以幂等更新是协议的一部分，而非清理重复日志的便利函数。只有实体集合或匹配计数真正变化时，才递增 graph generation 并触发 guard condition；否则重复事件会导致 Executor 无意义唤醒。
+
+## QoS 是映射表，不是全支持声明
+
+`TRANSIENT_LOCAL` 可借助 AdvancedPublisher cache 和 AdvancedSubscriber 历史查询近似；可靠性、history、depth、拥塞控制也需组合 Zenoh 选项。并非每个 DDS 派生 QoS 都有直接对应物。
+
+文章阅读所对应的官方设计明确列出一些受限项，例如只支持自动 liveliness，并标注 deadline、lifespan 等能力的实现状态。由于 rolling 会持续演进，部署时必须以目标 ROS 发行版分支的设计文档和测试为准，不能把当前 rolling 能力反推到旧发行版。
+
+QoS 兼容判断也不能照搬 Zenoh 的“都可以通信”。ROS graph 需要报告 offered/requested compatibility，适配层必须保留上层语义，即使底层 transport 技术上能够传数据。
+
+### 逐项建立语义映射矩阵
+
+实现者应给每项策略标注“直接、组合、近似、不支持”，并写出不满足条件时的公开行为。下面是阅读设计时应采用的分析框架，不是跨所有发行版不变的能力声明：
+
+| ROS QoS 语义 | 可能使用的 Zenoh 机制 | 映射类别 | 必须额外保存的状态 |
+|---|---|---|---|
+| `VOLATILE` | 普通 publisher/subscriber | 直接 | 无历史状态 |
+| `KEEP_LAST(depth)` | RMW 接收队列裁剪 | 组合 | depth、丢弃计数、当前字节量 |
+| `KEEP_ALL` | 不主动覆盖 | 近似 | 全局资源上限与耗尽策略 |
+| `TRANSIENT_LOCAL` | advanced publisher cache + 历史查询 | 组合 | cache 深度、发布者寿命、补历史完成状态 |
+| `RELIABLE` | 可靠路径及重传相关选项 | 组合 | 丢失检测、兼容性报告；具体能力按版本核对 |
+| `BEST_EFFORT` | 非可靠/低开销路径 | 直接或近似 | 丢包统计 |
+| deadline | 本地定时器与事件上报 | 组合 | 每实体最近收发时间、deadline generation |
+| lifespan | 接收时按 source time 过滤 | 近似 | source timestamp 与时钟假设 |
+| manual liveliness | 无等价原语时拒绝或降级 | 不支持/近似 | 明确的兼容性结果 |
+
+“组合”意味着底层的一次 declare 还不够。例如 `TRANSIENT_LOCAL` 至少包含发布端缓存、晚加入订阅者发起历史查询、历史与实时流去重、以及“历史回放已经追平”的边界。若实时样本在历史查询期间到达，只把两路数据拼接会乱序或重复；实现需要 sequence/dedup window，或者明确不保证 DDS 风格的全序。
+
+`KEEP_LAST` 也不仅是 `deque.size() > depth` 就弹出头部。depth 为零是否合法、覆盖是否产生 message-lost 事件、单条超大消息是否受字节预算限制、多个 take 线程是否允许，都属于可观察语义。映射矩阵的价值就是迫使实现者把这些隐藏条件写成代码分支和测试条件。
+
+## 共享内存路径与退化策略
+
+官方设计中的共享内存路径在达到阈值后从 Session 取得 SHM provider，直接在共享缓冲区内进行 CDR 序列化，再把 buffer 所有权移动给 Zenoh。这样避免常规序列化缓冲区到 SHM 的额外 memcpy。
+
+provider 尚未就绪或池耗尽时，发布必须能够退回普通序列化和网络路径，而不是让整个 Publisher 永久失败。由此可见“零复制”是有条件优化：类型支持、构建 feature、Session 配置、payload 大小、内存域和池容量都必须满足。
+
+移动 SHM buffer 后，源对象进入有效但不再拥有数据的状态。C++ 代码不能继续保存其 data pointer；订阅侧借用内存也必须在 loan/return 或 Sample 生命周期内完成。
+
+## C++ 设计重点
+
+RMW 是 C ABI，内部却使用 C++ RAII 对象。创建函数必须把部分构造失败转成 `rmw_ret_t`，并逆序释放 Zenoh entity、queue、guard condition 和 allocator 内存。Opaque C handle 的 `data` 指针是类型擦除边界，所有入口都要验证 implementation identifier。
+
+回调捕获不能让 SubscriptionData 与 Session 形成引用环；关闭时先阻止 callback 入队，再撤销 Zenoh 实体，最后销毁 waitable storage。
+
+### 回调捕获与对象销毁的具体推导
+
+假设 `SubscriptionData` 拥有 Zenoh subscriber，而 subscriber 的 callback 又捕获 `shared_ptr<SubscriptionData>`，就形成强引用环：只有 callback 销毁才释放 Data，只有 Data 析构才 undeclare subscriber。解决方法通常是让 callback 捕获 `weak_ptr`，进入时临时 `lock()`：
+
+```cpp
+std::weak_ptr<SubscriptionData> weak_self = self;
+auto callback = [weak_self](const zenoh::Sample& sample) {
+  auto self = weak_self.lock();
+  if (!self) return;                 // 销毁已经开始或完成
+  self->OnSample(sample);            // 进入后仍需检查 closing flag
+};
+```
+
+`weak_ptr` 只防止 use-after-free，不会自动排除关闭竞态。析构线程可能在 callback 成功 `lock()` 后设置 closing，因此 `OnSample` 仍要在队列锁下检查 `closing_`。安全关闭的可验证顺序是：设置 closing、阻止新入队、undeclare 使新 callback 不再产生、等待已经进入的 callback 离开、从 WaitSet 注销，最后释放队列和同步对象。
+
+如果 Zenoh undeclare 会等待 callback 完成，就不能在持 `queue_mutex_` 时调用它，否则 callback 正等待同一把锁会形成自锁式停机死锁。这也是“外部库调用放在自有锁之外”这一系统 C++ 规则的具体来源。
+
+## 设计取舍
+
+Router-centric 默认拓扑减少 multicast 依赖、便于跨网段与 ACL；代价是 Router 成为重要基础设施。Vendored zenoh-cpp 保证特性与 ABI 组合，却增加构建时间和升级审核。使用 system Zenoh 更灵活，但调用方必须保证 features 与版本相容。
+
+另一个取舍是完整 graph cache：它满足 ROS 工具链的全图查询，却抵消 Zenoh 尽量少做全局发现的一部分优势。实体数为 `N` 时，缓存空间至少为 `O(N)`；按 topic、node 和类型建立多个索引会进一步用内存换查询速度。
+
+### 容量与时延预算
+
+适配器的瓶颈往往不在 Zenoh API 调用本身，而在边界上的复制、排队和唤醒。可用一张预算表约束部署：
+
+| 资源 | 近似上界 | 超限后的可见后果 |
+|---|---|---|
+| Subscription 历史 | `Σ(depth_i × max_sample_i)` | 覆盖、拒绝或进程内存增长 |
+| 未完成 Client 请求 | `R × metadata + Σreply_buffer` | timeout 管理变慢、内存增长 |
+| Service 待处理请求 | `Q × (request + owned query)` | 服务延迟增长，Query 长期占用 |
+| GraphCache | `O(N entities + index entries)` | 创建/销毁抖动、查询锁竞争 |
+| SHM pool | 并发在途大消息总字节数 | 回退到普通路径或发布失败 |
+
+单条消息从网络到用户回调的延迟可以粗分为：
+
+```text
+T = T_transport + T_validate + T_queue_wait + T_deserialize + T_executor_wait
+```
+
+其中 `T_queue_wait` 与 `T_executor_wait` 通常最容易被平均值掩盖。评估时至少记录 p50/p99、队列最老消息年龄、覆盖数、WaitSet 唤醒到 take 的时间，而不能只报吞吐。共享内存主要削减 payload copy 与 allocation，并不会消除 Executor 排队。
+
+## 在真实 ROS 2 工作空间中接入
+
+这不是单独运行 Zenoh pub/sub 示例，而是让真实 ROS 2 节点经过 RMW。部署时先固定 ROS 发行版与对应 `rmw_zenoh` 分支，再使用该分支随附的 Router 和 JSON5 配置；不要混用 rolling 的二进制、旧发行版的配置与另一版本的 zenoh-cpp。
+
+```text
+终端 A：启动该发行版提供的 rmw_zenoh router
+终端 B：设置 RMW_IMPLEMENTATION=rmw_zenoh_cpp，运行 talker
+终端 C：设置相同实现与 domain，运行 listener
+终端 D：运行 ros2 node/topic/service 命令观察 GraphCache 的上层投影
+```
+
+学习时按四个层次观察，而不是看到消息打印就结束：
+
+1. **进程层**：一个 Context 是否只建立预期数量的 Session，Router 退出后节点怎样报告和恢复。
+2. **图层**：`ros2 node list`、`topic info -v` 看到的实体是否与 liveliness token 一致，实体退出后多久消失。
+3. **数据层**：topic key、type hash、attachment sequence、source/received timestamp 是否贯通到 `rmw_message_info_t`。
+4. **执行层**：Zenoh callback 只负责入队，用户 callback 是否始终由 ROS Executor 线程执行；队列积压时哪项 QoS 生效。
+
+接入自己的包时，先用默认配置完成单机 volatile topic，再逐项开启可靠性、transient local、服务和 SHM。一次同时改变 RMW、Router、QoS 和网络配置，会让语义错误与部署错误无法区分。配置文件属于运行时接口：应随应用版本化，并记录 Router mode、listen/connect endpoint、scouting、队列和 SHM 参数。
+
+### 一个可观察的最小开发任务
+
+最小案例可由三个节点组成：传感器节点以固定频率发布带递增序号的大消息；处理节点使用有限 `KEEP_LAST` 队列并暴露“查询最后序号”的 Service；监控节点订阅 graph 与统计 topic。然后依次制造慢消费者、晚加入订阅者、Service 超时、Router 重启和 SHM 池不足。
+
+实现目标不是做故障演示，而是把每个现象对应回内部对象：慢消费者对应 `SubscriptionData` history；晚加入对应 advanced history query；Service 超时对应 ClientData in-flight 状态；Router 重启对应 Session 与 GraphCache 收敛；SHM 不足对应 buffer acquisition 的普通路径回退。完成这一映射后，使用者才真正知道配置改变了哪段源码行为。
+
+## 扩展或复刻的实施顺序
+
+先实现单 Context/Session 与最简单 volatile topic；再加入 CDR、key 规范化和 attachment；随后建立 Subscription 队列与 rmw_wait；再实现 graph token/cache；之后做 Service 的 pending Query 生命周期；最后才逐项映射 QoS、事件和共享内存。
+
+更具体的代码增量应保持每一步都能被上层调用：
+
+1. 定义 `ContextData`、implementation identifier、allocator 契约和 create/destroy 对称性，只开放 init/shutdown。
+2. 定义规范化 key 与显式 little-endian attachment codec，用 serialized message 打通单向 topic。
+3. 加入 `SubscriptionData` owning queue、generation counter 与 WaitSet 注册协议，再接 typed deserialize。
+4. 用 liveliness token 表示 NN/MP/MS 等实体，建立单事实表与派生索引，并把真实变化连接到 graph guard。
+5. 实现 Client in-flight 与 Service owned-query 两张状态表，先保证一次完成和关闭，再增加并发。
+6. 为每项 QoS 填写直接/组合/近似/不支持矩阵，让兼容判断与数据路径读取同一份归一化策略。
+7. 最后加入 advanced history、SHM、事件统计和性能优化；这些路径都必须保留普通路径作为语义基线。
+
+每新增一种实体，都要同时回答五个问题：谁拥有它；回调在哪个线程进入；哪个锁保护状态；销毁怎样阻止新工作并等待旧工作；失败到第几步需要撤销哪些资源。答不出其中任意一项，就还没有完成工业级生命周期设计。
+
+每一步都要运行上层 RMW conformance 行为，而不是只运行 Zenoh pub/sub 示例。最低完成标准包括：错误 implementation identifier 被拒绝；销毁后 callback 不再入队；相同 topic 不同 type hash 不匹配；wait 能被数据与 shutdown 唤醒；请求超时和回复只完成一次；QoS 不支持项被明确报告；SHM 失败能退化到普通路径。
+
+## 可迁移能力
+
+这个项目最值得学习的是“语义适配表”：先列出上层每项保证，再判断底层原语能直接提供、需要组合，还是只能近似。中间件适配不是 API 名字翻译，而是生命周期、完成条件、QoS 和执行上下文的系统性映射。

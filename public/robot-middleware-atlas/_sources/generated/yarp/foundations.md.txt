@@ -1,0 +1,140 @@
+# YARP 阅读基础：Port、名字服务与可插拔 Carrier
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+YARP（Yet Another Robot Platform）的通信核心围绕 Port 展开。应用用逻辑名字打开 Port，Name Server 把名字解析成 Contact，PortCore 建立输入或输出连接，Protocol 完成握手，Carrier 决定最终使用 TCP、UDP、本地传输或其他协议变体。
+
+它适合实验室机器人和异构模块集成：进程可以在运行期连接，通信协议可替换，C++ 对象可通过统一 Reader/Writer 接口序列化。代价是动态 Carrier、每连接执行单元和后台写带来更大的生命周期与性能分析面。
+
+## 一条消息经过的完整层次
+
+```text
+Application
+  -> Port                         公开门面
+       -> PortCore                连接集合、读写、关闭
+            -> OutputUnit         一条输出连接的线程与状态
+                 -> Protocol      握手、消息边界、ack
+                      -> Carrier  TCP/UDP/local 等协议策略
+                           -> TwoWayStream / socket
+
+NameClient -> Name Server         name <-> Contact，仅控制面
+```
+
+Name Server 不转发普通 payload。连接建立后，发送端和接收端通过 Carrier 直接通信。因此 Name Server 暂时不可用与现有数据连接断开是两种不同故障。
+
+## Port 是门面，PortCore 才保存连接状态
+
+应用通常这样使用：
+
+```cpp
+yarp::os::Network yarp;
+yarp::os::Port output;
+output.open("/camera/out");
+output.write(image);
+output.close();
+```
+
+`Port` 隐藏锁、listener、连接 unit、reader 和 close 状态。Facade 模式让常用 API 很小，但源码分析必须继续进入 `PortCore`；只读 `Port.cpp` 看不到真正的数据扇出和线程退出。
+
+## Contact、Route 与 Carrier 名分别表达什么
+
+`Contact` 描述“如何找到一个端点”，包括逻辑名字、host、port 和 carrier 等信息。`Route` 描述一条连接：
+
+```text
+Route
+  from: "/camera/out"
+  to:   "/vision/in"
+  carrier: "tcp"
+```
+
+逻辑名字与网络地址分开，使模块可以换机器而不修改业务代码。Carrier 名还可能携带 modifier，影响压缩、监视或类型适配。它不只是 URL scheme，而是协议选择输入。
+
+## PortWriter 与 ConnectionWriter 是双分派边界
+
+应用数据实现 `PortWriter::write(ConnectionWriter&)`：
+
+```cpp
+class JointState : public yarp::os::Portable {
+public:
+    bool write(yarp::os::ConnectionWriter& w) const override {
+        w.appendInt32(sequence);
+        w.appendFloat64(position);
+        return !w.isError();
+    }
+};
+```
+
+数据对象知道字段顺序，但不知道底层是 TCP 还是内存连接；ConnectionWriter 知道如何编码到当前连接，却不依赖具体消息类。这个 Command/Visitor 风格边界使同一对象能写入 socket、测试内存缓冲或带转换的连接。
+
+读取方向对应 `PortReader::read(ConnectionReader&)`。协议兼容性最终由双方读写字段顺序、类型标签和版本规则保证；C++ 类型相同并不会自动生成跨版本 schema。
+
+## Carrier 是策略、工厂产品和协议状态机
+
+Carrier 至少决定：
+
+- 如何识别 header；
+- 主动端和被动端如何握手；
+- 如何建立 Face/Protocol/Stream；
+- 每条消息怎样 framing；
+- 是否需要 ack；
+- 如何 interrupt 和 close。
+
+`Carriers::chooseCarrier(name/header)` 从 prototype registry 选择实现，必要时加载插件。因此 Carrier 同时体现 Strategy、Abstract Factory 和 plugin product。部署中应锁定允许的 Carrier 名、modifier 和版本，不能把任意动态插件视为无害配置。
+
+## 输入与输出 Unit 隔离每条连接
+
+PortCore 为连接创建 `PortCoreInputUnit` 或 `PortCoreOutputUnit`：
+
+```text
+listener/server thread
+  -> accept stream
+  -> InputProtocol
+  -> InputUnit
+  -> PortReader callback
+
+PortCore fan-out
+  -> OutputUnit A -> Protocol A
+  -> OutputUnit B -> Protocol B
+```
+
+每连接 unit 让慢连接和协议状态相对隔离，但连接数增加会放大线程、队列、栈和调度成本。一次输出仍需遍历所有 OutputUnit，时间至少与连接数线性相关。
+
+## 同步写与后台写改变对象生命周期
+
+同步写在调用返回前完成约定阶段，调用者可继续拥有栈上的 writer。后台写把工作交给 OutputUnit 线程，调用返回时数据可能尚未序列化完；框架必须通过 tracker、callback 或缓存表示延长 writer 的有效期。
+
+“后台”只移动等待位置，不创造带宽。慢连接仍会导致 unit busy、排队或跳过发送。具体行为必须通过 per-connection 指标观察。
+
+## interrupt、close 与析构是三种动作
+
+- `interrupt()` 用来唤醒阻塞读写，使调用能尽快返回；
+- `close()` 阻止新工作、关闭 listener 和 units、等待线程并注销名字；
+- 析构是最后保险，不适合作为唯一可报告的关闭路径。
+
+关闭必须幂等，因为用户 close、网络错误、对端命令和析构可能并发发生。任何等待在 read/write/ack 上的线程都要有可唤醒路径。
+
+## 性能分析的基本变量
+
+一次写的粗略成本是：
+
+```text
+O(C) connection traversal
++ Σ serialization/encoding per distinct connection format
++ Σ transport enqueue/write cost
++ optional acknowledgements
+```
+
+`C` 是输出连接数。相同编码有机会复用缓存，不同 Carrier 或 modifier 可能要求重复编码。大图像的热点通常是序列化与复制，而不是 Route/Contact 这类小值对象。
+
+## 后续阅读路线
+
+1. PortCore 对象图与 Name Server 控制面；
+2. `Port::write` 到每条 OutputUnit 的扇出；
+3. Protocol/Carrier 握手、framing 与 modifier；
+4. 输入路径、Reader 回调与 RPC 回复；
+5. interrupt/close 的并发状态机；
+6. 数据结构、性能和最小复刻设计。

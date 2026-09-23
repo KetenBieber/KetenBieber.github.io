@@ -1,0 +1,286 @@
+# Orocos RTT 功能与组件地图：实时组件、执行与数据流
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Orocos RTT 的学习主线是三条正交轴：组件处于什么状态、代码在哪个线程执行、数据用什么策略流动。
+
+## 使用场景与系统边界
+
+RTT 面向设备、机械臂和控制系统中需要明确生命周期、线程归属和有界数据流的组件。它让同一个 TaskContext 在不同部署中选择周期 Activity、事件 Activity、进程内连接或 transport，而业务 hook 保持稳定。
+
+RTT 不会因为 API 名称含有 Real-Time 就自动提供硬实时保证。OS scheduler、内存页、用户类型复制、hook WCET、Operation 队列和跨机 transport 都属于保证前提。互联网规模动态路由也不是它的核心目标。
+
+## 功能域
+
+| 功能 | 核心组件 | 设计问题 |
+|---|---|---|
+| 生命周期 | TaskCore、TaskContext、hooks | 资源何时配置、启动和释放 |
+| 执行 | Activity、ExecutionEngine、Runnable | 周期、触发、优先级与 WCET |
+| 命令 | Service、Operation、OperationCaller | ClientThread/OwnThread 与返回值 |
+| 数据流 | InputPort、OutputPort、ChannelElement | PUSH/PULL、DATA/BUFFER |
+| 部署 | Deployer、plugin/typekit | 组件组合、类型和 ABI |
+
+## 从控制系统需求反推组件
+
+| 需求 | 首先进入的组件 | 还必须联读的边界 |
+|---|---|---|
+| 周期执行关节控制 | Activity、ExecutionEngine | OS 调度、updateHook WCET、设备写入 |
+| 明确配置/启动/停机顺序 | TaskCore、TaskContext hooks | 失败回滚、重复 start、错误状态 |
+| 传递最新状态而不积压 | DATA ConnPolicy、InputPort | 样本时间戳、OldData 最大年龄 |
+| 每条事件都必须处理 | BUFFER、队列满载策略 | capacity、处理 batch、拒绝反馈 |
+| 外部调用组件命令 | Operation、OperationCaller | ClientThread/OwnThread、同步等待 |
+| 动态部署不同组件与类型 | Deployer、plugin、typekit | ABI、插件寿命、运行时类型名 |
+| 跨进程连接 Port | ChannelElement transport | 序列化、复制、网络时延不确定性 |
+
+这张表避免把“实时”误解成某一个类的属性。周期 Activity 只是释放任务的机制；只有 hook、队列、类型复制、锁、设备和 OS 都有上界，完整控制链才有实时可行性。
+
+## 源码入口和阅读问题
+
+| 层 | 固定源码入口 | 先回答的问题 |
+|---|---|---|
+| 状态机 | `TaskCore.hpp/.cpp` | 哪些状态允许 configure/start/stop/cleanup，失败落到哪里 |
+| 组件门面 | `TaskContext.hpp/.cpp` | Service、Port 与 ExecutionEngine 怎样聚合 |
+| 周期线程 | `Activity.hpp/.cpp` | thread 如何启动、等待、trigger、stop 和 join |
+| 执行汇聚 | `ExecutionEngine.hpp/.cpp` | Operation、Port event、updateHook 的处理顺序和预算 |
+| 命令 | `Operation.hpp`、`OperationCaller.hpp` | 调用在哪个线程执行，结果如何返回或取消 |
+| 数据端点 | `InputPort.hpp`、`OutputPort.hpp` | 模板类型怎样进入连接工厂 |
+| 连接策略 | `ConnPolicy.hpp`、ChannelElement | DATA/BUFFER、PUSH/PULL 和 lock policy 如何落地 |
+| 动态类型 | typekit/plugin loader | 静态 `T` 如何变成运行时可装配类型 |
+
+阅读每一层时都应记录：状态转换由谁发起、实际执行线程、资源 owner、队列/缓冲上界、关闭怎样唤醒阻塞。RTT 的关键不是类很多，而是同一个类会在部署选择下呈现不同运行语义。
+
+## 端到端结构
+
+```text
+Deployer 创建 TaskContext
+  -> Activity 驱动 ExecutionEngine
+       -> Operation messages / Port callbacks
+       -> updateHook
+OutputPort -> ChannelElement storage/transport -> InputPort
+```
+
+### 一次周期的时间顺序
+
+```text
+OS release / event trigger
+  -> Activity 唤醒
+  -> ExecutionEngine 处理有预算的内部工作
+       -> OwnThread Operation messages
+       -> Port event callbacks
+  -> TaskCore 判断 Running/Error 状态
+  -> updateHook
+       -> read InputPort
+       -> control algorithm
+       -> write OutputPort
+  -> Activity 等待下一次 release
+```
+
+不同版本和配置的具体顺序要以源码为准，但分析方法固定：Engine 在 updateHook 前后处理多少工作，会改变 release jitter；Port callback 若执行用户代码，会占用同一个线程；周期末若 sleep 使用相对时间，执行抖动还可能累积漂移。
+
+### 一条 Port 连接的空间路径
+
+```text
+OutputPort<T>
+  -> output endpoint
+  -> ChannelElement chain
+       -> DATA object / BUFFER storage
+       -> 可选 transport serializer
+  -> input endpoint
+  -> InputPort<T>::read(T&)
+```
+
+Port 对象本身不是 payload 队列。空间主要存在于 ChannelElement storage、transport buffer 和用户样本。只统计 Port 数量无法估算内存；必须展开每条连接的 policy、容量和 `T` 的最大形状。
+
+## 三条正交轴如何组合
+
+| 轴 | 可选项 | 决定的问题 |
+|---|---|---|
+| 生命周期 | PreOperational、Stopped、Running、RunTimeError | 当前允许配置、执行还是清理哪些资源 |
+| 执行 | periodic/event Activity、ClientThread/OwnThread Operation | 哪个线程何时执行代码，是否排队 |
+| 数据 | DATA/BUFFER/CIRCULAR_BUFFER、PUSH/PULL、lock policy | 保存多少样本、谁主动、满载丢哪边 |
+
+同一个 Port 类型并不能推导运行语义：`InputPort<T>` 可连接单值 DATA，也可连接有界 BUFFER；同一个 Operation 签名可在调用者线程执行，也可排入组件 OwnThread。因此阅读配置与 ConnPolicy 与阅读 C++ 类同样重要。
+
+### 三轴组合的典型配置
+
+| 场景 | 生命周期 | 执行 | 数据策略 |
+|---|---|---|---|
+| 1 kHz 关节控制 | configure 预分配，start 使能设备 | 高优先级 periodic Activity | DATA/latest 固定大小状态 |
+| 视觉检测 | configure 模型，start 启动 pipeline | event Activity 或非实时 worker | 有界 BUFFER/丢旧 |
+| 任务命令 | Running 时接收 | OwnThread Operation | 有界命令队列、显式 busy |
+| 参数读取 | Stopped/Running 可读 | ClientThread 只读操作 | 不经过数据 Port |
+| 日志记录 | 独立组件生命周期 | 低优先级 Activity | BUFFER/批量磁盘写 |
+
+同一组件混合这些职责会使一个 ExecutionEngine 同时承担硬周期和慢任务。更可靠的划分是把不同时间尺度拆成组件，通过有界 Port 交换数据。
+
+## 核心对象与所有权
+
+```text
+Deployer / plugin registry
+  -> TaskContext
+       |-- Service tree -> Operation / Property / Attribute
+       |-- InputPort / OutputPort
+       |      `-- ChannelElement chain -> storage / transport
+       |-- ExecutionEngine
+       `-- Activity --drives--> Runnable/Engine
+```
+
+TaskContext 聚合组件接口，但 Activity 是可替换执行策略，ExecutionEngine 是工作汇聚点。Port 是端点描述，不等于实际连接；connect 后建立的 ChannelElement 链才拥有 buffer、data object 或 transport 状态。
+
+Activity 启动后会回调 Runnable，因此 Runnable/TaskContext 必须活得更久。安全关闭先 stop/join Activity，再拆 Port channel 和析构 Engine。RAII 成员的声明顺序也要与逆依赖析构一致。
+
+### 所有权与调用关系
+
+```text
+Deployer --owns--> TaskContext instance
+TaskContext --aggregates--> Service/Port/ExecutionEngine
+Activity --borrows--> Runnable / ExecutionEngine
+Port connection --owns--> ChannelElement chain
+OperationCaller --references--> Operation implementation
+typekit/plugin registry --owns--> factories and type metadata
+```
+
+Activity 对 Runnable 的引用通常不是共享所有权，它依赖部署层保证组件活得更久。OperationCaller 也可能在组件卸载后遗留，因此断开 Service/Operation 必须发生在插件卸载和对象析构前。插件库不能在任何实例、factory、type metadata 或虚函数对象仍存活时卸载，否则 vtable/函数地址会指向已卸载代码。
+
+所有权图还应区分“配置拥有”与“运行借用”：TaskContext 拥有 Port 端点，连接建立后 ChannelElement 可能被两端共享；updateHook 只借用读出的样本或写入槽位。关闭连接时要先阻止新读写，再等待在途借用结束，最后拆链。
+
+## 生命周期是一笔资源事务
+
+```text
+configureHook: 分配、打开设备、预热、验证配置
+startHook:     检查运行前条件并使能设备
+updateHook:    周期/事件路径，只使用已准备资源
+stopHook:      进入安全输出并停止执行
+cleanupHook:   释放 configure 阶段资源
+errorHook:     有界处理故障，不做无限恢复
+```
+
+每个成功阶段都要有对应撤销路径。configure 中途失败不能让一半 Port/设备留在可见状态；stop 后应允许再次 start，cleanup 后才需要重新 configure。这就是状态机比一组布尔变量更有价值的原因。
+
+### 状态与资源矩阵
+
+| 状态 | 允许存在的资源 | 允许动作 | 不应发生 |
+|---|---|---|---|
+| PreOperational | Port/Property 描述，未配置对象 | configure、属性设置 | update、设备输出 |
+| Stopped | 已配置设备、预分配 buffer | start、cleanup、部分配置读写 | 周期 update |
+| Running | 全部运行资源与安全 watchdog | update、允许的 Operation、stop | cleanup/插件卸载 |
+| RunTimeError | 仍需维持安全输出所需资源 | errorHook、恢复或 stop | 无限重试和无界日志 |
+| FatalError | 只保证受控停机所需最小状态 | stop/诊断 | 继续正常控制 |
+
+资源分配应与状态匹配。若 configure 打开设备，cleanup 负责释放；start 使能执行器，stop 负责失能。把所有资源都塞进构造/析构，会让失败无法通过组件状态表达，也破坏可重复 start。
+
+配置事务建议采用“局部候选值 → 全部验证 → 移入成员”的结构。比起边修改成员边设置多个 acquired 标志，它更容易保证失败后仍是干净的 PreOperational。
+
+## ExecutionEngine 的工作预算
+
+Engine 可能同时处理 update、Operation message、Port event 和内部消息。若每周期把队列 drain 到空，输入风暴会让 updateHook 失去截止时间，即使队列容量有限。实时设计需要同时给出 capacity（空间上界）和 batch/budget（每周期时间上界）。
+
+ClientThread Operation 直接借用调用者栈，延迟低但会让外部线程进入组件状态；OwnThread Operation 通过 Active Object 串行化状态，却增加排队和等待。同步等待 OwnThread 时还要分析优先级反转。
+
+### 线程与阻塞矩阵
+
+| 路径 | 执行线程 | 能否阻塞 | 对控制周期的影响 |
+|---|---|---|---|
+| periodic `updateHook` | Activity 线程 | 原则上只能有界 | 直接占用 WCET |
+| event-triggered update | Activity 线程 | 等待发生在 Activity 内部 | 高频事件可造成连续执行 |
+| ClientThread Operation | 调用者线程 | 取决于 body | 可与 update 并发并争锁 |
+| OwnThread Operation | 组件 Engine 线程 | 入队/等待结果可能阻塞 caller | Engine 处理会挤占周期预算 |
+| Port transport receive | transport/Activity 相关线程 | 网络 I/O 可阻塞 | callback 或事件唤醒带来 jitter |
+| Deployer configure | 管理线程 | 可以较慢但需可取消 | 不应与 Running 热路径并发修改 |
+| stop/cleanup | 管理或 Engine 协调线程 | 可能等待 join | 决定安全停机上界 |
+
+锁分析不能只列 mutex 名。要写出最高优先级线程可能等待哪把锁、锁由哪个最低优先级线程持有、临界区是否包含 I/O/分配/回调，以及平台是否支持优先级继承。
+
+## Port 数据语义
+
+DATA 保存一个最新值，空间 `O(1)`，适合状态；BUFFER 保存 FIFO 历史，空间 `O(C)`，适合每条都重要的事件；CIRCULAR_BUFFER 在满载时覆盖方向不同。`readNewest()` 可能需要 drain 多项，其时间与积压量相关，不能默认 `O(1)`。
+
+Lock-free storage 只说明容器操作的进度性质。若 `T` 的复制会分配、加锁或执行引用计数，完整读写仍不具备硬实时上界。实时 Port 类型应审计构造、复制、移动和析构。
+
+### DATA 与 BUFFER 的控制后果
+
+DATA 的空间固定，但读者可能跳过中间样本；它适合只关心当前状态的闭环。BUFFER 保留历史，却把生产速率与消费速率差转化为排队延迟。容量 `C`、到达速率 `λ`、处理速率 `μ` 在 `λ > μ` 时迟早满载，区别只在多长时间达到上限。
+
+满载时覆盖最旧适合低延迟观测，拒绝新项适合保持既有任务顺序，阻塞生产者可能把背压传进高优先级控制线程。ConnPolicy 必须与消息类别共同选择，不能只凭“BUFFER 更可靠”。
+
+PUSH 表示写入侧主动传播，PULL 表示读取侧按需拉取；后者可能把上游工作带入 reader 的线程与时限。跨进程 transport 还会引入序列化与网络队列，不能沿用进程内 ChannelElement 的实时假设。
+
+## 章节顺序
+
+《阅读基础》建立三个轴；《TaskContext 生命周期》解释状态事务；《Activity 与 ExecutionEngine》解释周期；《Operation 线程模型》解释命令；《Port 与 ChannelElement》解释数据；《实时性能与关闭》给出系统级边界。
+
+可以把章节变成六个连续源码任务：
+
+1. 从 `TaskContext::configure/start/stop/cleanup` 进入 TaskCore，画出合法状态转换和失败状态；
+2. 从 Activity 线程入口进入 ExecutionEngine，标出一次 step 的工作顺序；
+3. 找到 OwnThread Operation 的入队、执行、结果完成和取消路径；
+4. 从 OutputPort write 进入 ChannelElement，记录 storage 和 transport 的复制点；
+5. 从 InputPort read 返回状态，解释 NewData/OldData/NoData 如何影响控制输出；
+6. 从组件 stop 追到 Activity wake/join、Operation 取消、Port 断开和插件卸载。
+
+每完成一个任务，都应能写出线程、所有权、时间上界和失败返回。如果只知道类之间互相调用，仍不足以重建框架。
+
+## 取舍与思想
+
+策略对象让组件逻辑与线程/连接方式解耦，OwnThread Active Object 让状态串行；代价是消息排队和优先级反转。Lock-free 容器只保证容器进展，不保证用户类型复制和 hook 满足实时上界。
+
+Template Method 固定框架生命周期并把 hook 留给组件，减少状态转换分叉；代价是用户 hook 仍能破坏时限或抛异常。动态 Deployer 与 typekit 支持运行期装配，代价是 ABI、字符串名称和插件寿命进入运行时故障域。
+
+### 模式对应的工程取舍
+
+- Template Method：TaskCore 固定状态机，TaskContext 提供 hooks；统一流程，但用户 hook 必须遵守时限与异常边界；
+- Strategy：Activity 和 Channel storage 可替换；同一业务组件可换调度与连接策略，但部署配置成为行为的一部分；
+- Active Object：OwnThread Operation 把状态访问串行化；减少组件内锁，却增加队列、future 和优先级反转；
+- Composite/Chain：ChannelElement 组合 storage、transport 和转换；扩展灵活，但复制点与关闭次序更难看清；
+- Type Erasure：typekit 把模板类型接入动态部署；解耦编译期与运行期，代价是字符串、ABI 和运行期错误；
+- RAII：Activity、设备和连接由对象寿命回收；可防泄漏，但析构不能代替可报告超时的显式 shutdown。
+
+这些模式必须在资源失败和关闭路径中仍成立。只能在正常流程画出的模式不是完整架构。
+
+## C++ 能力
+
+重点包括虚函数 Template Method、Runnable 接口的依赖倒置、模板 Port 的静态类型、type erasure 的部署接口、RAII Activity 生命周期，以及共享内存模型下 lock-free 槽位协议。
+
+还要掌握：`override/final` 固定 hook 签名与继承边界；删除复制避免组件/线程 owner 被重复销毁；lambda 捕获决定 Operation 回调寿命；锁内维护状态、锁外执行用户 hook；预分配 vector 与 data sample 并不等于内部类型永不分配。
+
+## 性能与缺陷检查表
+
+```text
+period / priority / affinity / scheduler
+hook WCET + Engine batch + maximum blocking + release jitter
+Port capacity / payload copy / readNewest drain count
+Operation arrival rate / queue age / rejection count
+runtime allocations / page faults / logging
+stop + join worst-case time / safe-output latency
+```
+
+只有这些量在具体 OS、CPU、拓扑和负载下有界，才能谈实时可行性。平均周期和空载 demo 不能证明 deadline。
+
+## 可行性预算
+
+周期为 `P` 时，保守响应预算可写成：
+
+```text
+release jitter
++ Engine 内部工作预算
++ updateHook WCET
++ 最大锁阻塞/优先级反转
++ Port/设备写入上界
+< P - safety margin
+```
+
+Engine 内部工作还应展开为 `Bop × WCETop + Bport × WCETport`，其中 B 是每周期最大 batch。只限制队列容量而不限制 batch，仍可能让一次突发占满整个周期。
+
+内存主项包括：每连接 DATA 样本或 `capacity × sample_max_size`、Operation 队列、预分配控制缓存、transport buffer、线程栈和 typekit 对象。使用 vector 的类型要按 capacity 而不是当前 size 估算，因为高水位可能长期保留堆容量。
+
+关闭预算至少包含最长 hook 返回、阻塞 I/O 唤醒、Activity join、未完成 Operation 完成/取消以及设备进入安全状态。若其中任一路径没有唤醒机制，系统无法给出停机上界，即使稳态周期完全达标。
+
+## 最小复刻路线
+
+先实现 TaskCore 状态机和 Template Method hooks；加入单线程周期 Activity；再添加有界 Engine 消息队列与 batch；随后实现 DATA 和 BUFFER 两种 Port storage；再加入 ClientThread/OwnThread Operation；最后才做 Deployer、插件、typekit 和 transport。
+
+每阶段必须证明失败回滚与关闭：configure 失败无泄漏，Activity 停止后不再回调，队列满载行为固定，Port 断开不访问旧 ChannelElement，Operation 取消会唤醒等待者，插件只能在所有实例与类型对象释放后卸载。

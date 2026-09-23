@@ -1,0 +1,278 @@
+# 全局生命周期：CGlobals 的对象图与逆序关闭
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+eCAL 的 Publisher、Subscriber、registration、reader layer、SHM observer 和监控都共享进程级资源。`CGlobals` 把这些对象组织成一张依赖图，公共 `Initialize()` 与 `Finalize()` 决定它们何时可用、以什么顺序停止。
+
+生命周期顺序不是清理风格问题。Subscriber 析构仍要访问 reader layer 和 registration provider；observer 线程退出前仍可能访问 memfile map；服务 callback 可能保存其他 gate 的裸指针。销毁依赖早于使用者会产生 use-after-free。
+
+## 进程顶层拥有 Runtime
+
+公共 `eCAL::Initialize()` 安装配置与 unit name，按 component mask 决定启用 publisher、subscriber、service 等子系统，再创建全局 `CGlobals`。
+
+推荐由进程入口唯一拥有这对调用：
+
+```cpp
+int main(int argc, char** argv) {
+  eCAL::Initialize(argc, argv, "camera_node");
+  RunApplication();
+  eCAL::Finalize();
+}
+```
+
+业务库不应各自无条件 Initialize/Finalize。该生命周期不是每个调用者独立引用计数；某个库提前 Finalize 可能拆除整个进程共享运行时。
+
+## Component mask 控制对象图裁剪
+
+只需要 Publisher 的进程无需创建完整 service/client 子系统。Component mask 允许按功能建立部分对象图。
+
+裁剪要求 accessor 能区分“尚未初始化”和“此组件未启用”。返回空或失败比构造半功能对象更安全。
+
+依赖检查也应在初始化期完成，例如创建 SubGate 需要相应 reader layers 与 registration provider，不能等第一次订阅才发现缺失。
+
+## 初始化分为创建与启动
+
+一个稳健运行时通常先构造全部对象及依赖，再启动线程：
+
+```text
+Phase 1: allocate/configure objects
+Phase 2: wire callbacks and references
+Phase 3: start threads/transports
+Phase 4: publish initialized=true
+```
+
+若构造一个对象就立刻启动线程，该线程可能通过 accessor 看见尚未建立的后续依赖。
+
+eCAL 的顺序大体是先建立 gates、memfile infrastructure、registration 和 reader layers，再启动 provider/receiver/pools/gates，最后标记 initialized。
+
+## CGlobals 的主要所有权图
+
+```text
+CGlobals
+  +-- DescGate
+  +-- MemFileMap
+  +-- MemFileThreadPool
+  +-- PubGate
+  +-- SubGate
+  +-- ServiceGate / ClientGate
+  +-- RegistrationProvider
+  +-- RegistrationReceiver
+  +-- Monitoring
+  +-- SHM ReaderLayer
+  +-- UDP ReaderLayer
+  +-- TCP ReaderLayer
+  `-- TimeGate
+```
+
+Gate 继续强持有 PublisherImpl/SubscriberImpl；Reader layer 强持有其 transport resources；observer pool 持有 memfile observers 和 threads。
+
+画出所有权图后，关闭顺序就可以由边方向推导，而不是依赖析构成员的偶然声明顺序。
+
+## Initialize 的依赖顺序
+
+[`CGlobals::Initialize()`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/ecal_globals.cpp) 的主要过程可整理为：
+
+```text
+1. create description gate
+2. create memory-file map and observer pool
+3. create enabled pub/sub/service/client gates
+4. create registration provider/receiver and inject gates
+5. create monitoring
+6. create SHM/UDP/TCP reader layers
+7. start registration provider and receiver
+8. attach description callbacks
+9. start memfile pool and gates
+10. mark initialized
+11. create/start time synchronization gate
+```
+
+具体成员可能随版本变化，但不变量是：线程启动前依赖对象存在；对外 accessor 生效前，公共功能已经完成装配。
+
+## 半初始化对象不通过普通 accessor 暴露
+
+全局 accessor 只有在全局指针存在且 `IsInitialized()` 为 true 时才返回 CGlobals。Initialize 内部不能依赖普通 accessor 获取正在构造的自己，而应通过参数或成员直接注入依赖。
+
+这避免外部线程拿到“有些 gate 存在、reader layer 尚未创建”的运行时。
+
+它也要求 `initialized=true` 是最后提交点，并具有合适内存同步，使其他线程看到标志时也能看到之前完成的对象写入。
+
+## 启动失败需要逆序回滚
+
+假设 UDP reader 创建成功，TCP executor 启动失败。Initialize 不能只返回 false 并留下前者线程。
+
+每阶段要么使用 RAII 成员自动析构，要么记录已完成状态并逆序停止：
+
+```cpp
+if (!StartRegistration()) return Rollback();
+if (!StartReaders())      return Rollback();
+if (!StartGates())        return Rollback();
+```
+
+Rollback 与正常 Finalize 应复用相同 Stop primitive，否则错误路径往往比正常路径更容易泄漏线程和命名对象。
+
+## Finalize 先关闭对外入口
+
+Finalize 首先把 initialized 从 true 改为 false，使普通 accessor 立即失效。新 Publisher/Subscriber 操作不再进入正在拆除的对象图。
+
+这是“封入口”阶段。它不代表后台线程已经停止，也不代表已有 facade 的 weak pointer 已过期；后续仍需按依赖顺序逐项关闭。
+
+若先销毁对象、最后才改 flag，其他线程可能在中间窗口取得即将释放的指针。
+
+## Gate 必须早于 Reader Layer 销毁
+
+SubGate `Stop()` 清空 topic multimap，释放 SubscriberImpl strong pointer。SubscriberImpl 析构还会：
+
+- 从 UDP/TCP/SHM reader layer 移除订阅；
+- 清 callback 和 read waiters；
+- 把 created 设为 false；
+- 提交 unregister sample。
+
+因此 Gate/Impl 清理时，reader layers 与 registration provider 必须仍存在。若先 reset reader layer，Subscriber 析构会访问已释放依赖。
+
+这就是“先销毁使用者，再销毁被使用资源”。
+
+## Registration Receiver 与 Provider 的停止位置
+
+在 Gate 清理前停止 registration receiver，可以避免新的控制样本继续修改正在关闭的 map。但 Impl 析构又可能需要 provider 发送 unregister，所以 provider 要活得更久。
+
+概念顺序为：
+
+```text
+stop new incoming registration
+stop/clear gates and entity implementations
+allow unregister submission while provider alive
+stop registration provider
+```
+
+具体源码顺序还要考虑 monitoring 和 description callbacks，核心原则是将接收入口与发送清理依赖分开。
+
+## Callback 是隐藏依赖边
+
+对象图不仅由成员指针构成。注册到另一个模块的 callback 也可能捕获 raw pointer 或 `this`：
+
+```text
+ServiceManager callback -> ServiceGate
+DescGate callback       -> other gate/context
+Observer callback       -> Subscriber layer
+```
+
+被捕获对象销毁前必须先 unregister callback 或停止 callback source。否则容器表面上已清空，后台事件仍能调用悬空地址。
+
+生命周期审计应搜索 `SetCallback`、`AddCallback`、lambda captures 和 userdata，而不只看类成员。
+
+## 停止线程分为 Signal、Join、Destroy
+
+每个拥有线程的模块应遵循：
+
+```text
+Signal:  设置 stopping 并唤醒阻塞等待
+Join:    等线程确认退出
+Destroy: 释放线程可能访问的 queue/mutex/memory
+```
+
+只设置 flag 不唤醒可能卡在 event wait；先释放 queue 再 join 会发生 use-after-free；detach 线程则无法证明资源安全回收。
+
+SHM observer、registration receiver、provider 周期线程和 TCP executor 都应按这个模型检查。
+
+## 同步 Read 的关闭唤醒
+
+Subscriber 的永久 `Read(-1)` 可能等待 condition variable。Finalize 若只销毁对象而不设置 stopping/notify，等待线程无法返回，析构或 join 可能永久卡住。
+
+关闭时应让等待谓词包含 shutdown：
+
+```cpp
+stopping = true;
+read_cv.notify_all();
+```
+
+Waiter 醒来后返回 cancelled/false，而不是把空 buffer 当成新消息。
+
+## 在途 Callback 的等待
+
+清除 Gate 索引不能自动终止已经取得 shared pointer 快照的 ApplySample。实现析构与关闭需要和 receive mutex/callback 生命周期协调，确保对象不会在 callback 栈上执行时释放。
+
+Shared pointer 快照保护对象内存，但 callback 可能访问其他全局依赖；这些依赖也必须活到全部在途调用结束。
+
+一种明确设计是每模块维护 in-flight counter：进入 callback 增加，退出减少；Stop 拒绝新进入并等待 counter 为零。
+
+## Finalize 的概念逆序
+
+可以整理成：
+
+```text
+1. initialized = false          封闭公共入口
+2. stop monitoring/time sources
+3. stop incoming callbacks/registration
+4. stop and clear service/client/pub/sub gates
+5. remove cross-module callbacks
+6. stop registration provider
+7. stop/join memfile observer pool
+8. destroy memfile map
+9. destroy SHM/UDP/TCP reader layers
+10. release remaining owners
+```
+
+真实代码对 service raw callbacks 有特定顺序要求。阅读时应逐条验证每个 Stop 是否同步等待，以及 reset 前是否还有外部强引用。
+
+## 重复 Initialize/Finalize 的语义
+
+如果 Initialize 不是引用计数，调用两次再 Finalize 一次通常不会保留“一份所有权”。多个库各自配对调用会互相影响。
+
+更清晰的封装可以提供：
+
+```cpp
+class RuntimeLease {
+ public:
+  RuntimeLease();   // process-wide refcount++
+  ~RuntimeLease();  // refcount--, last one stops runtime
+};
+```
+
+或者明确规定仅 main 拥有生命周期，库只接受已初始化 Runtime 引用。后者依赖更显式，也更容易测试。
+
+## 生命周期失败模式
+
+常见故障包括：
+
+- Gate 已清空但 registration thread 又插入连接；
+- Observer 仍运行，memfile map 已释放；
+- Callback 捕获 raw pointer 的对象先析构；
+- 阻塞 Read 未唤醒导致 Finalize 卡死；
+- Publisher facade 仍存在但实现 weak pointer 已过期，调用静默失败；
+- 半初始化失败留下 thread 或 named shared-memory object。
+
+这些问题通常只在启动失败、快速重启或并发关闭时出现，正常数据流测试无法覆盖。
+
+## 可复刻的 Runtime 所有权
+
+```cpp
+class Runtime {
+ public:
+  static Expected<std::unique_ptr<Runtime>, Error>
+  Start(Config config);
+
+  void Stop();
+  ~Runtime() { Stop(); }
+
+ private:
+  std::atomic<State> state_{State::Constructing};
+  std::unique_ptr<Registration> registration_;
+  std::unique_ptr<ReaderLayers> readers_;
+  std::unique_ptr<Gates> gates_;
+  std::unique_ptr<ObserverPool> observers_;
+};
+```
+
+让 `Start()` 完成后才返回对象。成员析构顺序仍应由显式 Stop 控制，避免仅靠声明逆序隐藏关键依赖。
+
+状态机至少包括 Constructing、Running、Stopping、Stopped；Stop 使用 compare-exchange 保证幂等。
+
+## 生命周期设计结论
+
+`CGlobals` 的价值是把进程共享资源集中到一张所有权图。Initialize 在公开运行时前完成依赖装配，Finalize 先封入口，再停止事件源、清 Gate/Impl、停止 registration 与 observer，最后销毁底层 reader/memfile 资源。
+
+真正可复用的能力是“从依赖图推导逆序关闭”，并把 callback、线程和等待者也视为依赖边。只清空容器而不处理在途执行，不能算完成生命周期设计。

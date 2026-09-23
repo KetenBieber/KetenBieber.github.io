@@ -1,0 +1,385 @@
+# UDPM 接收链：专用线程、分片重组与通知 pipe
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+发送端调用 `sendmsg()` 后立即返回，接收端却不能直接在网络线程中执行用户 callback。LCM 把接收拆成两个上下文：专用线程负责尽快清空 UDP socket、校验并重组报文；调用 `lcm_handle()` 的应用线程负责执行订阅回调。
+
+这条边界决定了 LCM 的响应性与过载行为。网络线程可以继续收包，但业务线程若处理过慢，有限 ring、完整消息队列和每订阅者计数最终会形成丢弃。
+
+## UDPM 对象保存的接收状态
+
+[`lcm_udpm.c`](https://github.com/lcm-proj/lcm/blob/ad0c54cee0ec048ef12357c34349ec1443158864/lcm/lcm_udpm.c) 中的 provider 私有结构包含：
+
+```c
+struct _lcm_provider_t {
+    SOCKET recvfd;
+    SOCKET sendfd;
+    lcm_t *lcm;
+
+    lcm_buf_queue_t *inbufs_empty;
+    lcm_buf_queue_t *inbufs_filled;
+    lcm_ringbuf_t *ringbuf;
+    GRecMutex mutex;
+
+    GThread *read_thread;
+    int notify_pipe[2];
+    int thread_msg_pipe[2];
+
+    lcm_frag_buf_store *frag_bufs;
+    // counters and configuration...
+};
+```
+
+这些成员可以分成四组：
+
+- socket：与内核网络栈交互；
+- buffer pool：复用 `lcm_buf_t` 元数据和接收内存；
+- 两组 pipe：分别通知应用“有完整消息”和通知接收线程“退出”；
+- fragment store：保存尚未完成的 LC03 消息。
+
+## 接收资源采用延迟初始化
+
+创建 `lcm_t` 时不一定立刻启动接收线程。第一次 subscribe 或调用 `get_fileno`/handle 时，`_setup_recv_parts()` 才建立 multicast socket、pipe、ring、buffer queue 和线程。
+
+延迟初始化让只发布进程避免无用接收线程，也让 provider 构造失败路径更短。代价是多个线程同时首次订阅时必须协调初始化；代码使用专用 mutex、condition variable 和 thread-local 标记避免重复创建或自测重入。
+
+一个更简单的复刻版本可以在 create 阶段一次完成所有资源。只有确认大量 publish-only 实例值得节省线程后，再引入 lazy init，因为并发一次性初始化本身很容易产生半初始化状态。
+
+## 接收线程的主循环
+
+`recv_thread()` 持续调用 `udp_read_packet()`：
+
+```c
+while (1) {
+    lcm_buf_t *buf = udp_read_packet(lcm);
+    if (!buf)
+        break;
+
+    g_rec_mutex_lock(&lcm->mutex);
+    if (lcm_buf_queue_is_empty(lcm->inbufs_filled))
+        write(lcm->notify_pipe[1], "+", 1);
+    lcm_buf_enqueue(lcm->inbufs_filled, buf);
+    g_rec_mutex_unlock(&lcm->mutex);
+}
+```
+
+只有得到一条完整且至少有一个订阅者愿意接收的消息，`udp_read_packet()` 才返回非空 buffer。LC03 的中间分片不会进入 `inbufs_filled`。
+
+接收线程不执行 generated decode，也不调用业务 handler。它的工作量保持在网络解析、内存复制和队列操作范围内。
+
+## select 同时等待网络与退出命令
+
+接收线程不能只阻塞在 `recvmsg(recvfd)`，否则 destroy 设置停止标志后无法及时唤醒。实现用 `select()` 同时等待：
+
+```text
+recvfd                -> UDP data ready
+thread_msg_pipe[0]    -> shutdown command ready
+```
+
+退出时 `_destroy_recv_parts()` 向 pipe 写一个字节，再 `g_thread_join(read_thread)`。接收线程观察退出 fd 后释放临时元数据并返回。
+
+这是可证明的关闭协议：
+
+```text
+signal exit -> blocking wait wakes -> thread leaves loop -> join returns
+```
+
+仅关闭 recv socket在不同平台和并发时可能产生不一致行为；独立控制 pipe 将生命周期事件与网络错误分开。
+
+## recvmsg 直接写入预分配区域
+
+接收线程从 empty queue 或 ring 获取一只 `lcm_buf_t`，让其数据区指向最多 65535 字节空间，再调用 `recvmsg()`：
+
+```c
+struct iovec vec = {lcmb->buf, 65535};
+struct msghdr msg = {0};
+msg.msg_name = &lcmb->from;
+msg.msg_iov = &vec;
+msg.msg_iovlen = 1;
+
+ssize_t size = recvmsg(lcm->recvfd, &msg, 0);
+```
+
+接收地址被保存在 `lcmb->from`，后续分片重组用它区分不同发送者。启用 `SO_TIMESTAMP` 时，还从控制消息取得内核接收时间；否则退化为用户态读取实时时钟。
+
+内核时间戳更接近报文进入主机的时刻，减少接收线程调度延迟对测量的污染。但它仍不是传感器采样时间，业务消息若需要时序融合，应携带自己的 measurement timestamp。
+
+## Magic 分派短消息与分片消息
+
+收到至少能容纳短 header 的数据报后，代码读取 network-order magic：
+
+```c
+uint32_t magic = ntohl(header->magic);
+
+if (magic == LCM2_MAGIC_SHORT)
+    complete = _recv_short_message(...);
+else if (magic == LCM2_MAGIC_LONG)
+    complete = _recv_message_fragment(...);
+else
+    discard_bad++;
+```
+
+Magic 只说明采用哪种 framing，不验证消息 schema。类型 fingerprint 位于生成式消息 payload 内，由具体 decode 逻辑检查。
+
+不认识的报文应在网络线程早期丢弃，避免进入更昂贵的 subscription matching 和 decode。
+
+## 短消息使用 ring 内存
+
+短报文初始接收区按最大 UDP 尺寸预留。解析完成后，代码调用 `lcm_ringbuf_shrink_last()` 把最后一次分配缩到实际 datagram 长度，避免每条小消息长期占用 64 KiB。
+
+Ring allocator 保存分配记录链，支持：
+
+- 从固定内存区分配连续块；
+- 尾部分配收缩；
+- 按完成顺序归还；
+- 在空间不足时检测无法满足，而不是无界 malloc。
+
+它降低高频小包的 allocator 抖动，但要求 buffer 的归还顺序和寿命非常明确。应用 callback 不能在返回后继续持有 ring 中的裸指针。
+
+## 短消息的早期订阅过滤
+
+解析 channel 后，接收线程调用：
+
+```c
+if (!lcm_try_enqueue_message(lcm->lcm, channel))
+    return 0;
+```
+
+函数检查匹配订阅者的 `num_queued_messages` 与上限，并为仍有容量的订阅者增加计数。如果没有任何订阅者愿意保留，这条消息不会进入 complete queue。
+
+这里排队的只是“该订阅者有一条待处理消息”的计数；payload 仍只有 provider 队列中的一份。它避免一条消息按订阅者数量复制，同时允许慢订阅者独立达到上限。
+
+## LC03 重组 key
+
+长消息 header 提供 `msg_seqno`，接收地址来自 `recvmsg()`。二者组合成 key：
+
+```c
+lcm_frag_key_t key;
+key.from = &lcmb->from;
+key.msg_seqno = msg_seqno;
+```
+
+同一个 seqno 可以由不同发送者同时使用，所以 source address 不可省略。若发送者重启并快速复用地址与 seqno，重组表还依赖数据大小检查和过期淘汰降低冲突风险。
+
+找到旧 `fbuf` 但 `data_size` 不同时，代码把它视为残留不完整消息并删除。新消息重新建立 buffer。
+
+## 第一分片建立消息元数据
+
+只有 fragment 0 携带 channel。接收端从 header 后读取 NUL 终止字符串，随后把 data 指针越过 channel：
+
+```c
+if (fragment_no == 0) {
+    channel = (char *)(header + 1);
+    channel_size = strlen(channel);
+    data_start += channel_size + 1;
+    fragment_size -= channel_size + 1;
+}
+```
+
+实现预先保证接收缓冲末端有零字节，避免 `strlen` 无限越界；仍要验证 channel 上限和 packet 长度。设计新协议时，更稳妥的方式是使用显式长度字段并用 `memchr` 在剩余报文范围内寻找 NUL。
+
+若非零分片先到，重组项可以先创建并填入 data；channel 仍为空，直到第一片到达。全部分片齐备但第一片缺失时不应被视为完整可分发消息。
+
+## 溢出安全的边界检查
+
+网络提供的 `fragment_offset` 和当前片大小都不可信。错误写法是：
+
+```c
+if (fragment_offset + fragment_size > data_size)
+    reject();
+```
+
+无符号加法可能回绕，使巨大 offset 加 size 变成小数。源码采用减法形式：
+
+```c
+if (fragment_offset > data_size ||
+    fragment_size > data_size - fragment_offset) {
+    reject();
+}
+```
+
+只有先证明 `fragment_offset <= data_size`，`data_size - fragment_offset` 才安全。这是解析二进制协议时可复用的通用规则。
+
+通过检查后才执行：
+
+```c
+memcpy(fbuf->data + fragment_offset,
+       data_start,
+       fragment_size);
+```
+
+## fragments_remaining 的隐含假设
+
+每收到一片，代码执行 `fragments_remaining--`，归零后认为完成。这要求重组结构能识别或排除重复 fragment；否则同一分片重复到达可能让计数提前归零。
+
+稳健实现通常维护 bitmap：
+
+```text
+received[fragment_no] = true
+received_count increments only on false -> true
+complete when received_count == total
+```
+
+还要验证 fragment_no 小于总数、总数在同一消息中保持一致，以及 offset 区间没有重叠或冲突。
+
+计数器比 bitmap 省内存，但其正确性依赖更强的输入假设。面对不可信网络时，显式记录每片状态更容易验证。
+
+## 完成时转移 payload 所有权
+
+当重组完成且至少一个订阅者有容量时，代码不把整条消息再复制进 ring。它释放当前 datagram 的 ring 区域，再把 fragment buffer 的 data 指针转移给 `lcm_buf_t`：
+
+```c
+lcm_buf_free_data(lcmb, lcm->ringbuf);
+
+lcmb->buf = fbuf->data;
+fbuf->data = NULL;
+
+lcm_frag_buf_store_remove(lcm->frag_bufs, fbuf);
+```
+
+把 `fbuf->data` 设为空是 move ownership 的 C 写法。随后销毁 fbuf 时不会二次 free，完整消息 buffer 改由 `lcm_buf_t` 负责。
+
+这一指针转移避免大消息完成后再执行一次 `O(message_size)` memcpy，是接收链的重要性能设计。
+
+## empty 与 filled 队列复用元数据
+
+完整消息进入 `inbufs_filled`，应用线程 handle 后清理数据，再把 `lcm_buf_t` 放回 `inbufs_empty`：
+
+```text
+empty metadata
+  -> attach receive storage
+  -> parse/reassemble
+  -> filled queue
+  -> callback borrow
+  -> release storage
+  -> empty metadata
+```
+
+复用的是 buffer descriptor；短消息数据来自 ring，大消息数据来自 fragment allocation。`lcm_buf_free_data()` 必须根据所有权来源选择 ring dealloc 或 heap free。
+
+若用一个裸 `char*` 却没有来源标签，就无法安全释放。自定义 buffer 类型应明确记录 allocator/owner，而不是靠地址范围猜测。
+
+## notify pipe 使用电平式队列语义
+
+接收线程只在 filled queue 从空变非空时向 pipe 写一个字节：
+
+```c
+if (queue_is_empty(filled))
+    write(notify_pipe[1], "+", 1);
+enqueue(filled, message);
+```
+
+这样 pipe 不需要为每条消息保存一个字节，避免大量消息填满 pipe 并阻塞接收线程。
+
+`handle()` 读走一个字节、取出一条消息。如果队列仍非空，它再写回一个字节，让 fd 保持可读：
+
+```c
+read(notify_pipe[0], &ch, 1);
+message = dequeue(filled);
+if (!queue_is_empty(filled))
+    write(notify_pipe[1], "+", 1);
+```
+
+pipe 字节代表“队列非空状态”，不是消息计数。这与 eventfd/semaphore 的计数语义不同。
+
+## callback buffer 的借用期
+
+`lcm_udpm_handle()` 构造栈上的 `lcm_recv_buf_t`，其中 data 指向 `lcm_buf_t` 持有的 storage，然后调用核心分发。全部 handler 返回后立即释放 storage。
+
+因此 handler 的指针有效期为：
+
+```text
+handler entry <= valid bytes <= handler return
+```
+
+异步工作线程不能保存 `rbuf->data` 裸指针。正确做法是在 callback 中 decode 成拥有自身内存的对象，或显式复制字节数组。
+
+这类 borrowed view 能消除回调前复制，却把生命周期责任交给 API 使用者。C++ 包装层若能使用 `std::span<const std::byte>`，比裸 `void* + size` 更能表达只读视图，但仍不能自动延长寿命。
+
+## 过载时的丢弃位置
+
+接收链存在多层有限容量：
+
+1. 内核 `SO_RCVBUF`；
+2. fragment store 与重组内存限制；
+3. provider ring/filled queue；
+4. subscription 的 `max_num_queued_messages`；
+5. 应用下游自行建立的工作队列。
+
+任何一层都可能丢数据，且观测指标不同。仅统计应用 callback 次数无法判断丢包发生在网卡、内核、重组还是订阅配额。
+
+至少应暴露：UDP packets received、bad packets、incomplete fragment drops、no-subscriber drops、subscription queue drops、filled queue depth 和 callback service time。
+
+## 接收延迟与内存上界
+
+短消息的主要数据路径为一次 kernel-to-user copy 加 callback 借用，没有额外 payload fan-out。长消息每片 `memcpy` 到重组 buffer，总复制量约等于完整 data size。
+
+回调延迟可以拆成：
+
+```text
+L = network arrival
+  + receive-thread scheduling
+  + reassembly wait
+  + filled-queue wait
+  + application polling interval
+  + previous callback time
+```
+
+内存峰值包括 ring 容量、filled 消息、全部未完成 fragment buffers 和下游复制。攻击者若持续发送大量不同 source/seqno 的不完整大消息，重组表必须有全局数量与字节上限，否则仅靠超时仍可能耗尽内存。
+
+## 关闭顺序
+
+Provider destroy 先通知接收线程退出并 join，再释放 socket、fragment store、queue 和 ring：
+
+```text
+write(thread_msg_pipe)
+  -> receive select wakes
+  -> receive thread returns
+  -> join
+  -> close thread pipe and recv socket
+  -> destroy fragment store
+  -> free empty/filled queues
+  -> free ring
+```
+
+join 位于释放共享数据结构之前，保证接收线程不会在 ring 已销毁后继续写入。发送 socket 与发送 mutex 则在接收资源停止后再独立清理。
+
+## 最小复刻结构
+
+复刻接收端可以使用三个明确所有权类型：
+
+```cpp
+struct Datagram {
+  Endpoint source;
+  TimePoint received_at;
+  std::vector<std::byte> bytes;
+};
+
+struct PartialMessage {
+  std::string channel;
+  std::vector<std::byte> data;
+  std::vector<bool> received;
+  std::size_t received_count;
+  TimePoint last_update;
+};
+
+struct CompleteMessage {
+  std::string channel;
+  std::shared_ptr<const Buffer> payload;
+  TimePoint received_at;
+};
+```
+
+先用普通 heap vector 验证协议与关闭，再引入 ring/pool。优化顺序应是：
+
+1. 正确验证所有 wire length；
+2. 正确处理乱序、重复、缺失和超时；
+3. 给 queue 与 reassembly 设置硬上限；
+4. 建立通知 fd 与单消费者 handle；
+5. 最后替换 allocator 和复制路径。
+
+接收链的核心能力不是“开一个 UDP 线程”，而是让网络线程、重组所有权、应用事件循环和关闭协议形成一组不会丢唤醒、越界或悬空访问的不变量。

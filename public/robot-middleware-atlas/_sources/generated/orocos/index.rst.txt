@@ -1,0 +1,53 @@
+Orocos RTT
+==========
+
+固定源码版本：``600102e8be9c81905b20930e32d43b28244ab173``
+
+Orocos RTT 围绕实时组件建立明确的执行边界。TaskContext 暴露生命周期 hooks、Operation 和 Port；Activity 提供线程与周期，ExecutionEngine 统一处理消息、端口事件和组件更新；ConnPolicy 决定数据连接使用最新值还是有界缓冲，以及采用何种同步策略。
+
+它最值得追踪的问题是“谁的线程执行这段代码”。ClientThread 与 OwnThread operation、周期与事件驱动 Activity、DATA 与 BUFFER policy 会给出完全不同的阻塞和数据年龄语义。所谓实时性最终取决于容器进度保证、hook 的最坏执行时间、OS priority/affinity 与关闭顺序能否形成闭环。
+
+阅读源码时从 public entry 出发，沿真实调用链标出对象所有权、线程切换、队列、锁和数据复制，再回到关闭路径检查在途工作如何收束。
+
+统一学习路径
+------------
+
+本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权，最后才进入语言机制、性能取舍、最小复刻和实际项目。
+
+1. **功能介绍与需求分析**：:doc:`建立使用场景、核心保证与适用边界 <foundations>`。
+2. **组件地图**：:doc:`先看清公开入口、核心对象和控制流关系 <architecture-map>`。
+3. **自顶向下源码实现**：:doc:`从第一条主调用链进入实现 <taskcontext-lifecycle>`，再按下方源码目录顺序阅读后续模块。
+4. **C/C++ 或 Rust 机制**：:doc:`把所有权、模板、RAII、ABI 与并发原语映射回设计目的 <cpp-design-lab>`。
+5. **设计取舍与性能边界**：:doc:`汇总数据结构复杂度、优点、缺点和失效条件 <design-recap>`。
+6. **可迁移思想与最小复刻**：仍在 :doc:`设计总结 <design-recap>` 中按依赖顺序实现，并以关闭、过载和竞态不变量判定是否完成。
+7. **实际开发与知名项目**：从 :doc:`环境与基础操作 <use-environment>` 开始，最后进入 :doc:`真实项目案例 <case-study-rtt-ros>`。
+
+
+源码解读
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   foundations
+   architecture-map
+   taskcontext-lifecycle
+   activity-execution-engine
+   operation-threading
+   ports-channels
+   realtime-lifecycle
+   cpp-design-lab
+   design-recap
+
+
+使用教程
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   use-environment
+   use-component-ports
+   use-operations
+   case-study-rtt-ros
+

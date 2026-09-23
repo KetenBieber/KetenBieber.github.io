@@ -1,0 +1,392 @@
+# LCM 阅读基础：从一次函数调用到完整消息链
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+LCM 的核心代码主要使用 C。源码中的结构体、函数指针、`void*`、mutex、socket 和 pipe 如果同时出现，很容易让通信机制显得比实际更复杂。
+
+这一章先不追求覆盖全部实现，而是建立后续阅读需要的最小知识。每个概念都会放回同一条消息链中，避免把 C 语法与中间件设计割裂成两套知识。
+
+## 先建立一张整体地图
+
+发布者发送一条消息时，实际经过：
+
+```text
+业务对象
+  -> 编码为 bytes
+  -> lcm_publish()
+  -> UDPM provider
+  -> UDP socket
+  -> 网络
+```
+
+订阅者接收时，实际经过：
+
+```text
+UDP socket
+  -> 接收线程
+  -> 完整消息队列
+  -> notify pipe
+  -> 应用调用 lcm_handle()
+  -> 找到匹配 subscription
+  -> 执行用户 callback
+  -> 解码为业务对象
+```
+
+后续遇到任何函数，先判断它属于五个位置中的哪一个：公共 API、传输、接收缓存、订阅分发或类型编码。类名和指针就不会成为孤立信息。
+
+## C 结构体表示一组相关状态
+
+C 没有类，但可以用 `struct` 把数据放在一起：
+
+```c
+struct Message {
+    const char *channel;
+    const void *data;
+    unsigned int size;
+};
+```
+
+它与简单 C++ 类的数据部分相似：
+
+```cpp
+class Message {
+ public:
+  const char* channel;
+  const void* data;
+  unsigned int size;
+};
+```
+
+LCM 的 `lcm_t` 是公共运行时状态，UDPM 的 `lcm_udpm_t` 是 UDP provider 状态。把它们分成两个结构体，意味着“订阅表”和“UDP socket”属于不同模块。
+
+## 指针表示对象的位置
+
+```c
+lcm_t *bus;
+```
+
+可以先把它读成：“`bus` 保存一只 `lcm_t` 对象的地址。”箭头运算符访问该地址所指对象的成员：
+
+```c
+bus->provider
+```
+
+等价于：
+
+```c
+(*bus).provider
+```
+
+中间件大量使用指针有三个原因：
+
+- 对象通常比一个机器字大，传地址比复制整个对象便宜；
+- 多个模块需要访问同一份运行时状态；
+- 具体结构可以隐藏在 `.c` 文件中，公共头文件只暴露不透明指针。
+
+指针本身不说明所有权。看到指针时还要继续判断：谁创建对象、谁释放对象、指针可以保存多久。
+
+## const 描述通过当前指针不能修改数据
+
+```c
+const void *data
+```
+
+表示函数通过 `data` 只能读取这块内存。它不表示其他线程一定不会修改，也不表示内存会永久有效。
+
+LCM callback 收到的 payload 就是只读借用：callback 可以读取和解码，但返回后 provider 会回收接收 buffer。若要交给后台线程，必须复制或解码成拥有自身存储的对象。
+
+## void 指针抹去具体类型
+
+`void*` 是“某个地址，但此处不声明它指向哪种类型”：
+
+```c
+void *userdata;
+```
+
+订阅时，调用者可以把自己的状态地址交给 LCM：
+
+```c
+struct Controller controller;
+lcm_subscribe(bus, "POSE", on_pose, &controller);
+```
+
+回调再转回原类型：
+
+```c
+void on_pose(const lcm_recv_buf_t *buf,
+             const char *channel,
+             void *userdata)
+{
+    struct Controller *controller = userdata;
+    // use controller
+}
+```
+
+LCM 只负责保存和传回地址，不会复制或释放 `controller`。因此 controller 必须比 subscription 活得更久。
+
+这是一种运行时类型擦除：不同应用状态都能放进同一 callback 接口，代价是 cast 正确性由程序员保证。
+
+## 函数指针把行为保存为数据
+
+普通函数：
+
+```c
+int send_message(const char *channel,
+                 const void *data,
+                 unsigned int size);
+```
+
+对应的函数指针类型可以写成：
+
+```c
+int (*send_fn)(const char *, const void *, unsigned int);
+```
+
+把函数地址赋给它后，可以间接调用：
+
+```c
+send_fn = send_message;
+int result = send_fn("POSE", bytes, size);
+```
+
+LCM provider vtable 正是一组函数指针。UDPM、TCPQ 和 MEMQ 分别把自己的函数地址放进同样布局的表，公共层只通过表调用。
+
+## vtable 是 C 语言中的接口对象
+
+先看一个极小版本：
+
+```c
+struct TransportOps {
+    int (*publish)(void *self,
+                   const char *channel,
+                   const void *data,
+                   unsigned int size);
+    void (*destroy)(void *self);
+};
+
+struct Transport {
+    void *self;
+    struct TransportOps *ops;
+};
+```
+
+调用时：
+
+```c
+transport.ops->publish(
+    transport.self, "POSE", bytes, size);
+```
+
+如果 `ops` 指向 UDP 方法表，实际调用 UDP；若指向内存队列方法表，实际写内存队列。
+
+它对应 C++ 虚函数：
+
+```cpp
+class Transport {
+ public:
+  virtual int Publish(...) = 0;
+  virtual ~Transport() = default;
+};
+```
+
+“函数指针表 + self 指针”与“虚基类 + this 指针”解决的是同一个设计问题：调用者依赖稳定接口，不依赖具体实现。
+
+## opaque struct 隐藏模块内部字段
+
+公共头文件可以只写：
+
+```c
+typedef struct _lcm_t lcm_t;
+```
+
+这告诉编译器 `lcm_t` 是一种结构，但没有展示字段。用户只能持有 `lcm_t*`，不能写 `bus->handlers_map`。
+
+真实定义留在 `lcm.c`：
+
+```c
+struct _lcm_t {
+    GRecMutex mutex;
+    GPtrArray *handlers_all;
+    // ...
+};
+```
+
+这就是不透明对象。它带来类似 C++ private 成员的封装，也让库可以修改内部布局而不要求调用者重新理解所有字段。
+
+## callback 是稍后被框架调用的函数
+
+应用把函数交给 LCM：
+
+```c
+lcm_subscribe(bus, "POSE", on_pose, userdata);
+```
+
+此时不会立刻执行 `on_pose`。当应用以后调用 `lcm_handle()`，且队列中有匹配消息时，框架才执行：
+
+```c
+subscription->handler(buffer,
+                      channel,
+                      subscription->userdata);
+```
+
+因此 callback 有两个时间点：注册时间和调用时间。两者之间，函数代码、userdata 和 subscription 都必须仍然有效。
+
+## socket 是内核中的通信端点
+
+UDP socket 可以看作操作系统提供的网络收发句柄：
+
+```c
+int fd = socket(AF_INET, SOCK_DGRAM, 0);
+sendmsg(fd, &message, 0);
+recvmsg(fd, &message, 0);
+```
+
+`sendmsg` 把用户态 bytes 交给内核；返回成功只表示本机内核接收了这次发送请求，不表示远端收到。
+
+`recvmsg` 通常会阻塞，直到网络包到达。因此 LCM 把它放在专用接收线程中，避免应用主线程一直等待 socket。
+
+## pipe 是进程内的唤醒通道
+
+POSIX pipe 有两个文件描述符：
+
+```text
+pipe[1] --write--> kernel buffer --read--> pipe[0]
+```
+
+接收线程把完整消息放入队列后，向 pipe 写一个字节。应用的 `select()` 或 `poll()` 发现 `pipe[0]` 可读，就知道可以调用 `lcm_handle()`。
+
+为什么不直接等待 UDP socket：因为一个 UDP 包可能只是大消息的一个分片。只有全部分片重组完成、消息真正进入应用队列后，notify pipe 才变为可读。
+
+pipe 传递的是唤醒信号，payload 仍在内存队列中。
+
+## mutex 保护多步不变量
+
+两个线程同时操作同一队列时，需要 mutex：
+
+```c
+lock(queue_mutex);
+enqueue(queue, message);
+unlock(queue_mutex);
+```
+
+锁保护的不是某一行语句，而是“检查状态并修改状态”的完整事务：
+
+```c
+lock(mutex);
+if (queue_is_empty(queue))
+    notify();
+enqueue(queue, message);
+unlock(mutex);
+```
+
+若检查 empty 和 enqueue 不在同一锁域，应用可能错过从空到非空的变化，造成队列有消息却没有唤醒。
+
+读源码时，应圈出 lock 与 unlock 之间的全部语句，再总结它维护的整体不变量。
+
+## ring buffer 限制内存增长
+
+普通队列若持续 malloc，新消息速度超过消费速度时会无限增长。Ring buffer 预先保留固定空间，并循环复用。
+
+可以把它想象成一条首尾相接的传送带：
+
+```text
+[used A][used B][free........][used wrapped]
+          head ->             <- tail
+```
+
+LCM 用 ring 保存短 UDP 报文，减少频繁 malloc。回调结束后，对应区域才能归还。若应用保存裸指针到回调之外，ring 复用后该指针会指向别的消息。
+
+## 网络字节序统一整数表示
+
+不同 CPU 可能用不同字节顺序保存多字节整数。协议发送前调用：
+
+```c
+header.magic = htonl(magic);
+```
+
+接收后调用：
+
+```c
+magic = ntohl(header.magic);
+```
+
+`htonl` 表示 host-to-network long，`ntohl` 表示 network-to-host long。它们让相同 header 在不同处理器上得到一致字节布局。
+
+字符串和单字节数组不需要转换；16、32、64 位整数和浮点编码必须遵守协议规则。
+
+## iovec 表示多段连续输出
+
+发送报文需要依次放置 header、channel 和 payload。最直接做法是分配大 buffer，再复制三段：
+
+```text
+[header][channel][payload]
+```
+
+`iovec` 允许描述原本分散的内存：
+
+```c
+struct iovec parts[3] = {
+    {&header, sizeof(header)},
+    {channel, channel_size},
+    {payload, payload_size}
+};
+```
+
+一次 `sendmsg()` 接收这些视图，避免应用先手工拼接。它减少一次用户态复制，但数据仍会进入内核网络栈。
+
+## 所有权必须用完整句子描述
+
+看到某个指针，不要只写“这里用了指针”。应写成：
+
+```text
+接收线程拥有 lcm_buf_t；
+callback 在调用期间借用其中的 payload；
+callback 返回后 provider 回收 buffer；
+需要跨调用保存时由应用复制。
+```
+
+常见关系只有几种：
+
+- owning：负责最终释放；
+- borrowing：临时使用，不释放；
+- shared owning：多个使用者共同延长寿命；
+- weak observing：能检查对象是否仍存在，但不延长寿命；
+- transferred：所有权从一个对象移动到另一个对象。
+
+LCM 是 C 代码，这些关系不会由类型系统全部表达，必须结合 create/free 和调用时序判断。
+
+## 线程图比函数列表更重要
+
+阅读接收链时先画两个线程：
+
+```text
+Receive Thread                     Application Thread
+--------------                     ------------------
+recvmsg
+parse/reassemble
+lock queue
+enqueue
+write notify pipe  ------------->  poll/select wakes
+                                     lcm_handle
+                                     dequeue
+                                     invoke callback
+```
+
+然后逐条标注：哪把锁、哪个 buffer、何时复制、谁唤醒谁。函数调用名改变时，这张并发结构仍然成立。
+
+## 后续章节的阅读方法
+
+阅读 Provider 章节时，重点识别函数指针表与 opaque self。阅读 UDPM 发送时，重点识别 iovec、网络字节序和 transmit mutex。阅读接收重组时，重点识别两个线程、两组 pipe 和 buffer 所有权。阅读订阅分发时，重点识别 callback 注册时间、执行时间和延迟删除。
+
+每个复杂实现都可以拆回四个基本问题：
+
+1. 数据现在存在哪里；
+2. 当前代码在哪个线程执行；
+3. 哪个对象拥有这块数据；
+4. 下一步由函数调用、队列还是唤醒事件触发。
+
+只要这四个问题能连续回答，就已经理解了中间件的真实运行机制，而不只是记住 API 名称。

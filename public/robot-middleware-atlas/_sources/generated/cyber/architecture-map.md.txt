@@ -1,0 +1,255 @@
+# Cyber RT 功能与组件地图：从自动驾驶数据流到运行时实现
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Cyber RT 要解决的不是“让两个进程互相发消息”这一个问题，而是把自动驾驶算法模块装配成可运行、可调度、可观测、可回放的计算图。阅读时应先按功能拆成六个子系统，再沿一条消息链把它们连接起来。
+
+## 使用场景与系统边界
+
+Cyber RT 适合自动驾驶和类似的多传感器计算流水线：组件通过 DAG 装配，Node/Reader/Writer 传递类型化消息，DataVisitor 组合多输入，Scheduler 用协作式 routine 执行业务，Recorder/Player 支撑复现。它强调的是“通信、装配与执行一体化运行时”。
+
+它不自动保证传感器严格时间同步、业务命令恰好一次、算法 WCET 或硬实时调度。SHM 也不等于整条链零复制；协程减少线程数但不抢占长时间 Proc；录制输入不自动消除墙钟、随机数和外部设备带来的非确定性。
+
+## 从自动驾驶需求反推组件
+
+| 需求 | 首先进入的组件 | 必须联读的边界 |
+|---|---|---|
+| 按车型/场景装配算法模块 | DAG、mainboard、ModuleController、ClassLoader | 插件 ABI、实例与 DSO 寿命 |
+| 相同 API 覆盖进程内和跨进程 | Reader/Writer、Transport、ReceiverManager | INTRA/SHM/RTPS 的复制与发现差异 |
+| 一个 channel 多个消费者互不移动游标 | DataDispatcher、ChannelBuffer | `O(K)` 扇出、容量与覆盖 |
+| 多传感器输入触发一次算法 | DataVisitor、AllLatest | 主触发源、辅助数据年龄、非严格同步 |
+| 回调不阻塞网络接收 | DataNotifier、CRoutine、Scheduler、Processor | 唤醒不丢失、Proc WCET、协作式饥饿 |
+| 可记录和回放线上输入 | Record/Player、Channel、Clock | 回放时间、拓扑和外部副作用 |
+| 运行期查看数据链健康 | Topology、Monitor、statistics | 可见不等于新鲜或处理完成 |
+
+定位故障时先选择平面：组件没创建看装配；Reader 存在但收不到看拓扑/Transport；Dispatcher 有数据但 Proc 不运行看 Notifier/Scheduler；Proc 运行但输入陈旧看 ChannelBuffer/DataVisitor；回放结果不同看 Clock、外部状态与算法确定性。
+
+## 六个功能子系统
+
+| 功能 | 用户看到的能力 | 核心组件 | 主要实现问题 |
+|---|---|---|---|
+| 部署装配 | DAG、Launch、mainboard | ModuleController、ClassLoader、Component | 配置怎样变成 C++ 对象，插件何时卸载 |
+| 通信抽象 | Node、Reader、Writer、Channel | Node、Reader、Writer、Transport | 同进程、SHM、RTPS 如何统一 |
+| 数据分发 | 每个 Reader 获得自己的数据视图 | DataDispatcher、ChannelBuffer | 扇出、有限缓存、慢消费者隔离 |
+| 多输入融合 | 多路消息组成一次 Proc 参数 | DataVisitor、AllLatest | 触发源、快照时刻、数据年龄 |
+| 执行调度 | 回调不占用接收线程 | CRoutine、Scheduler、Processor | 唤醒、优先级、协作式执行 |
+| 运维复现 | 监控、录制、回放 | Topology、Monitor、Recorder | 运行图可见性与确定输入 |
+
+## 仓库入口与源码问题
+
+本系列固定 Apollo 提交为 [`d53aa3da`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)。源码入口可按以下顺序定位：
+
+| 层 | 入口 | 先回答的问题 |
+|---|---|---|
+| 启动装配 | `cyber/mainboard`、`module_controller.cc` | DAG 如何变成装载批次与 Component 实例 |
+| 组件模板 | `cyber/component/component.h` | M0..M3 如何生成 Reader、Visitor 与 routine |
+| 节点实体 | `cyber/node/reader.h`、Writer/Node | API 怎样进入 Transport 和 Dispatcher |
+| Transport | `cyber/transport/*` | Receiver 共享、listener、INTRA/SHM/RTPS |
+| 数据缓存 | `cyber/data/channel_buffer.h`、`data_dispatcher.h` | 每消费者 ring、游标和扇出 |
+| 多输入 | `cyber/data/data_visitor.h`、fusion | 主输入触发与 AllLatest 快照 |
+| 通知 | `cyber/data/data_notifier.h` | channel 事件怎样合并并唤醒 routine |
+| 调度 | `cyber/scheduler/*`、`processor.cc` | routine 状态、队列、Processor OS 线程 |
+| 插件 | `cyber/class_loader/*` | 工厂注册、DSO pinning 和卸载 |
+
+每进入一个文件，都同步记录线程、owner、`shared_ptr` 复制、锁域和关闭动作。Cyber 的核心问题分布在多个子目录，只搜索 `Proc()` 会跳过决定数据何时可见的全部运行时层。
+
+## 模块依赖顺序
+
+```text
+DAG/Launch
+  -> ClassLoader 创建 Component
+       -> Component 创建 Node / Reader / Writer
+            -> Transport 建立 Receiver
+                 -> DataDispatcher 写 ChannelBuffer
+                      -> DataNotifier 发布可合并事件
+                           -> Scheduler 唤醒 CRoutine
+                                -> DataVisitor 取消息快照
+                                     -> Component::Proc()
+```
+
+这条顺序解释章节为什么必须从装配进入通信，再进入缓存、融合和调度。只单独解释 `CRoutine` 或 SHM，读者无法知道它们在完整系统中解决哪一段问题。
+
+## 功能一：部署装配
+
+功能目标是让算法类由配置选择，而不把所有组件静态写进 main。DAG 给出动态库、类名、实例与 Reader；ClassLoader 用字符串工厂创建派生类；ModuleController 保存装载批次和关闭顺序。
+
+优秀之处是部署选择与业务编译分离，代价是插件 ABI、字符串错误和动态库寿命变成运行时问题。对应章节依次为《启动与装配》《动态组件装载》《C++ 类型系统》。
+
+## 功能二：通信与数据分发
+
+Reader/Writer 隐藏 INTRA、SHM 与 RTPS 差异，Dispatcher 再把同一 `shared_ptr<Message>` 扇出到每个订阅者的私有 ChannelBuffer。独立 buffer 防止一个慢消费者移动其他消费者的读游标；代价是每次发布要遍历消费者并维护更多元数据。
+
+对应章节为《有界消息缓存》《进程内数据分发》《完整消息链》。阅读时固定追踪：消息是否复制、由谁持有、在哪个线程写入、满载时丢什么。
+
+## 功能三：多输入一致性
+
+多输入 Component 不能在任意一条输入变化时随意组合。DataVisitor 以主输入建立触发边界，并用 AllLatest 固化其他输入的最新快照。它提供低等待的“近似同时”组合，但不保证时间同步。
+
+对应《多输入组件》。设计取舍是延迟优先而非严格同步；传感器融合若要求时间窗，需要在业务层增加 timestamp、buffer 和匹配策略。
+
+## 功能四：调度与隔离
+
+Transport callback 只负责投递与通知，Processor 所在线程才执行 `Proc()`。这种分离避免业务 WCET 阻塞网络接收；协作式 CRoutine 又减少一任务一线程的成本。
+
+缺点是非抢占执行：一个 Proc 长时间不让出，其他同 Processor 任务仍会延迟。对应《任务唤醒与执行》与《完整消息链》。
+
+## C++ 能力路线
+
+```text
+模板类型传播
+  -> Component<M...> / Reader<T> / DataVisitor<M...>
+类型擦除
+  -> ComponentBase / RoutineFactory / ClassFactory
+所有权
+  -> unique_ptr / shared_ptr / weak_ptr / custom deleter
+并发
+  -> mutex / atomic / condition / event latch
+生命周期
+  -> RAII rollback / inverse-topology shutdown / plugin pinning
+```
+
+阅读 C++ 时不要只记语法：每种机制都要回答“它保护了哪个不变量、替代方案是什么、失败路径如何收回资源”。
+
+## 对象所有权地图
+
+理解组件名还不够，必须知道谁让谁活着：
+
+| 对象 | 直接所有者 | 被谁共享或借用 | 关闭约束 |
+|---|---|---|---|
+| Component 实例 | ModuleController/装载记录 | Scheduler routine 捕获业务回调 | 先移除任务和 Reader，再析构组件 |
+| 动态库句柄 | ClassLoader 装载批次 | 该库创建的全部对象与工厂函数 | 最后一个实例销毁后才能卸载 |
+| Node | Component 或业务模块 | Reader/Writer 创建期间借用 | 实体先于 Node 释放 |
+| Receiver | ReceiverManager | 同类型、同 channel Reader 共享 | 移除全部 listener 后才能关闭 transport |
+| ChannelBuffer | DataVisitor | DataDispatcher 持有弱/共享引用 | 注销后不再接收 Dispatch |
+| DataVisitor | Component 初始化路径 | CRoutine 闭包访问 | task 停止后才能析构 visitor |
+| CRoutine | Scheduler | ProcessorContext/run queue 引用 | 标记停止、脱离队列，再回收栈与闭包 |
+
+`shared_ptr` 解决“最后一个使用者之前不释放”，却不能自动打破环。若 Component 拥有 task，而 task 闭包又强引用 Component，就会形成循环；关闭函数需要显式取消任务或让回指使用 `weak_ptr`。动态库则比普通对象多一层 ABI 约束：虚函数、析构函数和模板实例代码所在的 DSO 必须在对象整个生命期保持装载。
+
+## 线程与执行上下文地图
+
+```text
+mainboard 主线程
+  装载 DAG、创建组件、等待退出
+
+transport/dispatcher 线程
+  收包、反序列化、Dispatch、Notify
+  不运行 Component::Proc
+
+Processor OS 线程
+  Scheduler 选择 CRoutine
+  CRoutine 调用 DataVisitor::TryFetch 和 Component::Proc
+
+Topology/monitor/record 线程
+  维护发现、统计和持久化
+```
+
+这张图解释了“线程安全”必须具体到边界。Transport 线程会和关闭线程并发操作 listener；Processor 线程会和配置/监控线程并发读取状态；同一 Component 的 `Proc()` 是否串行，则取决于它创建的 routine 和 Scheduler 配置，不能只看 Component 类本身。
+
+业务回调被移出 transport 线程是一项优秀设计，但不是免费隔离。消息仍要先进入有界缓存；Processor 若持续跟不上，结果从“网络线程被阻塞”转化为“旧数据被 ring 覆盖、数据年龄增长或任务长期就绪”。因此缓存容量、Proc WCET 与调度份额必须合起来分析。
+
+## 一条消息的逐层数据动作
+
+| 阶段 | 数据表示 | 主要动作 | 复制与分配 |
+|---|---|---|---|
+| SHM/RTPS 接收 | block/serialized bytes | 校验并反序列化 | SHM 普通路径仍可能创建 `MessageT` |
+| Receiver listener | `shared_ptr<MessageT>` | 交给 DataDispatcher | 增加引用计数，不复制消息体 |
+| Dispatcher fan-out | 同一个 shared pointer | 写入 K 个 ChannelBuffer | `O(K)` 元数据写入 |
+| ChannelBuffer | ring 中的 shared pointer | 覆盖旧槽或追加逻辑索引 | 固定容量，无消息体深复制 |
+| DataVisitor | 若干 shared pointer | 取主输入并组合最新辅助输入 | 复制智能指针，固定融合快照 |
+| Component::Proc | `shared_ptr<const M...>` | 算法读取并产生输出 | 由业务算法决定 |
+
+这能纠正“共享内存等于端到端零复制”的误解：共享内存只描述某一传输段，反序列化、业务消息对象、protobuf 字段访问和输出序列化仍可能产生复制。性能分析要逐段记录 bytes，而不是给整条链贴一个 zero-copy 标签。
+
+## 控制面、数据面与执行面的边界
+
+| 平面 | 负责内容 | 典型变化频率 | 失败表现 |
+|---|---|---:|---|
+| 部署控制面 | DAG、类加载、组件实例 | 启停时 | 类名错误、ABI 不匹配、半装载 |
+| 拓扑控制面 | Channel、端点发现、连接 | 秒级或拓扑变化 | Reader 可见但 transport 未就绪 |
+| 数据面 | 收包、分发、缓存 | 每条消息 | drop、覆盖、反序列化失败 |
+| 执行面 | 通知、routine 就绪、Processor | 每次调度 | 饥饿、长 Proc、唤醒丢失 |
+| 运维面 | 监控、record/replay | 周期/事件 | 指标缺失、磁盘跟不上 |
+
+“组件正在运行”只覆盖生命周期状态，不证明这五个平面都健康。现场指标应至少区分 transport 收包数、Dispatcher 投递数、buffer 覆盖数、routine 唤醒数、Proc 完成数和输出发送数，才能定位消息消失在哪一段。
+
+## 复杂度和容量的第一张预算表
+
+设同一 channel 有 `K` 个逻辑消费者，每个消费者 buffer 容量为 `Cᵢ`，平均消息体大小为 `S`：
+
+- Dispatcher 每条消息的扇出时间为 `O(K)`；
+- ring 元数据空间约为 `O(ΣCᵢ)`；
+- 若所有 buffer 共享同一个 `shared_ptr` 消息体，消息体并非简单变成 `K×S`，但慢消费者会延长旧消息的共享寿命；
+- 多输入 AllLatest 的辅助输入查找随输入数增长，实际成本还包含各 buffer 的索引修正；
+- Scheduler 扫描成本取决于策略、优先级桶和就绪 routine 数；Classic 策略不能用“协程切换很快”代替最坏扫描分析。
+
+容量增加可以吸收短突发，却会提高最坏数据年龄和在途对象数量。对于规划/控制链，旧数据通常比丢弃更危险，因此容量不是越大越安全。
+
+## 源码阅读坐标
+
+主链中的关键位置均固定到同一提交：
+
+- [`mainboard.cc` 与 `module_controller.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/mainboard/module_controller.cc)：配置怎样进入装载器；
+- [`component.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component.h)：模板输入怎样创建 Reader、Visitor 与 routine；
+- [`reader.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader.h)：Reader 怎样把 transport 与数据分发接起来；
+- [`data_dispatcher.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_dispatcher.h)：消息怎样扇出；
+- [`data_visitor.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_visitor.h)：消费者游标与通知怎样结合；
+- [`scheduler.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/scheduler.cc)：任务怎样进入 Scheduler；
+- [`processor.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc)：最终由哪个 OS 线程执行 routine。
+
+阅读这些文件时，每到一次 `shared_ptr` 复制、锁获取、回调注册或任务创建，都把它补回上面的所有权表和线程图。这样源码细节不会变成互不相干的函数列表。
+
+## 七个连续源码任务
+
+1. 从 `mainboard` 解析 DAG 进入 ModuleController，确认每个动态库和 Component 由谁持有；
+2. 从 Component 模板初始化进入 Node/Reader 创建，记录 callback 如何变成 routine；
+3. 从 transport Receiver listener 进入 DataDispatcher，验证接收线程不执行 `Proc()`；
+4. 从 Dispatcher 遍历同 channel buffer，记录 `shared_ptr<Message>` 的 `O(K)` 元数据扇出；
+5. 从 ChannelBuffer 的 index/ring 进入 DataVisitor，解释覆盖、游标修正和 AllLatest；
+6. 从 DataNotifier 事件进入 Scheduler/Processor，定位 routine Ready→Running→DataWaiting 的转换；
+7. 从 shutdown 反向追踪 routine、Visitor、Reader/Receiver、Component、factory 与 DSO。
+
+这七步结束后，应能把一条消息从 bytes 一直讲到 `Proc()`，并回答任何时刻哪个线程可访问、哪个 owner 保活、队列满时丢什么、关闭如何解除等待。
+
+## 设计模式与工程代价
+
+- Plugin Factory：DAG 用字符串选择 Component 类型；部署灵活，但 ABI、注册宏和 DSO pinning 进入运行时；
+- Facade：Node/Reader/Writer 隐藏多 transport；API 统一，但底层延迟和复制语义仍不同；
+- Registry/Flyweight：ReceiverManager 共享相同 channel/type Receiver；减少资源，但 listener 生命周期更复杂；
+- Per-consumer Buffer：Dispatcher 为每个消费者保留独立游标；隔离慢消费者，代价是 `O(K)` 扇出与元数据；
+- Observer/Event Latch：Notifier 合并数据事件并唤醒 routine；减少忙轮询，但必须避免丢唤醒；
+- Active Object/Coroutine：业务在 Processor 执行；隔离接收线程，但非抢占长 Proc 会造成饥饿；
+- Snapshot Join：AllLatest 组合主触发和辅助最新值；低等待，但不提供时间同步保证。
+
+模式是否成立要在关闭和过载下验证。正常数据流中能运行的 observer，如果注销与通知并发时访问旧 callback，就仍是不完整设计。
+
+## 系统级可行性预算
+
+设 channel 消费者数 `K`、每消费者 ring 容量 `Cᵢ`、消息最大对象大小 `Smax`、发布频率 `f`、Proc 最坏时间 `W`、同 Processor 就绪 routine 数 `R`：
+
+| 路径 | 主要时间成本 | 空间主项 |
+|---|---|---|
+| transport receive | 收包、校验、反序列化 | SHM/RTPS buffer + Message 对象 |
+| Dispatcher | 每消息 `O(K)` | buffer 元数据 `O(ΣCᵢ)` |
+| 消息寿命 | 由最慢消费者持有 shared_ptr | 旧消息对象可跨多个 ring 存活 |
+| 多输入融合 | 主输入消费 + 辅助索引查找 | 各输入 ring 与快照指针 |
+| Scheduler | 策略队列/扫描 + context switch | routine 栈与上下文 `O(R)` |
+| Processor 响应 | 前序 routine 执行 + 当前 `W` | OS thread stack |
+
+协作式调度下，某 routine 的响应上界不仅是自身 W，还包含同 Processor 上在它之前运行且不让出的工作。若 Proc 内执行大模型推理、阻塞 I/O 或长循环，应拆到独立 Processor/线程池并用有界结果 channel 回传。
+
+内存也不能只按 `ΣCᵢ×sizeof(shared_ptr)` 计算：ring 共享 message body，但不同时间索引可能同时保留多个大对象。保守估算要结合发布速率、消费者最大滞后和实际消息对象/反序列化容量。
+
+控制链应观测 data age 而不仅是 queue length。容量增大可以降低短突发 drop，却会让规划消费更旧障碍物；对自动驾驶而言，及时拒绝/降级常比排队处理所有旧帧安全。
+
+## 从零实现路线
+
+先实现单进程 Node 与类型化 Reader/Writer，再加入每消费者有界 buffer；随后把 callback 与执行线程分离，加入 DataVisitor；最后才做 DAG、插件、SHM/RTPS 和多策略 Scheduler。这个顺序先固定消息与生命周期语义，再增加部署弹性和性能优化。
+
+每个阶段都有可验证产物：单进程阶段验证类型与 channel；buffer 阶段验证慢消费者互不移动游标；执行分离阶段验证 transport 回调从不运行业务；DataVisitor 阶段验证触发输入与辅助快照；插件阶段验证失败回滚与 DSO pinning；多传输阶段验证同一消息身份与重复抑制；Scheduler 阶段验证优先级、饥饿与关闭屏障。
+
+实现顺序中不要提前加入动态插件和多 transport。先用单线程、单进程把消息身份、buffer 覆盖、通知谓词和关闭状态机写正确，再逐层增加并发；否则一次消息丢失可能同时来自 transport、Dispatcher、ring、Notifier 或 Scheduler，难以定位。

@@ -1,0 +1,195 @@
+# PortCore 架构：名字解析、连接 Unit 与控制面
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+`PortCore` 是 YARP Port 的真正运行时。它管理公开名字、监听 Face、输入输出 unit 集合、Reader、报告器以及 interrupt/closing 状态。
+
+源码入口：[`Port.cpp`](https://github.com/robotology/yarp/blob/91710eb45baf5d9cb62dd5a0cb3c3a00f42481b9/src/libYARP_os/src/yarp/os/Port.cpp)、[`PortCore.cpp`](https://github.com/robotology/yarp/blob/91710eb45baf5d9cb62dd5a0cb3c3a00f42481b9/src/libYARP_os/src/yarp/os/impl/PortCore.cpp)。
+
+## 功能边界：协调连接而不解释业务消息
+
+公开 `Port` 只提供 open、read、write、interrupt、close 等门面。PortCore 把这些调用变成监听器、连接 Unit 和协议对象的生命周期，但不理解 Image、Bottle 或设备命令的字段。业务序列化留给 PortReader/PortWriter，wire framing 留给 Protocol/Carrier。
+
+```text
+Port facade             稳定用户 API
+  -> PortCore           状态、连接表、线程与控制面
+       -> Unit          每连接执行状态
+            -> Protocol 连接状态机
+                 -> Carrier / stream
+```
+
+这个分层避免 PortCore 随业务类型和传输协议膨胀。代价是关闭、错误和所有权必须跨多个对象协调，不能靠销毁一个 socket 就完成。
+
+## 打开 Port 同时建立本地监听与全局注册
+
+概念流程为：
+
+```text
+Port::open("/camera/out")
+  -> PortCore 配置名字与状态
+  -> Carriers::listen(contact)
+       -> Carrier 创建 Face(listener)
+  -> listener 得到实际 host/port
+  -> NameClient.registerName(name, contact)
+  -> server loop 接受新连接
+```
+
+监听成功但注册失败、注册成功后进程崩溃、同名端口竞争，都会形成不同的清理路径。实现应在每个成功步骤后记录所有权，并在后续失败时逆序回滚。
+
+## Name Server 是注册表而不是代理
+
+建立 `/camera/out -> /vision/in` 连接时，客户端先解析目标 Contact，再直连目标 listener：
+
+```text
+source asks Name Server: where is /vision/in?
+Name Server returns tcp://10.0.0.8:10042
+source Carrier connects directly to 10.0.0.8:10042
+```
+
+因此现有连接可以在 Name Server 短暂失效时继续工作；新连接、重连和名字管理会受影响。运维监控必须分别检查名字服务健康与数据连接健康。
+
+## Unit 是一条连接的活动对象
+
+PortCore 的集合可以抽象为：
+
+```cpp
+std::vector<std::shared_ptr<PortCoreUnit>> units;
+```
+
+每个 unit 保存 Route、Protocol 和线程状态。InputUnit 驱动读取并调用 PortReader；OutputUnit 接受 writer 并驱动发送。PortCore 负责增删、遍历和清理完成 unit。
+
+集合并发操作不能把锁带入阻塞网络调用。常见安全结构是：
+
+```text
+[lock] clone active unit handles [unlock]
+for each handle:
+    unit->send(...)     // 可能阻塞，在锁外
+```
+
+删除只从 registry 移除；正在使用的共享 handle 让 unit 活到当前操作结束。
+
+## Listener 接受连接后选择 Carrier
+
+被动端从初始 bytes 识别 Carrier：
+
+```text
+Face::read initial header
+  -> Carriers::chooseCarrier(header)
+  -> create InputProtocol
+  -> expect sender specifier / route
+  -> respond to header
+  -> create InputUnit
+```
+
+未知 header 必须在有限读取量内失败，不能无限等待攻击者补齐。握手阶段也需要 timeout、最大 header 长度和 Carrier 白名单。
+
+## 管理命令与普通数据共用 Port 边界
+
+PortCore 还处理连接管理、询问状态和可能的管理流量。管理命令不能绕过认证或把任意字符串直接解释为插件配置。工业封装应将管理面与数据面权限分开，并记录谁创建或拆除了连接。
+
+## PortReport 提供连接事件
+
+报告器可以观察 active/inactive 连接及 Route。它适合维护拓扑指标，但事件回调不应在 PortCore 锁内执行。报告器如果反过来调用 connect/disconnect，会造成重入。
+
+报告事件还不等于数据完整性。需要结合应用 sequence、timestamp 和 drop counter，才能区分连接存在但没有数据、OutputUnit busy skip，以及接收端处理过慢。
+
+## 连接表的性能边界
+
+添加和删除 unit 是低频控制面操作，允许使用互斥与线性清理；send 是高频数据面，需要避免长期持锁。一次 fan-out 为 `O(C)`。若每连接一个线程，资源约为 `O(C)` 个线程栈与调度实体。
+
+小规模机器人图中这种隔离简单可靠；数千连接时线程和遍历模型会成为瓶颈，更适合事件循环或批量 I/O 架构。
+
+## 最小 PortCore 复刻
+
+先只实现单 listener、一个输入和一个输出：
+
+```cpp
+class PortCore {
+public:
+    bool open(Contact);
+    bool addOutput(Route);
+    bool send(const PortWriter&, WriteOptions);
+    void interrupt();
+    void close();
+private:
+    State state_;
+    std::shared_ptr<Face> listener_;
+    std::vector<std::shared_ptr<Unit>> units_;
+};
+```
+
+状态至少区分 Closed、Opening、Open、Interrupted、Closing。所有网络回调先取得稳定 unit/Protocol handle，再释放核心锁。之后再增加 NameClient 和多连接 fan-out。
+
+## 打开过程是一笔跨本地与远端的事务
+
+等价的 C++ 骨架如下：
+
+```cpp
+bool PortCore::Open(const Contact& requested) {
+  if (!BeginOpening()) return false;
+  auto new_face = carriers_.Listen(requested);
+  if (!new_face) return FailOpen();
+
+  const Contact actual = new_face->GetLocalAddress();
+  if (!name_client_.Register(name_, actual)) {
+    new_face->Close();
+    return FailOpen();
+  }
+  if (!CommitOpen(std::move(new_face), actual)) {
+    name_client_.Unregister(name_);
+    return FailOpen();
+  }
+  return true;
+}
+```
+
+局部 owner 在 commit 前持有 listener，提前返回自动清理本地资源；Name Server 注册属于外部副作用，仍需显式补偿。RAII 只能回收它拥有的对象，不能自动撤销远端目录状态。
+
+Contact 是可连接地址，Route 还包含逻辑 from/to 与 Carrier。目标重新 open 后旧 Contact 可能过期，重连应重新解析并使用退避/抖动，不能无限攻击旧地址或在服务恢复时形成连接风暴。
+
+## Unit 快照只解决寿命，不自动解决线程安全
+
+`shared_ptr<Unit>` 快照让 registry 删除后在途操作仍能完成。它不意味着多个线程可以同时写同一个 Protocol；OutputUnit 的 busy/sending 状态仍要串行化连接 I/O。
+
+连接表可用 vector，因为 fan-out 本来就要遍历全部连接；频繁按 ID 删除时可增加哈希索引。数据结构应匹配“读多写少、发送遍历全体”的工作负载，而不是机械换成哈希表。
+
+Unit worker 若在退出时回调 PortCore 删除自身，必须在 Unit 锁外进行。否则 PortCore 持核心锁调用 close、worker 持 Unit 锁回调核心，就会形成 ABBA 死锁。
+
+## 半构造连接不能进入公开 registry
+
+安全接入顺序是：accept 后设置握手 deadline；只读取固定上限 header；从白名单选择 Carrier；验证 Route；创建完整 Protocol/Unit；最后一次性提交 registry 并发布 active 报告。
+
+若一 accept 就把 Unit 暴露给 registry，发送线程可能取得仍在握手的 Protocol。攻击者还可建立大量连接却不补齐 header，耗尽 fd、线程和握手对象，所以半连接也必须计入并发与内存上限。
+
+管理 disconnect 的完成点也要明确：只从 registry 移除响应快，但 worker 可能仍在退出；等待 interrupt + join 语义更强，却可能被远端阻塞拖慢。API 与 PortReport 必须区分“不可再发现”和“资源已完全回收”。
+
+## Reporter 是观察者而非所有者
+
+active 事件应在 Unit 完全提交后发出，inactive 应在新操作已无法从 registry 找到 Unit 后发出。回调在核心锁外执行，否则 reporter 反向 connect/disconnect 会重入死锁。
+
+Reporter 若捕获 PortCore 强引用，而 PortCore 又拥有 Reporter，会形成所有权环。可使用弱引用，或在 close 开始时先注销 Reporter。连接事件只能证明拓扑变化，不能证明消息完整；仍需 sequence、timestamp、drop 与 busy 计数。
+
+## 状态机与关闭证明
+
+```text
+Closed -> Opening -> Open -> Interrupted -> Open
+                     |             |
+                     `-----------> Closing -> Closed
+Opening/handshake error ----------> Closed/Failed
+```
+
+Interrupt 唤醒等待但不必释放 registry；Close 禁止新连接和发送、interrupt listener/Unit、join 执行上下文、注销名字并释放 Reader。第二次 close 应等待首个关闭者或快速观察完成，不能重复 teardown。
+
+关闭后的证明条件包括：listener 不再 accept，registry 不产生新租约，所有 Unit worker 已退出，Reader/Reporter 不再被调用，名字注销成功或已记录外部残留，所有局部 Unit 快照最终释放。
+
+## 设计取舍、性能与复刻验收
+
+PortCore 用 Facade 隐藏复杂状态，用每连接 Active Object 隔离协议，用 registry 快照把锁与阻塞 I/O 分开。代价是动态名字错误在运行期暴露，每连接对象/线程随规模增长，跨对象关闭协议复杂。
+
+除连接数外，应测 handshake 并发、核心锁等待、快照复制、Reporter callback、重连频率和 close/join p99。控制面平均负载低，不代表连接风暴不会阻塞数据面。
+
+最小版之后依次加入握手 deadline、Unit 快照、Reporter 锁外通知、persistent reconnect 和两阶段 close。完成标准是：open 任一步失败无 listener/名字残留；未知连接不能无限占用资源；callback 内 disconnect 不死锁；Name Server 离线不阻止本地 close；并发 send/close 不产生 UAF。

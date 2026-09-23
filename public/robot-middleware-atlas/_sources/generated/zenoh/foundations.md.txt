@@ -1,0 +1,322 @@
+# Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Zenoh 把发布订阅、查询回复、存储和分布式数据空间统一在 key expression 上。源码同时使用 Rust 的 `Arc`、`Weak`、trait、async task、builder 和多层路由结构。如果直接从 `route_data()` 开始，很容易只看见泛型与锁，而看不见数据为何经过这些对象。
+
+本文固定版本为 [`9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5`](https://github.com/eclipse-zenoh/zenoh/tree/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5)，先建立后续源码需要的最小概念。
+
+## Zenoh 不只是 Topic 总线
+
+传统 topic pub/sub 可以理解为：发送者把消息写到一个名字，订阅相同名字的人收到。
+
+Zenoh 使用 key expression：
+
+```text
+robot/arm/joint/1/state
+robot/arm/joint/*/state
+robot/**/temperature
+```
+
+它不只判断字符串是否相等，还判断两个表达式是否相交、一个表达式是否包含另一个。
+
+同一命名模型用于：
+
+- `put` / publish 数据；
+- declare subscriber；
+- `get` / query；
+- declare queryable；
+- storage 与 liveliness。
+
+因此路由器维护的是“表达式集合之间的关系”，不是简单 `unordered_map<string, subscribers>`。
+
+## 从应用到网络的整体路径
+
+```text
+Application
+  -> Session
+  -> Publisher / Subscriber / Queryable entity
+  -> Primitives
+  -> local routing Face
+  -> Gateway + routing Tables
+  -> destination Face(s)
+  -> Mux
+  -> Transport
+  -> remote node
+```
+
+接收方向相反：Transport 把 wire message 交给 DeMux，Face 解析 wire expression，Routing Tables 选择下一跳或本地 Session，最终 callback/handler 获得 Sample。
+
+## Session 是公开运行时入口
+
+应用通常从：
+
+```rust
+let session = zenoh::open(config).await?;
+```
+
+开始。Session 提供 declare publisher/subscriber/queryable、put/get 等 API。
+
+它不等同于一条 TCP connection。一个 Session 背后可能有 Runtime、router、多个 transport 和本地实体表。Clone Session 通常只复制共享指针，不复制整个网络运行时。
+
+## Arc 表示线程安全共享所有权
+
+Rust 的 `Arc<T>` 类似 C++ `std::shared_ptr<T>`，但为多线程引用计数设计：
+
+```rust
+let a = Arc::new(SessionInner::new());
+let b = Arc::clone(&a);
+```
+
+`a` 和 `b` 指向同一对象。最后一个强引用释放时，`SessionInner` 才被析构。
+
+路由表、Face 和异步任务之间需要共享对象，`Arc` 让对象不会在任务仍使用时提前释放。
+
+引用计数只解决内存寿命，不自动执行完整业务关闭。Session 仍要撤销实体、停止 task、关闭 transport，因此源码还维护显式 close 状态和逻辑计数。
+
+## Weak 打破所有权环
+
+若 A 用 Arc 拥有 B，B 又用 Arc 拥有 A：
+
+```text
+A --strong--> B
+^             |
+`---strong----'
+```
+
+即使外部不再使用，两者引用计数也不会归零。`Weak<T>` 是不延长寿命的观察引用：
+
+```rust
+if let Some(session) = weak_session.upgrade() {
+    session.do_work();
+}
+```
+
+升级失败表示 Session 已关闭/释放。Zenoh 的 primitives、callback 和 task 会使用 Weak 回指 Session/Runtime，避免生命周期环。
+
+## RwLock 区分读者与写者
+
+`RwLock<T>` 允许多个读线程同时访问，但写线程独占：
+
+```rust
+let state = session.state.read();   // shared read guard
+let mut state = session.state.write(); // exclusive write guard
+```
+
+Guard 离开作用域时自动解锁。源码中常见显式：
+
+```rust
+drop(state);
+primitives.send_interest(...);
+```
+
+它不是清理普通变量，而是刻意在网络/回调调用前释放写锁。若持全局状态锁进入可能阻塞或回入 Session 的函数，容易死锁并放大尾延迟。
+
+## Trait 表示行为接口
+
+Rust trait 类似 C++ 抽象基类或 interface：
+
+```rust
+trait Primitives {
+    fn send_declare(&self, declaration: Declare);
+    fn send_push(&self, message: Push);
+}
+```
+
+`Arc<dyn Primitives>` 表示运行时多态对象：调用者知道它能发送声明和数据，却不知道背后是本地 Face、网络路由还是测试实现。
+
+Primitives 是 Session 与路由核心之间的端口。Session 管实体语义，路由核心管 topology 与 Face，双方通过 trait 解耦。
+
+## Builder 分离参数收集与状态提交
+
+Zenoh API 常写成：
+
+```rust
+session
+    .declare_publisher("robot/pose")
+    .congestion_control(CongestionControl::Drop)
+    .priority(Priority::DataHigh)
+    .await?;
+```
+
+前几步只在 Builder 内收集配置，最后 `.await`/`.wait()` 才修改 SessionState 并向网络声明。
+
+好处是参数在进入共享状态锁之前已经完整；构建失败也不会留下半声明实体。
+
+需要注意：Rust 语法上可 await 不一定代表内部真正非阻塞。固定版本的某些 builder `IntoFuture` 会先同步 `wait()`，再返回 ready future。
+
+## async 与 Task
+
+`async fn` 调用得到 Future。Future 只有被 executor poll 时才推进：
+
+```rust
+let task = tokio::spawn(async move {
+    receive_loop().await;
+});
+```
+
+异步 task 不是 OS 线程。许多 task 可以共享少量 executor 线程；某个 task 执行阻塞系统调用或长时间不 `.await`，会占住 executor worker。
+
+Zenoh 的 scouting、reconnect、timeout 和 routing I/O 使用 task controller 管理。关闭时不仅要 drop Arc，还要取消并等待 task。
+
+## Channel 连接异步生产者与消费者
+
+Subscriber 默认 handler 可以把 Sample 写入有界 channel：
+
+```text
+routing callback -> FIFO/Ring channel -> application receive
+```
+
+FIFO 满时可能阻塞生产路径；Ring 满时通常淘汰旧值。它们位于应用交付边界，与 transport 的 congestion control 不是同一个队列。
+
+阅读“丢消息”时必须先定位丢在哪一层：网络 reliability、transport queue、routing filter，还是 application handler channel。
+
+## Key Expression 的三种核心关系
+
+### 相等
+
+`robot/a` 与 `robot/a` 是同一个具体 key。
+
+### Intersects
+
+两个表达式至少存在一个共同具体 key：
+
+```text
+robot/*/pose   intersects robot/arm/*
+```
+
+因为 `robot/arm/pose` 可同时匹配它们。Publish 与 Subscriber/Queryable 路由主要关心相交。
+
+### Includes
+
+一个表达式覆盖另一个表达式的全部集合：
+
+```text
+robot/** includes robot/arm/pose
+```
+
+Includes 可用于聚合声明和 Query target 选择。它不是普通字符串前缀判断，wildcard 规则必须由统一 keyexpr 库实现。
+
+## Resource Tree 共享表达式前缀
+
+大量 key 具有共同前缀：
+
+```text
+robot/arm/joint/1
+robot/arm/joint/2
+robot/arm/camera
+```
+
+路由表按 `/` chunk 建树：
+
+```text
+root
+ `-- robot
+      `-- arm
+           +-- joint
+           |    +-- 1
+           |    `-- 2
+           `-- camera
+```
+
+节点共享前缀，也能保存与通配 resource 的匹配边、各 Face 映射和 route cache。
+
+这比单纯字符串 hash 更复杂，但能支持 scope 压缩与表达式相交缓存。
+
+## Face 表示路由边界的一侧
+
+Face 可以先理解为“路由核心眼中的一个邻接端点”：
+
+- 本地 Session 也是一只 Face；
+- 远端 transport connection 对应一只 Face；
+- Face 保存该邻居知道的 resource scope 与声明状态；
+- 路由结果是一组 destination Face。
+
+一条消息从 source Face 进入，路由器解析它的 WireExpr，选择 destination Face，再通过每只 Face 的 primitives/Mux 发送。
+
+Face 不是单纯 socket。它还带有该连接的路由上下文、过滤器和 pending query state。
+
+## WireExpr 用 Scope 加 Suffix 压缩 Key
+
+反复发送完整 `robot/arm/joint/1/state` 会浪费带宽。双方先声明 resource scope id，后续消息可携带：
+
+```text
+scope = 17  -> robot/arm/joint/1
+suffix = /state
+```
+
+接收 Face 用自己的 scope mapping 还原完整 key expression。Scope 是连接局部编号，不是全网通用 topic id；转发到另一 Face 时可能需要改写。
+
+因此同一消息多目的转发时，每个目的地的 WireExpr 可能不同，不能无条件共享一份可变 wire message。
+
+## Mux 与 DeMux 的方向
+
+可以记成：
+
+```text
+Routing core --Mux--> Transport
+Transport --DeMux--> Routing core
+```
+
+Mux 把路由层的声明/数据转换为发送给连接的消息；DeMux 把 transport 收到的 wire message 解释成对 Face 的路由调用。
+
+它们把路由算法与具体 transport pipeline 分开，类似网络协议栈相邻层的适配器。
+
+## Route Cache 避免每条消息重算
+
+声明和拓扑变化相对 publish 较少。Zenoh 为 resource 保存 route cache：
+
+```text
+source region/node + resource
+  -> Arc<Route>
+  -> destination faces and rewritten expressions
+```
+
+拓扑或声明变化时，通过局部清除或递增 routes version 使旧缓存失效。下一次访问再重算。
+
+这把复杂匹配成本从每条消息移到 cache miss，但也要求所有改变路由结果的状态变化都触发失效。
+
+## Query 与 Reply 不等于 Request/Response Socket
+
+`get(keyexpr)` 可能同时命中本地和远端多个 Queryable，收到零到多条 reply，最后再收到 completion/final。
+
+```text
+one Query
+  +-> local Queryable A -> replies
+  +-> remote Queryable B -> replies
+  `-> remote Queryable C -> replies
+```
+
+请求端不能在第一条 reply 后自动结束。它需要跟踪 local/remote 分支的 final、timeout 和 consolidation 策略。
+
+## 三层背压必须分开
+
+```text
+Application handler queue
+  FIFO blocks / Ring drops
+
+Transport congestion control
+  Block / Drop
+
+Protocol reliability
+  Reliable / BestEffort
+```
+
+Reliable 不保证应用最终处理：本地 Ring 仍可丢旧值。FIFO 不丢本地样本，也不保证网络未丢。Block 可以把等待沿 executor 传播，影响其他 key。
+
+性能分析必须标明讨论的是哪一层。
+
+## 后续源码阅读的固定问题
+
+1. 当前对象由 `Arc` 强持有、`Weak` 观察，还是局部 guard 借用；
+2. 当前代码是否持 SessionState/Tables 的读锁或写锁；
+3. 调用下游前是否显式 drop guard；
+4. 当前 key 是完整 OwnedKeyExpr，还是某 Face 局部 WireExpr；
+5. 当前队列属于 API handler、routing 还是 transport；
+6. 声明变化后哪些 route cache 必须失效。
+
+后续章节将在这张地图上逐层展开 Session 启动、Publisher 声明与数据路由、Query 聚合、Resource Tree、背压和关闭。

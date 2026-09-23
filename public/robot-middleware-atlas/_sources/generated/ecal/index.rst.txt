@@ -1,0 +1,53 @@
+Eclipse eCAL
+============
+
+固定源码版本：``1ec0ea2fe5e5e61e3e492be6128c27cc6026d717``
+
+eCAL 是发现驱动的高性能发布订阅中间件。稳定的 Publisher/Subscriber 门面背后，注册信息负责让端点相遇，PubGate/SubGate 管理匹配关系，SHM、UDP 与 TCP writer/reader 根据本机性、配置和订阅者能力组成实际数据路径。
+
+它的关键不只是“支持多种传输”，而是同一次 Send 如何准备 payload、选择并驱动多条 writer，接收端又怎样把共享内存视图或网络报文交给回调。buffer rotation、确认等待、fragment、TCP 队列和注册过期共同决定慢消费者会阻塞、丢旧还是造成更长的数据年龄。
+
+阅读源码时从 public entry 出发，沿真实调用链标出对象所有权、线程切换、队列、锁和数据复制，再回到关闭路径检查在途工作如何收束。
+
+统一学习路径
+------------
+
+本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权，最后才进入语言机制、性能取舍、最小复刻和实际项目。
+
+1. **功能介绍与需求分析**：:doc:`建立使用场景、核心保证与适用边界 <foundations>`。
+2. **组件地图**：:doc:`先看清公开入口、核心对象和控制流关系 <architecture-map>`。
+3. **自顶向下源码实现**：:doc:`从第一条主调用链进入实现 <publisher-discovery-send>`，再按下方源码目录顺序阅读后续模块。
+4. **C/C++ 或 Rust 机制**：:doc:`把所有权、模板、RAII、ABI 与并发原语映射回设计目的 <cpp-design-lab>`。
+5. **设计取舍与性能边界**：:doc:`汇总数据结构复杂度、优点、缺点和失效条件 <design-recap>`。
+6. **可迁移思想与最小复刻**：仍在 :doc:`设计总结 <design-recap>` 中按依赖顺序实现，并以关闭、过载和竞态不变量判定是否完成。
+7. **实际开发与知名项目**：从 :doc:`环境与基础操作 <use-environment>` 开始，最后进入 :doc:`真实项目案例 <case-study-mqtt-bridge>`。
+
+
+源码解读
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   foundations
+   architecture-map
+   publisher-discovery-send
+   subscriber-delivery
+   registration-soft-state
+   shm-memory-protocol
+   global-lifecycle
+   cpp-design-lab
+   design-recap
+
+
+使用教程
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   use-environment
+   use-pubsub
+   use-operations
+   case-study-mqtt-bridge
+

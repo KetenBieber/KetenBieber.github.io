@@ -1,0 +1,53 @@
+YARP
+====
+
+固定源码版本：``91710eb45baf5d9cb62dd5a0cb3c3a00f42481b9``
+
+YARP 把机器人网络抽象成 Port。PortCore 管理输入输出连接和生命周期，OutputUnit/InputUnit 把每条连接的执行状态隔离开，Protocol 与 Carrier 则把握手、framing、确认和具体传输协议从端口 API 中剥离。Name Server 把逻辑名字解析成可连接的 Contact。
+
+阅读 YARP 的主线是一次 ``Port::write`` 如何序列化并扇出到多条连接，以及对端怎样经 InputUnit 进入 PortReader。同步写、后台写、不同 Carrier、慢连接与断开竞态会改变 buffer 所有权和调用者阻塞时间，也决定它更适合可靠数据流还是只关心最新状态的控制链路。
+
+阅读源码时从 public entry 出发，沿真实调用链标出对象所有权、线程切换、队列、锁和数据复制，再回到关闭路径检查在途工作如何收束。
+
+统一学习路径
+------------
+
+本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权，最后才进入语言机制、性能取舍、最小复刻和实际项目。
+
+1. **功能介绍与需求分析**：:doc:`建立使用场景、核心保证与适用边界 <foundations>`。
+2. **组件地图**：:doc:`先看清公开入口、核心对象和控制流关系 <architecture-map>`。
+3. **自顶向下源码实现**：:doc:`从第一条主调用链进入实现 <portcore-architecture>`，再按下方源码目录顺序阅读后续模块。
+4. **C/C++ 或 Rust 机制**：:doc:`把所有权、模板、RAII、ABI 与并发原语映射回设计目的 <cpp-design-lab>`。
+5. **设计取舍与性能边界**：:doc:`汇总数据结构复杂度、优点、缺点和失效条件 <design-recap>`。
+6. **可迁移思想与最小复刻**：仍在 :doc:`设计总结 <design-recap>` 中按依赖顺序实现，并以关闭、过载和竞态不变量判定是否完成。
+7. **实际开发与知名项目**：从 :doc:`环境与基础操作 <use-environment>` 开始，最后进入 :doc:`真实项目案例 <case-study-icub-navigation>`。
+
+
+源码解读
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   foundations
+   architecture-map
+   portcore-architecture
+   write-fanout
+   protocol-carrier
+   read-rpc
+   close-lifecycle
+   cpp-design-lab
+   design-recap
+
+
+使用教程
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   use-environment
+   use-ports-rpc
+   use-operations
+   case-study-icub-navigation
+

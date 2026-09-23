@@ -1,0 +1,258 @@
+# Protocol 与 Carrier：握手、消息边界和 Modifier 链
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Carrier 决定连接如何说话，Protocol 保存一次连接正在进行到哪一步。二者配合把任意字节流变成具有 Route、消息边界与确认语义的 YARP 连接。
+
+源码入口：[`Protocol.cpp`](https://github.com/robotology/yarp/blob/91710eb45baf5d9cb62dd5a0cb3c3a00f42481b9/src/libYARP_os/src/yarp/os/impl/Protocol.cpp) 与 [`Carriers.cpp`](https://github.com/robotology/yarp/blob/91710eb45baf5d9cb62dd5a0cb3c3a00f42481b9/src/libYARP_os/src/yarp/os/Carriers.cpp)。
+
+## 功能需求决定 Protocol 与 Carrier 分离
+
+PortCore 需要一套稳定的“读一条消息、写一条消息、关闭连接”接口，但底层可能是 TCP、本机共享内存、UDP、Unix stream 或插件提供的协议。若 PortCore 为每种传输写 `switch`，每增加一种 Carrier 都要修改核心状态机。
+
+YARP 将职责拆开：
+
+```text
+Protocol
+  负责：连接生命周期、Route、读写阶段、ack、modifier 组合
+    |
+    `-- Carrier
+          负责：识别 header、握手细节、frame 编解码、底层能力
+                |
+                `-- TwoWayStream
+                      负责：实际字节输入、输出和 interrupt/close
+```
+
+Protocol 是稳定协调者，Carrier 是可替换策略，TwoWayStream 是系统资源 owner。这个分层让“使用 tcp framing”与“持有某个 socket”成为两个不同概念。
+
+## 核心接口的 C++ 形状
+
+可以用缩小版接口理解动态分派：
+
+```cpp
+class Carrier {
+ public:
+  virtual ~Carrier() = default;
+  virtual bool checkHeader(std::span<const std::byte> header) const = 0;
+  virtual std::unique_ptr<Carrier> create() const = 0;
+  virtual bool sendHeader(Protocol& protocol) = 0;
+  virtual bool expectReplyToHeader(Protocol& protocol) = 0;
+  virtual bool write(Protocol& protocol, SizedWriter& payload) = 0;
+  virtual std::unique_ptr<ConnectionReader> beginRead(Protocol&) = 0;
+};
+```
+
+仓库中的真实接口按历史兼容和功能拆得更细，这段代码用于建立对象模型。`checkHeader()` 应是无副作用识别；prototype 调用 `create()` 生成每连接实例；握手和 framing 方法操作 Protocol 提供的 stream 与连接状态。
+
+返回 `unique_ptr<Carrier>` 表示一条连接独占自己的 Carrier 状态。若 prototype 直接返回 `this`，并发连接会共享握手游标、索引或临时缓冲，形成数据竞争。
+
+抽象类的虚析构必不可少：Protocol 通过基类指针销毁插件实例时，必须继续执行派生 Carrier 析构，释放它拥有的 stream wrapper 和协议状态。
+
+## 主动端与被动端握手
+
+```text
+active side                         passive side
+Protocol::open(Route)
+  -> choose carrier by name
+  -> connect stream
+  -> send carrier header ---------> read header
+  -> send sender/route spec ------> choose carrier by bytes
+                                    parse route
+  <----------- response/header ---- respondToHeader
+  -> optional index/ack exchange
+  -> OPEN                          -> OPEN
+```
+
+任何一步失败都必须把 Protocol 标记为不可用并关闭 stream。不能在半握手状态继续尝试写 payload，因为双方对 framing 的理解尚未一致。
+
+主动端已经从 Route 的 carrier name 知道想使用哪种协议；被动端只能先读取有限 header，再让 registry 中的 prototype 识别。两条路径最终都要得到独立 Carrier 实例，并将连接推进到同一个 Open 状态。
+
+握手状态最好显式表达：
+
+```cpp
+enum class ProtocolState {
+  Created,
+  HeaderSent,
+  HeaderAccepted,
+  Open,
+  Closing,
+  Closed,
+  Failed,
+};
+```
+
+用多个 `bool sent_header_ / received_reply_ / ok_` 会产生大量无效组合。枚举使每个方法能检查允许的前置状态，也让故障日志说明失败发生在哪个阶段。
+
+网络一次 `read()` 不保证拿到完整 header。`ReadExact(n)` 必须循环处理短读、EOF、interrupt 和错误；对端声明的可变长度必须先与最大值比较，再分配内存。握手还未认证时尤其不能相信任意长度字段。
+
+## Carrier prototype registry
+
+Carriers 保存已知 prototype。按名字建立主动连接，按 header bytes 识别被动连接：
+
+```text
+chooseCarrier("tcp") -> tcp prototype -> create fresh carrier
+chooseCarrier(header) -> prototype.checkHeader(header) -> create
+```
+
+prototype 只用于识别和创建，每条连接需要独立实例保存状态。共享同一个可变 Carrier 对象会让多连接握手互相覆盖。
+
+插件加载扩大了部署灵活性，也扩大了 ABI 与安全边界。工业部署应使用白名单，验证动态库来源，并将未知 Carrier 在读入有限 header 后拒绝。
+
+Registry 的查找路径有两种：按规范化名称平均 `O(1)` 查找，或让多个 prototype 检查 header。后者若线性遍历 `C` 个 Carrier，复杂度为 `O(C × H)`，其中 `H` 是 header 检查成本。Carrier 数通常不大，但所有 `checkHeader()` 都必须有严格输入上界和无副作用保证。
+
+插件注册应在接受连接前完成，运行期热卸载则非常危险：现有 Protocol 仍可能通过 vtable 调用动态库代码。安全卸载需要证明所有实例、factory 和正在执行的函数均已退出；多数服务更适合只加载不卸载，进程关闭时统一回收。
+
+## `beginRead/endRead` 定义一条输入消息
+
+字节流没有天然消息边界。Carrier 读取 frame header，Protocol 用 `beginRead()` 返回当前消息的 ConnectionReader，应用读取结束后调用 `endRead()`，必要时发送 ack：
+
+```text
+beginRead
+  -> carrier.expectIndex/frame header
+  -> create limited reader for exactly one message
+  -> PortReader::read(reader)
+endRead
+  -> consume/validate remaining bytes
+  -> carrier.respondToIndex / ack
+```
+
+Reader 必须限制在本帧长度内。错误消息不能让应用越界读入下一帧，否则一次 schema 不匹配会永久破坏流同步。
+
+一个有限 Reader 可以这样实现边界：
+
+```cpp
+class LimitedReader final : public ConnectionReader {
+ public:
+  LimitedReader(InputStream& stream, std::size_t frame_size)
+      : stream_(stream), remaining_(frame_size) {}
+
+  bool expectBlock(char* dst, std::size_t size) override {
+    if (size > remaining_) {
+      error_ = true;
+      return false;
+    }
+    if (!ReadExact(stream_, dst, size)) {
+      error_ = true;
+      return false;
+    }
+    remaining_ -= size;
+    return true;
+  }
+
+ private:
+  InputStream& stream_;       // 借用，寿命由 Protocol 保证
+  std::size_t remaining_;
+  bool error_ = false;
+};
+```
+
+`remaining_` 是协议安全不变量。每个读取操作都先减小同一预算，应用即使给出错误 schema，也不能跨入下一帧。`InputStream&` 不拥有 stream，所以 Reader 只能活在 `beginRead/endRead` 之间。
+
+`endRead()` 还要决定剩余字节如何处理：完全消费、丢弃至帧尾，还是把未读视为协议错误。若直接开始下一帧而不对齐，连接将永久失步。选择应由 Carrier framing 语义决定并保持可观测。
+
+## 写路径是 PortWriter 与 Carrier 的双重分派
+
+应用对象实现 `PortWriter::write(ConnectionWriter&)`，Carrier/Protocol 提供具体 ConnectionWriter。一次写入的结构是：
+
+```text
+PortWriter dynamic type
+  -> write(ConnectionWriter provided by Protocol)
+       -> appendInt/appendBlock/convertTextMode...
+            -> Carrier framing/index
+                 -> OutputStream
+```
+
+第一次动态分派选择业务序列化，第二次选择连接协议。这样 Bottle、Image 或生成类型不需要知道 TCP framing，Carrier 也不需要知道业务字段。
+
+扇出时同一个 `PortWriter const&` 可能被多个连接调用。`write()` 必须逻辑只读且可重复；若它在第一次调用后移动走内部 buffer，第二个订阅者会得到空消息。需要一次性编码时，应由 PortCore 建立不可变字节快照，再供多个 Protocol 使用。
+
+## Modifier 是协议装饰链
+
+Carrier 名可以携带附加行为。Protocol 根据 modifier 延迟创建 sender/receiver delegate：
+
+```text
+PortWriter
+  -> sender modifier A
+  -> compression/monitor modifier B
+  -> base carrier
+  -> stream
+```
+
+这是 Decorator/Interceptor 模式。顺序会改变语义：先压缩再监视与先监视再压缩，看到的数据和统计不同。组合必须作为连接配置的一部分记录，而不能只记录基础 `tcp`。
+
+Modifier 初始化失败后，Protocol 应整体 fail；静默绕过会让调用者以为安全或转换仍生效。
+
+装饰器需要区分发送侧与接收侧，并规定安装次序。例如：
+
+```text
+logical payload
+  -> serialization
+  -> compression modifier
+  -> encryption/authentication modifier
+  -> base carrier framing
+  -> stream
+```
+
+接收必须严格逆序。若发送端“压缩后加密”，接收端就应“解密后解压”。只保存无序 modifier 集合无法重建协议，完整链及参数必须属于 Route/连接协商结果。
+
+Modifier 可能要求整帧缓存：压缩通常要先知道完整输入或至少维护流状态，认证标签又可能在帧尾生成。它破坏真正的 scatter/gather 零拷贝，因此成本评估要包含额外 buffer 和峰值内存。
+
+## Ack 改变写入完成含义
+
+没有 ack 时，“写成功”通常只表示字节交给本地 stream/内核；带 ack 时还要等接收方完成协议响应。后者能更早发现对端问题，但将接收方处理与网络 RTT 加入发送尾延迟。
+
+所有 ack 等待都需要 timeout 和 interrupt。对端断电或恶意保持连接却不回应时，写线程不能无限阻塞。
+
+“收到 ACK”也不必然表示业务已经完成。它可能只表示帧被协议层接收，也可能在 PortReader 返回后才发送。Carrier 必须文档化 ack 点，否则调用者会把传输确认误当作设备动作完成。
+
+同步 ACK 会把远端处理时间与 RTT 加到本地 write 尾延迟；后台 write 又需要在完成前保持 payload 和 Protocol 存活。关闭路径必须让 ack wait 被 interrupt，并用恰好一次 completion 通知释放缓冲区。
+
+## 字节序、结构布局与版本
+
+稳定协议不能直接发送 C++ struct：padding、`bool` 宽度、enum 底层类型和宿主端序都可能变化。固定字段应使用明确宽度与编码函数：
+
+```cpp
+void WriteU32BE(OutputStream& out, std::uint32_t value) {
+  std::array<std::byte, 4> bytes{
+    std::byte((value >> 24) & 0xff),
+    std::byte((value >> 16) & 0xff),
+    std::byte((value >> 8) & 0xff),
+    std::byte(value & 0xff),
+  };
+  out.write(bytes);
+}
+```
+
+协议演进至少需要 magic、版本或可识别 header，并给未知字段/版本明确行为。默默按旧布局解析新 header 会比立即拒绝更危险。对设备 NWC/NWS 的业务协议，集中在 Thrift/IDL 中生成两端代码也比在客户端与服务端分别手写 VOCAB 更易保持一致。
+
+## 协议测试应使用 golden bytes 与故障注入
+
+最小测试包括：合法握手字节、未知 header、截断 header、超长 Route、每个字段的大小端、空 payload、多帧连续读取、对端不 ack、modifier 初始化失败以及握手中途断开。
+
+内存 TwoWayStream 可在不启 socket 的情况下执行 golden byte 测试；随后再验证真实 TCP 的分段读取，因为一次 `read()` 不保证返回完整 header。
+
+## 性能边界
+
+Protocol 的固定成本相对大 payload 较小，但 modifier 可能引入整帧缓存、压缩和额外复制。评估时分别记录 logical payload、wire bytes、encode time、frame copies 和 ack latency。压缩降低带宽不一定降低端到端延迟。
+
+对小消息，虚调用、header 和系统调用占比更高，合批可能提高吞吐但增加等待延迟；对大图像，复制与压缩占主导，scatter/gather 和专用 Carrier 更重要。一个统一 benchmark 数字无法代表这两种负载。
+
+连接数为 `N` 时，每连接独立 Protocol/Carrier 的状态空间为 `O(N)`。若每个 OutputUnit 还有线程和栈，规模瓶颈可能先来自执行单元而不是 framing 算法。需要同时观察连接数、线程数、队列深度、短写次数和 p99 ACK 时间。
+
+## 优秀设计、局限与可迁移思想
+
+优秀之处是用 Strategy 隔离传输差异，用 Prototype/Factory 创建每连接状态，用 Decorator 组合 modifier，用双分派隔离业务序列化与 wire framing。PortCore 因此不随 Carrier 种类膨胀。
+
+局限是动态插件和字符串配置把部分错误推迟到运行期；多个 modifier 的组合空间难以穷举；借用型 Reader 生命周期依赖约定；同步 ACK 和每连接执行单元可能放大慢节点影响。
+
+可迁移原则是：协议状态使用显式枚举；识别函数无副作用且有输入上界；每连接拥有独立可变状态；帧 Reader 强制剩余预算；wire format 不发送原生 struct；插件只在所有实例销毁后卸载；确认语义精确说明完成点。
+
+## 最小复刻顺序
+
+第一版只实现固定 magic、长度前缀和 `LimitedReader` 的单一 TCP Carrier。第二版加入 Carrier registry 与 prototype clone。第三版增加主动/被动握手状态机和 Route。第四版加入一种 modifier 并验证发送/接收逆序。最后再实现 ACK、timeout、interrupt 和插件加载。
+
+完成标准包括：短读可正确拼成 header；超长 frame 在分配前被拒绝；错误 schema 不能越过帧尾；未知 Carrier 只消耗有限字节；握手失败后不能发送 payload；中断能退出 ACK 等待；并发连接不共享可变 Carrier；关闭后没有 vtable 指向已卸载动态库。

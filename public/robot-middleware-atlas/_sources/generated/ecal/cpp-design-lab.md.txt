@@ -1,0 +1,502 @@
+# eCAL C++ 设计实验室：从公开句柄到并发回调
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+eCAL 的公开接口看起来很薄：构造 Publisher，调用 `Send()`；构造 Subscriber，安装回调。真正困难的部分并不在这两行，而在接口背后的四个工程问题：公开对象能否安全失效、后台发现线程如何找到实体、回调期间对象能否被销毁、全局运行时怎样按依赖顺序关闭。
+
+本章先实现一个缩小版实体运行时，再把每个 C++ 机制映射回 eCAL 的设计。代码是用于解释结构的等价模型，不冒充仓库原文；具体实现应继续对照 [`ecal/core`](https://github.com/eclipse-ecal/ecal/tree/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core)。
+
+## 功能边界与对象关系
+
+一个可用的进程内模型至少包含四种对象：
+
+```text
+Publisher facade --weak--> PublisherImpl <--shared-- PubGate
+                                             ^
+registration thread -------------------------|
+
+Subscriber facade --weak--> SubscriberImpl <--shared-- SubGate
+                                                 |
+transport thread -> snapshot shared_ptrs -> callback
+```
+
+Facade 面向业务代码，Gate 是按 topic 查找实体的注册表，Impl 保存传输状态。这里故意让 Facade 不拥有 Impl：全局运行时关闭并清空 Gate 后，遗留在业务对象中的句柄会变成“无效但可析构”的对象，而不是悬空指针。
+
+## 从公开 API 定位到真实源码
+
+等价模型中的四类对象并非凭空抽象，它们分别对应固定提交中的源码边界：
+
+| 阅读层 | 源码入口 | 先追踪的符号 | 要回答的问题 |
+|---|---|---|---|
+| 公开句柄 | [`ecal_publisher.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/pubsub/ecal_publisher.cpp) | `CPublisher` 构造、`Send`、`Destroy` | 门面保存什么，失败如何返回 |
+| 实体实现 | [`ecal_publisher_impl.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/pubsub/ecal_publisher_impl.cpp) | `CPublisherImpl::Create`、`Write`、`Destroy` | writer 何时建立，如何选层 |
+| 进程内注册表 | [`ecal_pubgate.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/pubsub/ecal_pubgate.cpp) | publisher 注册、查找、应用订阅信息 | 谁持有实现对象，谁分发控制面事件 |
+| 全局编排 | [`ecal_globals.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/ecal_globals.cpp) | `CGlobals::Initialize`、`Finalize` | Gate、registration、transport 的顺序 |
+
+一次发送的源码阅读顺序应保持连续：
+
+```text
+CPublisher::Send
+  -> weak_ptr lock，取得 CPublisherImpl
+  -> CPublisherImpl::Write
+       -> 读取当前 subscriber/transport 状态
+       -> 构造本次发送所需的 layer 选择
+       -> 调用 UDP/TCP/SHM writer
+       -> 更新发送统计与错误结果
+```
+
+发现链则是另一条控制路径：registration 接收远端 Subscriber 的能力信息，Gate 根据 topic 找到本地 PublisherImpl，PublisherImpl 更新连接状态。不要把“发现订阅者”和“发送 payload”混成一条同步调用链；前者低频改变发送计划，后者高频复用已经建立的状态。
+
+## 第一层：用 RAII 表达一个实体的存在
+
+先定义拥有资源的实现对象：
+
+```cpp
+class PublisherImpl final {
+ public:
+  explicit PublisherImpl(std::string topic)
+      : topic_(std::move(topic)) {}
+
+  PublisherImpl(const PublisherImpl&) = delete;
+  PublisherImpl& operator=(const PublisherImpl&) = delete;
+
+  bool Write(std::span<const std::byte> bytes) {
+    if (!running_.load(std::memory_order_acquire)) return false;
+    return WriteSelectedLayers(bytes);
+  }
+
+  void Stop() noexcept {
+    running_.store(false, std::memory_order_release);
+  }
+
+ private:
+  std::string topic_;
+  std::atomic<bool> running_{true};
+};
+```
+
+`explicit` 阻止字符串被意外隐式转换为 Publisher。`std::move(topic)` 把构造参数持有的字符串缓冲区转交给成员；移动之后参数仍可析构，但内容不再应被依赖。删除复制操作不是语法洁癖：实体背后可能绑定 socket、共享内存文件和注册身份，复制一个 C++ 对象并不能复制这些外部事实。
+
+`final` 表明这里不是面向继承扩展的接口。运行时扩展应发生在 transport strategy，而不是通过派生 PublisherImpl 改写生命周期。
+
+### acquire/release 在这里保证了什么
+
+`Stop()` 的 release store 与 `Write()` 的 acquire load 可以建立同步关系：若停止线程在 store 之前写入了其他状态，发送线程观察到 false 后也能观察到这些先前写入。但这段代码在读到 true 后，并不能阻止 Stop 与 `WriteSelectedLayers()` 并发。atomic 只是入口闸门，不是“等待所有发送退出”的屏障。
+
+若销毁语义要求 `Stop()` 返回后不再访问 writer，需要活动操作计数：
+
+```cpp
+class OperationGuard {
+ public:
+  explicit OperationGuard(PublisherImpl& owner)
+      : owner_(&owner), entered_(owner.TryEnter()) {}
+  ~OperationGuard() { if (entered_) owner_->Leave(); }
+  explicit operator bool() const noexcept { return entered_; }
+ private:
+  PublisherImpl* owner_;
+  bool entered_;
+};
+```
+
+`TryEnter()` 必须把“状态仍为 Running”和“active_count++”作为同一临界区内的事务。`Stop()` 先切换到 Stopping，阻止新的 guard，再等待计数归零。单独用两个 atomic 会出现发送线程读到 Running、停止线程读到计数为零并销毁 writer、发送线程随后才加计数的竞态。
+
+## 第二层：公开句柄只取得临时所有权
+
+```cpp
+class Publisher {
+ public:
+  explicit Publisher(std::weak_ptr<PublisherImpl> impl)
+      : impl_(std::move(impl)) {}
+
+  bool Send(std::span<const std::byte> bytes) const {
+    auto impl = impl_.lock();
+    if (!impl) return false;
+    return impl->Write(bytes);
+  }
+
+ private:
+  std::weak_ptr<PublisherImpl> impl_;
+};
+```
+
+`weak_ptr::lock()` 是一个原子化的“若对象仍存活，则取得强引用”操作。不能先调用 `expired()` 再使用裸指针，因为检查与使用之间另一个线程可能释放最后一个 `shared_ptr`。局部变量 `impl` 把对象寿命延长到本次 `Send()` 返回。
+
+这只保证内存寿命，不保证业务状态。对象可能仍存活但已经 `Stop()`；因此 `Write()` 仍需检查运行状态。由此得到一条重要规则：
+
+> 智能指针回答“内存还在不在”，状态机回答“操作还允不允许”。两者不能互相替代。
+
+### `weak_ptr` 的控制块仍有成本
+
+实现对象释放后，只要 facade 仍持有 weak pointer，shared/weak control block 就不能释放。`lock()` 通常需要原子方式尝试增加强引用计数；在极高频 Send 路径上，这会造成共享 cache line 竞争。可选方案是 facade 持有稳定的 `shared_ptr<Impl>`，由 Impl 内部状态拒绝操作；这样对象会活到最后一个 facade 析构，Finalize 无法立即回收 Impl。eCAL 风格的弱句柄优先选择“全局关闭能够统一失效”，代价是每次调用的原子操作。
+
+这里不能换成原始指针加 `running_`：读取 running 本身已经需要解引用对象；如果对象先被释放，连状态检查都是未定义行为。hazard pointer、epoch reclamation 可以减少引用计数，但会显著提高实现复杂度，通常不适合控制面实体句柄。
+
+## 第三层：Gate 同时是索引与所有权根
+
+```cpp
+class PubGate {
+ public:
+  Publisher Create(std::string topic) {
+    auto impl = std::make_shared<PublisherImpl>(topic);
+    {
+      std::lock_guard lock(mu_);
+      by_topic_.emplace(std::move(topic), impl);
+    }
+    return Publisher{impl};
+  }
+
+  std::vector<std::shared_ptr<PublisherImpl>> Find(
+      std::string_view topic) const {
+    std::vector<std::shared_ptr<PublisherImpl>> result;
+    std::lock_guard lock(mu_);
+    auto [first, last] = by_topic_.equal_range(std::string(topic));
+    for (; first != last; ++first) result.push_back(first->second);
+    return result;
+  }
+
+ private:
+  mutable std::mutex mu_;
+  std::unordered_multimap<std::string,
+                          std::shared_ptr<PublisherImpl>> by_topic_;
+};
+```
+
+使用 `unordered_multimap` 是因为一个 topic 可以有多个本地实体。平均查找成本是 `O(1 + k)`，`k` 为同 topic 实体数；最坏情况会退化到 `O(n)`。每次把 `string_view` 转成 `string` 会分配内存，真正热路径可使用透明哈希避免分配，但注册与发现通常属于控制面，清晰性往往比这次小优化重要。
+
+`Find()` 在锁内只复制 `shared_ptr`，随后把快照返回。调用方应在锁外执行连接更新。否则一个较慢的 socket 建连会占住 Gate 的互斥量，使所有 topic 的注册和注销串行等待。
+
+### 创建不是一次 `emplace`
+
+真实创建还会生成实体 ID、向 registration provider 注册、为 transport 添加端点。若第三步失败，前两步必须回滚。可以用局部事务对象记录已经完成的动作：
+
+```cpp
+class CreateRollback {
+ public:
+  explicit CreateRollback(PubGate& gate) : gate_(gate) {}
+  ~CreateRollback() {
+    if (!committed_) {
+      if (transport_added_) RemoveTransport(entity_);
+      if (registered_) Unregister(entity_);
+      if (inserted_) gate_.Erase(entity_);
+    }
+  }
+
+  void Commit() noexcept { committed_ = true; }
+  EntityId entity_{};
+  bool inserted_{};
+  bool registered_{};
+  bool transport_added_{};
+
+ private:
+  PubGate& gate_;
+  bool committed_{};
+};
+```
+
+这就是 RAII 在“内存之外”的用途：析构函数不只 delete，也可以撤销注册、关闭句柄和恢复一致状态。回滚对象必须在每个成功步骤之后立即更新标志，且析构不能抛异常。`Commit()` 是事务线性化点：从这时起，清理由正式 owner 负责。
+
+`unordered_multimap<string, shared_ptr<...>>` 便于按 topic 查找，却不擅长按 entity ID 精确删除。工业实现通常需要两个索引，或让主表以 ID 为键、topic 表只保存 ID。两张表更新必须在同一锁域中完成，否则发现线程可能看见只插入一半的实体。
+
+## 第四层：回调分发必须脱离注册表锁
+
+```cpp
+using Callback = std::function<void(std::span<const std::byte>)>;
+
+void SubGate::Deliver(std::string_view topic,
+                      std::span<const std::byte> payload) {
+  std::vector<std::shared_ptr<SubscriberImpl>> targets;
+  {
+    std::lock_guard lock(mu_);
+    auto [first, last] = by_topic_.equal_range(std::string(topic));
+    for (; first != last; ++first) targets.push_back(first->second);
+  }
+  for (const auto& target : targets) target->Deliver(payload);
+}
+```
+
+这里的快照解决三个问题：回调可以注销自身；另一个线程可以同时销毁 Subscriber facade；Gate 不会因为用户回调耗时而长时间持锁。代价是“已经开始的一轮分发”可能仍调用一个刚被注销的实体。若语义要求注销返回后绝不再进入回调，就需要活动回调计数和条件变量，注销路径也会变成可能阻塞的屏障。
+
+`std::span` 不拥有数据。回调若把 span 保存到函数返回以后，就会形成悬空视图。API 必须在文档中明确：借用只在回调期间有效；需要跨线程保存时复制到拥有型 `std::vector<std::byte>` 或共享缓冲区。
+
+### 注销屏障的最小实现
+
+需要强语义时，SubscriberImpl 可以维护关闭状态和活动回调数：
+
+```cpp
+class SubscriberImpl {
+ public:
+  void Deliver(std::span<const std::byte> payload) {
+    Callback callback;
+    {
+      std::lock_guard lock(mu_);
+      if (stopping_) return;
+      ++active_callbacks_;
+      callback = callback_;
+    }
+
+    auto leave = ScopeExit([this] {
+      std::lock_guard lock(mu_);
+      if (--active_callbacks_ == 0) idle_.notify_all();
+    });
+    callback(payload);  // 用户代码永远在锁外
+  }
+
+  void Stop() {
+    std::unique_lock lock(mu_);
+    stopping_ = true;
+    idle_.wait(lock, [this] { return active_callbacks_ == 0; });
+    callback_ = {};
+  }
+
+ private:
+  std::mutex mu_;
+  std::condition_variable idle_;
+  bool stopping_{};
+  std::size_t active_callbacks_{};
+  Callback callback_;
+};
+```
+
+`ScopeExit` 保证 callback 正常返回或抛异常时都递减计数。必须先在锁内复制 `std::function`，否则另一个线程清空 callback 后会与调用并发。`Stop()` 使用带谓词的 wait，以抵抗虚假唤醒。
+
+这个版本有一个刻意暴露的陷阱：如果 callback 在自己的执行线程内同步调用 `Stop()`，它会等待包含自身在内的计数归零，形成自等待。可选语义包括：禁止回调内同步销毁；检测当前 dispatch token 并延迟清理；把 Stop 拆成非阻塞 `RequestStop()` 与只能从外部线程调用的 `Join()`。API 必须选择一种，而不是把问题留给偶然调度。
+
+## 原子变量与互斥量负责不同层级
+
+`running_` 是一个独立布尔状态，适合 `atomic<bool>`。而“连接集合 + 每层订阅计数 + 当前 writer”是多字段不变量，必须在同一把互斥量下更新：
+
+```cpp
+struct LayerState {
+  std::mutex mu;
+  std::unordered_map<EndpointId, Connection> connections;
+  std::size_t shm_readers = 0;
+  std::size_t tcp_readers = 0;
+};
+```
+
+把每个计数器都改成 atomic 并不能保证它们与 `connections` 在同一个逻辑时刻一致。原子适合单变量并发，不自动提供跨变量事务。
+
+## 多传输层应先生成不可变发送计划
+
+Publisher 可能同时知道多个 writer，但一次消息究竟走哪一层，取决于本机/远端位置、双方能力、配置优先级和连接健康状态。不要拿着 LayerState 的锁直接执行 I/O；应在锁内生成不可变计划：
+
+```cpp
+struct SendTarget {
+  EndpointId endpoint;
+  std::shared_ptr<IWriter> writer;
+};
+
+struct SendPlan {
+  std::uint64_t generation;
+  std::vector<SendTarget> targets;
+};
+
+std::shared_ptr<const SendPlan> PublisherImpl::LoadPlan() const {
+  std::lock_guard lock(layer_state_.mu);
+  return current_plan_;
+}
+```
+
+发现线程在连接变化时构造新 plan，完整后一次替换 `current_plan_`；发送线程只复制一个 `shared_ptr<const SendPlan>` 并在锁外遍历。`const` 保证计划发布后不会原地修改，因而发送线程看到的是旧版本或新版本，不会看到“targets 已清空但 generation 尚未更新”的半成品。
+
+若订阅者数为 `N`，每次重建计划成本约为 `O(N)`，发送命中成本为 `O(1)` 取得快照加 `O(F)` 扇出，`F` 为实际目标 writer 数。它把低频拓扑变更的计算换成高频发送路径的稳定性。缺点是旧计划会存活到最后一个发送者释放快照，短时间同时占用两份连接表；writer 的关闭也必须容忍旧计划持有引用。
+
+### 同一消息是否只编码一次
+
+可以把 payload 处理拆成三层：
+
+```text
+application object
+  -> canonical serialized bytes
+     -> per-layer frame/header/compression
+        -> per-endpoint socket or shared-memory write
+```
+
+第一层序列化若与连接无关，可以得到 `shared_ptr<const Buffer>` 并被多个 target 复用。第二层若不同 Carrier 需要不同头、压缩或分片，就仍要逐层生成 frame。所谓“零拷贝”必须说明是哪一层零拷贝：避免应用对象序列化、避免用户态 frame 复制、还是共享内存消费者直接借用同一 payload，三者不是同一保证。
+
+错误聚合也要预先定义。对三个 target 发送时，“任一成功即 Send 成功”“全部成功才成功”和“只报告入队成功”会产生不同的业务语义。返回一个 bool 很难表达部分成功；至少应把逐层错误写入可观测计数，避免调用者只看到 true 却不知道 TCP 分支持续失败。
+
+## 关闭顺序是依赖图的逆序
+
+安全关闭应按以下顺序收口：
+
+```text
+拒绝创建新实体
+  -> 停止 registration/transport 产生新任务
+  -> 标记 Impl 停止并等待在途回调
+  -> 清空 Gate 的强引用
+  -> 关闭 socket、共享内存和线程
+```
+
+若先销毁 Gate，后台线程可能还拿 topic 查询实体；若先关闭底层 transport，正在执行的 `Write()` 可能访问已析构 writer。生命周期设计不能只靠析构函数碰巧按成员逆序运行，而应把依赖关系写成显式阶段。
+
+### 全局引用计数不等于完整状态机
+
+进程中多个库模块可能分别调用 Initialize/Finalize，因此运行时常带初始化计数。计数从 0 变 1 时真正启动，从 1 变 0 时真正关闭；但计数无法表达 Starting、Stopping 和 Failed。至少需要：
+
+```cpp
+enum class RuntimeState {
+  Cold,
+  Starting,
+  Running,
+  Stopping,
+  Failed
+};
+```
+
+所有状态和引用计数必须由同一 mutex 保护。两个线程同时首次 Initialize 时，只能有一个执行启动，另一个等待 Starting 结束；Finalize 遇到 Starting 不能直接减计数并拆除半构造对象。启动中途失败要逆序撤销已启动模块，并发布 Failed 或回到 Cold，不能留下“计数为 1、Gate 为空”的伪运行状态。
+
+## 最小可复刻运行时
+
+下面把 Gate、弱句柄和显式关闭组合成一条完整路径。为保持重点，省略 registration 报文和真实 socket，但所有权与状态边界可以直接扩展：
+
+```cpp
+class Runtime final {
+ public:
+  static std::shared_ptr<Runtime> Start() {
+    auto runtime = std::shared_ptr<Runtime>(new Runtime);
+    runtime->StartModules();
+    return runtime;
+  }
+
+  Publisher CreatePublisher(std::string topic) {
+    std::shared_ptr<PublisherImpl> impl;
+    {
+      std::lock_guard lock(mu_);
+      if (state_ != State::Running) {
+        return Publisher{std::weak_ptr<PublisherImpl>{}};
+      }
+      impl = std::make_shared<PublisherImpl>(std::move(topic));
+      publishers_.emplace(impl->Id(), impl);
+    }
+
+    if (!registration_->Add(impl->Descriptor())) {
+      std::lock_guard lock(mu_);
+      publishers_.erase(impl->Id());
+      return Publisher{std::weak_ptr<PublisherImpl>{}};
+    }
+    return Publisher{impl};
+  }
+
+  void Stop() noexcept {
+    std::call_once(stop_once_, [this] {
+      std::vector<std::shared_ptr<PublisherImpl>> entities;
+      {
+        std::lock_guard lock(mu_);
+        state_ = State::Stopping;
+        for (auto& [id, impl] : publishers_) entities.push_back(impl);
+      }
+
+      registration_->Stop();       // 不再产生连接更新
+      for (auto& entity : entities) entity->StopAndWait();
+
+      {
+        std::lock_guard lock(mu_);
+        publishers_.clear();       // 旧 facade 从此无法 lock
+      }
+      transport_->StopAndJoin();
+      registration_.reset();
+      transport_.reset();
+
+      std::lock_guard lock(mu_);
+      state_ = State::Stopped;
+    });
+  }
+
+  ~Runtime() { Stop(); }
+
+ private:
+  Runtime() = default;
+  enum class State { Starting, Running, Stopping, Stopped };
+
+  void StartModules() {
+    auto transport = TransportRuntime::Start();
+    auto registration = RegistrationRuntime::Start(*transport);
+    transport_ = std::move(transport);
+    registration_ = std::move(registration);
+    state_ = State::Running;
+  }
+
+  std::mutex mu_;
+  State state_{State::Starting};
+  std::unordered_map<EntityId,
+                     std::shared_ptr<PublisherImpl>> publishers_;
+  std::unique_ptr<TransportRuntime> transport_;
+  std::unique_ptr<RegistrationRuntime> registration_;
+  std::once_flag stop_once_;
+};
+```
+
+### 逐段解释所有权
+
+构造函数私有，调用者只能使用 `Start()`；这避免拿到尚未启动完成的 Runtime。这里先用 `new Runtime`，再放入 shared pointer，是因为私有构造函数不能直接被普通 `make_shared` 内部代码访问。若不需要 Runtime 共享所有权，更推荐返回 `unique_ptr<Runtime>`，让唯一 owner 更清晰。
+
+`StartModules()` 用局部 unique pointer 先完成 transport，再完成依赖 transport 的 registration。第二步抛异常时，第一个局部对象自动析构；只有全部成功才移动到成员。这是“先在局部构造，最后提交”的启动事务。
+
+CreatePublisher 在锁内确认 Running、构造实体并插表，在锁外调用 registration，避免注册 I/O 占用全局 mutex。如果注册失败，再锁定并按 ID 精确删除。真正实现还必须防止注册期间 Stop 开始：可以把创建计入 active operation，或使 Stop 在切换 Stopping 后等待所有创建事务完成。
+
+Stop 先截取实体强引用快照，所以解锁后对象仍然存在。停止 registration 切断新控制事件；`StopAndWait()` 阻止新 Send 并等待在途 Send/回调；清 Gate 使所有 facade 失效；最后停止 transport。`call_once` 令多次 Stop 汇聚到唯一关闭过程。
+
+### 这段骨架仍需补齐的工业能力
+
+- `StartModules()` 要包含配置验证、监控、时间与日志模块的依赖回滚；
+- 创建与停止之间需要 active-operation 屏障，不能只靠一次状态检查；
+- registration Add 成功但响应丢失时，Remove 必须幂等；
+- `StopAndWait()` 必须有超时、诊断和强制中断策略，不能无限等待坏 writer；
+- Runtime 自身若被后台回调捕获，必须避免 shared_ptr 环；
+- 进程退出阶段的日志设施可能先于 Runtime 消失，析构错误路径不能依赖已销毁单例；
+- fork、动态库卸载和静态对象析构顺序需要单独限定支持范围。
+
+## C++ 语法到系统设计的对应表
+
+| C++ 机制 | 局部含义 | 系统级作用 | 常见误用 |
+|---|---|---|---|
+| `explicit` | 禁止单参数隐式转换 | 避免 topic 字符串意外生成实体 | 误以为它和线程安全有关 |
+| `= delete` | 禁止复制 | 防止两份对象重复关闭同一实体 | 删除 copy 后盲目默认 move |
+| `weak_ptr::lock` | 尝试取得临时强引用 | Finalize 后句柄安全失效 | `expired()` 后再取裸指针 |
+| `shared_ptr<const Plan>` | 共享不可变快照 | 锁外发送仍看到一致路由 | 误以为 const 能保护 writer 内部 |
+| `span<const byte>` | 非拥有连续视图 | 避免强制 payload 复制 | 保存到异步任务造成悬空 |
+| `lock_guard` | 词法作用域持锁 | 维护短小的状态事务 | 锁内网络 I/O 或用户回调 |
+| `unique_lock` | 可解锁并支持 wait | 实现停止屏障 | 无谓替代简单 lock_guard |
+| `call_once` | 选出唯一执行者 | 幂等关闭 | 把可能永久阻塞的逻辑藏在其中 |
+| `memory_order` | 规定原子可见性 | 发布单字段状态 | 试图替代多字段互斥事务 |
+
+学习这些语法时，不应只记“怎么写”。每出现一个智能指针，都要问谁是所有权根；每出现一个锁，都要写出它保护的不变量；每出现一个 view，都要标注有效期；每出现一个后台线程，都要找到停止请求、唤醒、join 和最终资源释放四个动作。
+
+## 性能与取舍
+
+| 机制 | 收益 | 成本与边界 |
+|---|---|---|
+| facade 持有 `weak_ptr` | 全局关闭后句柄安全失效 | 每次调用需要一次原子引用计数操作 |
+| Gate 持有 `shared_ptr` | 所有权根清晰，快照可跨越解锁 | 高频创建销毁会产生控制块开销 |
+| 锁内复制、锁外回调 | 避免重入死锁和长临界区 | 注销与在途回调之间需要定义语义 |
+| 多 transport strategy | 同一 API 适应本机大数据和远端通信 | 协商、监控和关闭路径更复杂 |
+| 借用 payload view | 避免无条件复制 | 生命周期契约必须非常明确 |
+
+## 复杂度、内存和可行性预算
+
+设本进程 Publisher 数为 `P`，某 topic 的本地实体数为 `K`，一个 Publisher 的已知订阅端点数为 `N`，实际发送目标数为 `F`，payload 大小为 `S`：
+
+| 路径 | 时间复杂度 | 持有空间 | 需要测量的常数 |
+|---|---:|---:|---|
+| Gate 按 topic 查找 | 平均 `O(1+K)`，最坏 `O(P)` | 哈希表 `O(P)` | 哈希、字符串分配、shared_ptr 增减 |
+| 发现变更重建计划 | `O(N)` | 新旧计划短时 `O(N)` | writer 创建、策略过滤、锁等待 |
+| 单次 Send 扇出 | `O(F)` 加 I/O | frame 与各层队列 | 序列化、复制、系统调用、反压 |
+| Subscriber 快照 | `O(K)` | 临时 shared_ptr 数组 `O(K)` | 引用计数争用 |
+| Finalize | `O(P + Q + T)` 加等待 | 实体快照 | 最慢回调、阻塞 I/O、join |
+
+其中 `Q` 是 Subscriber/Service 等其他实体数量，`T` 是 transport worker 数。平均吞吐不能证明可用于机器人数据链路；至少要观察 Send p50/p99、发现到可发送的收敛时间、payload 数据年龄、各层 drop/overwrite、Gate 锁等待、在途回调数和 Finalize 最坏耗时。
+
+内存预算不能只算 payload。还包括每实体控制块、topic/类型字符串、每端点能力与 writer、SHM 多槽缓冲、TCP/UDP 内核缓冲、不可变旧计划以及慢消费者队列。若 SHM 为每个 Publisher 保留 `B` 个容量 `Smax` 的槽位，其主项已经是 `P × B × Smax`；再加一次 Subscriber 持有借用导致的槽位延迟归还，可能比 Gate 元数据大几个数量级。
+
+可行性判断应按消息类别拆开：图像和点云可接受 latest/overwrite，但要求控制内存与数据年龄；命令与状态转换通常不能静默丢弃，需要确认或应用层序号；日志允许批量与延迟；急停不能依赖一个可能排队的普通 pub/sub 回调。eCAL 提供传输机制，业务仍要为每类数据选择可靠性、期限和失效策略。
+
+## 最小复刻的完成标准
+
+一个教学实现至少应证明：同 topic 可注册多个实体；关闭 Gate 后旧 facade 返回失败而不崩溃；回调可安全注销自身；慢回调不阻塞其他 topic 的注册；传输层替换不改变 Publisher API；关闭后没有后台线程继续访问实体表。做到这些，才算复刻了 eCAL 对象模型的核心，而不只是写了一个 `map<string, callback>`。
+
+实现顺序可以固定为八步：单 transport 的同步 Send；按 ID/topic 双索引 Gate；弱 facade 与安全失效；锁外实体快照；registration 软状态输入；不可变多层 SendPlan；回调停止屏障；进程级启动和逆序关闭。每一步先把失败与关闭做完整，再增加下一层并发，避免最后同时调试发现、I/O、所有权和析构竞态。

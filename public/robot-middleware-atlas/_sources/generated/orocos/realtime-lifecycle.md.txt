@@ -1,0 +1,204 @@
+# 实时性能与关闭：从调度参数到可证明的资源回收
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+RTT 提供实时友好的结构，但不能替组件自动生成实时保证。最终结果由 OS 调度、Activity 参数、Engine 工作上限、样本类型、用户 hook 和关闭协议共同决定。
+
+源码阅读入口：[`Activity.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/Activity.cpp) 追踪周期线程、trigger、stop 与 join；[`ExecutionEngine.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ExecutionEngine.cpp) 追踪每步工作与消息处理；[`TaskCore.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/TaskCore.cpp) 追踪状态转换和 hook。实时分析应把这三个文件与具体组件的 `updateHook()` 一起阅读，因为框架调度上界和用户代码 WCET 最终相加。
+
+## 功能目标：把控制周期变成可分析的执行闭环
+
+实时组件不是“跑得很快”的普通线程，而是每个周期都要在截止时间前完成一组已知工作。RTT 把这组工作放进 TaskContext hook，并通过 Activity 指定周期、调度策略和优先级：
+
+```text
+timer release
+  -> Activity 唤醒
+  -> ExecutionEngine 处理有界内部工作
+  -> TaskContext::updateHook()
+       |-- 读取输入 Port
+       |-- 更新控制状态
+       `-- 写出输出 Port
+  -> 等待下一周期或报告超期
+```
+
+组件生命周期的作用是把会分配、探测和失败的准备工作移出周期，把周期内允许的资源集合固定下来。实时性因此同时是调度问题、内存问题和状态机问题。
+
+## 一个可分析的 C++ 组件骨架
+
+```cpp
+class JointController final : public RTT::TaskContext {
+ public:
+  explicit JointController(const std::string& name)
+      : RTT::TaskContext(name),
+        command_in_("command"),
+        torque_out_("torque") {
+    addPort(command_in_);
+    addPort(torque_out_);
+  }
+
+ private:
+  bool configureHook() override {
+    command_.positions.resize(joint_count_);
+    torque_.resize(joint_count_);
+    command_in_.setDataSample(command_);
+    torque_out_.setDataSample(torque_);
+    return device_.Open();
+  }
+
+  bool startHook() override {
+    return device_.Enable() && command_in_.connected();
+  }
+
+  void updateHook() override {
+    const RTT::FlowStatus status = command_in_.readNewest(command_);
+    if (status == RTT::NewData) last_command_cycle_ = cycle_;
+    if (cycle_ - last_command_cycle_ > stale_limit_) {
+      std::fill(torque_.begin(), torque_.end(), 0.0);
+    } else {
+      ComputeTorque(command_, torque_);
+    }
+    torque_out_.write(torque_);
+    ++cycle_;
+  }
+
+  void stopHook() override { device_.Disable(); }
+  void cleanupHook() override { device_.Close(); }
+
+  RTT::InputPort<Command> command_in_;
+  RTT::OutputPort<std::vector<double>> torque_out_;
+  Command command_;
+  std::vector<double> torque_;
+  Device device_;
+  std::uint64_t cycle_ = 0;
+  std::uint64_t last_command_cycle_ = 0;
+  std::size_t joint_count_ = 0;
+  std::uint64_t stale_limit_ = 5;
+};
+```
+
+`configureHook()` 调整 vector 容量并打开设备，因为这些动作可能分配内存或阻塞。`updateHook()` 只复用成员缓冲区。把缓冲区写成局部变量会在每周期构造，并可能触发 heap 操作。
+
+`readNewest()` 表示控制器关心最新命令而非逐条命令历史。若命令是必须逐条执行的轨迹片段，应使用 BUFFER policy 并给出队列容量、序列号和过载行为。
+
+`stopHook()` 先使执行器进入安全状态，`cleanupHook()` 才关闭资源。这使 Stop 后仍可重新 Start，而 Cleanup 后必须重新 Configure。
+
+## 实时声明需要完整前提
+
+“1 kHz 运行”至少需要说明：
+
+```text
+OS: PREEMPT_RT / ordinary kernel
+scheduler and priority
+CPU affinity / isolation
+memory locking and allocation policy
+period T = 1 ms
+WCET of hook + messages + callbacks
+maximum queue depth and batch
+deadline miss policy
+```
+
+缺少这些前提，只能称为观察到的平均性能，不能称为硬实时保证。
+
+周期可行性的最低条件是：
+
+```text
+Cengine + Cupdate + Cport + Bblocking + Jrelease <= Tperiod
+```
+
+`C` 表示各段最坏执行时间，`Bblocking` 是锁和同步 Operation 带来的最大阻塞，`Jrelease` 是唤醒抖动。平均值不能代替这些上界。多组件共享 CPU 时还要进行响应时间分析，不能把每个组件单独测得的 WCET 直接相加后当作证明。
+
+## 初始化与运行期分离
+
+配置阶段允许建立有界资源：预分配端口样本、buffer、消息节点和设备句柄。进入 Running 后应避免：
+
+- 首次使用才触发的动态库/页加载；
+- `std::vector` 扩容；
+- 无界日志格式化和磁盘 I/O；
+- DNS、文件系统和不可取消网络调用；
+- 未知持有时间的普通互斥锁。
+
+可以在 allocator 层统计 Running 状态下的分配次数，并将非零视为测试失败。`mlockall` 只能防止已有页面被换出，不能修复无界算法。
+
+`reserve()` 只预留容量，不改变 `size()`；若代码随后按下标写元素，仍需 `resize()`。而 `setDataSample()` 向 RTT 提供一个代表性样本，使连接能够预先准备存储，但用户定义类型内部的 vector/string 仍要确认容量是否随复制保持稳定。
+
+## 优先级反转来自共享锁与同步 Operation
+
+高优先级控制线程等待低优先级线程持有的锁时，低优先级线程又可能被中优先级任务抢占，形成无界反转。缓解方法是优先级继承 mutex、缩短锁区、不可变快照，以及避免高优先级线程同步等待低优先级 OwnThread Operation。
+
+锁审计要记录谁获取、最大持有时间和是否在锁内调用用户代码。仅统计锁次数不足以判断最坏阻塞。
+
+## 输入风暴需要容量和预算双重边界
+
+有界 queue 控制内存，却不自动控制每周期执行时间。若 Engine 每次 drain 到空，容量 1000 的队列仍可让一个周期执行 1000 个 callback。
+
+因此需要两类参数：
+
+- capacity：最多积压多少，决定空间上界；
+- budget/batch：每周期最多处理多少，决定时间上界。
+
+剩余 backlog 进入下一周期并产生可观测延迟。系统应报告 queue high-water mark 与最老消息年龄，而不只是 drop 数。
+
+## 故障状态要导向安全输出
+
+检测到超时、OldData 过久或 hook 异常后，组件不能只改变枚举值。控制系统通常需要明确安全动作：输出零力矩、保持制动、撤销 actuator enable，或把安全请求交给独立监督器。
+
+`errorHook` 自身也必须有界。若它执行无限重连，组件会长期占据实时线程且无法 stop。
+
+## 关闭顺序沿数据生产方向反向推进
+
+推荐顺序：
+
+```text
+拒绝新 Service/Operation 请求
+  -> 停止上游数据生产和外部 trigger
+  -> stop TaskContext，运行 stopHook
+  -> stop + join Activity
+  -> 取消/完成排队 Operation，唤醒等待者
+  -> 断开 Port channel
+  -> cleanupHook 释放配置资源
+  -> 移除 peer/service
+  -> 析构 TaskContext 和 ExecutionEngine
+```
+
+Activity 线程未确认退出前，不能析构其 Runnable。Port 断开不能早于正在执行的 updateHook，否则 hook 可能访问已拆除 channel。
+
+关闭中的一个常见错误是由 `updateHook()` 自己销毁所属 TaskContext。成员函数返回前 `this` 必须仍然有效。实时线程只应发布停止请求，组件管理线程观察请求后调用 stop、join 和 cleanup。
+
+如果 `stopHook()` 可能等待设备确认，应给出超时并定义超时后的安全所有权：是保持设备对象供后台回收，还是强制关闭文件描述符。仅从函数返回并析构对象，会把仍在运行的驱动回调变成释放后使用。
+
+## 性能验证矩阵
+
+至少覆盖：
+
+| 场景 | 改变量 | 观测指标 |
+|---|---|---|
+| 周期基线 | period、CPU、scheduler | jitter、WCET、deadline miss |
+| Operation 洪泛 | 到达率、batch、队列容量 | update 延迟、拒绝数、排队年龄 |
+| Port 洪泛 | policy、payload、连接数 | drop、readNewest 成本、copy 时间 |
+| 慢 hook | 人工延迟 | error/stop 响应、下周期漂移 |
+| 关闭竞态 | update/Operation/断连并发 | join 时间、悬挂等待、UAF |
+| 内存压力 | page fault、allocator hook | 运行期分配、最大延迟 |
+
+结果要报告最大值与运行时长。短测试很难捕捉调度尾部和罕见 fault。
+
+## 可行性边界
+
+Orocos RTT 适合固定或半固定拓扑的设备、机械臂和控制组件，尤其是需要显式生命周期、线程亲和性和有界缓冲的系统。它不擅长承担互联网规模动态发现与路由；跨机 transport 的最坏延迟也受网络和协议栈限制，不能沿用同进程 lock-free channel 的结论。
+
+硬实时可行性是具体部署属性，不是库名属性。只有特定组件、类型、连接 policy、OS 和负载组合通过 WCET 与故障测试，才能对该组合给出保证。
+
+## 优秀设计、局限与可迁移思想
+
+RTT 的优秀之处是把生命周期、执行上下文和通信 policy 都做成显式接口，因而可以逐项审计。Template Method 让框架固定状态转换，组件只实现 hook；类型化 Port 把数据类型错误提前到编译期；Activity 与 TaskContext 分离，使同一业务组件可换周期和调度参数。
+
+局限也来自这些抽象：错误的 OwnThread/ClientThread 选择会隐藏优先级反转；复杂样本的深拷贝可能藏在类型操作中；跨机 transport 无法继承同进程 lock-free 的确定性；用户 hook 仍能调用任何会阻塞或分配的 C++ 代码。
+
+可迁移原则包括：初始化阶段建立全部资源上界；周期内只使用预分配成员；容量控制空间，batch 控制时间；安全输出是错误状态的一部分；停止由外部协调者执行；实时结论绑定到具体 OS、优先级、CPU、拓扑和负载。
+
+## 最小复刻的完成标准
+
+最小实现应提供 Configured、Running、Stopped 与 Error 状态；周期线程只在 Running 调用 update；configure 预分配全部样本；输入队列同时具有 capacity 和 per-cycle batch；过期命令产生安全输出；stop 能唤醒等待并 join；cleanup 只在线程退出后执行。测量应证明稳态无动态分配，并报告长时间运行中的最大周期、最大锁等待和 deadline miss，而不只是平均频率。

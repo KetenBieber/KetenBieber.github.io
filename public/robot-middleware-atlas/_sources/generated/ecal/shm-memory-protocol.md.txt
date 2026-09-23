@@ -1,0 +1,298 @@
+# SHM 数据路径：双层头、Buffer 轮换与零拷贝锁域
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+共享内存常被简化为“Publisher 写一块内存，Subscriber 直接读”。真实实现还必须解决容量变化、跨进程互斥、新数据通知、慢读者、重复通知、对象销毁与可选确认。
+
+eCAL 将这些职责拆到 `CMemoryFile`、`CSyncMemoryFile`、`CDataWriterSHM` 和 `CMemFileObserver`。本章从内存布局开始，追踪一次写入和一次读取。
+
+## 两层 Header 与 Payload
+
+共享映射的布局为：
+
+```text
+offset 0
++-----------------------------------+
+| CMemoryFile::SInternalHeader      |
+| int_hdr_size                      |
+| cur_data_size                     |
+| max_data_size                     |
++-----------------------------------+ <- GetReadAddress()
+| SMemFileHeader                    |
+| hdr_size                          |
+| data_size                         |
+| publisher id / clock / time/hash |
+| zero_copy                         |
+| ack_timeout_ms                    |
++-----------------------------------+
+| user payload bytes                |
++-----------------------------------+
+```
+
+第一层由通用 memory-file 管理器使用，描述映射容量和当前有效区。第二层由 eCAL pub/sub 使用，描述一条业务 sample。
+
+[`CMemoryFile::GetReadAddress()`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile.cpp) 返回 internal header 后的位置；Observer 还要再跳过 `SMemFileHeader::hdr_size` 才得到 payload。
+
+## InternalHeader 与 SampleHeader 的职责
+
+InternalHeader 解决“这块共享对象当前可容纳多少字节”，即 allocator/container 问题。
+
+SampleHeader 解决“这里存的是哪一条 Publisher 消息”，即 messaging 问题。
+
+分层后，同一个 `CMemoryFile` 基础设施可以服务不同上层内容；pub/sub 不需要重复实现 mapping、resize 和 named mutex。
+
+但两层 size 都必须相互校验：
+
+```text
+sample_header.hdr_size <= cur_data_size
+sample_header.data_size <= cur_data_size - hdr_size
+cur_data_size <= max_data_size
+```
+
+只信任任一 header 都可能越界访问损坏或版本不兼容的映射。
+
+## Native struct layout 的 ABI 风险
+
+`SInternalHeader` 对 packing 有显式处理，而 `SMemFileHeader` 依赖本地 C++ 结构布局。字段间 padding、bool 大小和 alignment 可能受编译器与平台影响。
+
+共享内存两端若使用相同发行版和 ABI，原生布局速度快、代码直接。跨编译器、跨架构或独立实现互通时，它不等同于稳定 wire format。
+
+可移植重建应显式编码固定宽度字段：
+
+```cpp
+struct WireHeaderV1 {
+  std::uint32_t magic;
+  std::uint16_t version;
+  std::uint16_t header_size;
+  std::uint64_t payload_size;
+  std::uint64_t publisher_clock;
+  // fixed endian and reserved bytes
+};
+```
+
+## 命名对象建立跨进程同步
+
+普通 `std::mutex` 只能在共享同一进程地址空间的线程间工作。eCAL SHM 使用可由多个进程按名称打开的对象：
+
+- memory file：共享数据；
+- named mutex：保护读写；
+- send event：通知新 sample；
+- ack event：可选确认读取。
+
+名称通过 Publisher registration 告诉 Subscriber。发现信息因此是打开数据面资源的目录。
+
+命名还带来清理问题：进程崩溃可能留下 OS 对象。创建端要处理 already-exists、owner death、版本不符和旧容量对象。
+
+## CDataWriterSHM 管理多个 Buffer
+
+Publisher 的 SHM writer 保存 `CSyncMemoryFile` vector。每次发布选择下一项，形成 round-robin：
+
+```text
+write #0 -> buffer 0
+write #1 -> buffer 1
+write #2 -> buffer 2
+write #3 -> buffer 0
+```
+
+多 buffer 让 Subscriber 仍在读 buffer 0 时，Publisher 有机会写 buffer 1。它用额外内存换取读写并行。
+
+若发布频率远高于 callback，Publisher 最终仍会绕回被占用 buffer。Buffer 数 B 只提供约 B-1 条消息的并发余量，不是无限队列。
+
+## PrepareWrite 棊查容量并重建
+
+当前 payload 超过 memfile 容量时，writer 根据 payload 与 reserve 百分比申请更大映射：
+
+```text
+required = sample_header + payload
+new_capacity = required * (1 + reserve_percent)
+```
+
+Reserve 减少大小逐步增长时频繁重建。代价是额外共享内存常驻。
+
+重建可能改变 memory-file identity/list。Publisher 随后需要重新发送 registration，让 Subscriber observer 打开新对象。Resize 因而不是纯本地内存操作，而是控制面变化。
+
+## 写端临界区
+
+[`CSyncMemoryFile`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_sync.cpp) 的一次写入按以下顺序：
+
+```text
+acquire named mutex
+  -> obtain write address
+  -> write SMemFileHeader
+  -> copy/write payload
+  -> update current size
+release named mutex
+signal send event
+optional: wait ACK events
+```
+
+通知必须在内容完整并解锁后发生。若先 signal，Subscriber 可能醒来并看到半写 header；若持锁 signal 后继续长操作，Observer 醒来却只能等待 mutex。
+
+Header 和 payload 必须在同一临界区提交，形成一条原子可见 sample。
+
+## Copy 模式与 Zero-copy 模式
+
+Copy 模式下，Publisher 把调用者 payload 复制到 SHM；Subscriber observer 再复制到本地 vector，然后释放 named mutex、调用 callback。
+
+```text
+publisher bytes -> shared mapping -> subscriber local buffer -> callback
+```
+
+Zero-copy 读取模式下，Subscriber callback 直接拿映射指针：
+
+```text
+publisher/shared mapping -> callback view
+```
+
+为了防止 callback 期间 Publisher 覆盖，该 buffer 的 named mutex 仍被持有。省掉一次大 payload copy，换来临界区延长到整个业务 callback。
+
+## Observer 的读取状态机
+
+[`CMemFileObserver::Observe()`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_pool.cpp#L154-L298) 大致执行：
+
+```text
+wait send event, periodically wake for shutdown
+try lock named mutex with timeout
+read and validate header
+compare publisher clock with last seen
+
+if zero_copy:
+  callback(mapped payload) while lock remains held
+else:
+  copy payload to local vector
+  unlock
+  callback(local buffer)
+
+update last_sample_clock
+if ACK enabled: signal ack event
+```
+
+Clock 去重用于避免重复 event 或同一 buffer 被多次观察。先确认 header/payload 边界，再使用其中 size。
+
+## Observer 线程粒度
+
+该设计可为每个 observed memfile 建立一个 observer/thread。优点是每个 Publisher buffer 有独立等待上下文，代码直接。
+
+如果有 M 个 memory files，线程数量、栈内存和 scheduler 唤醒可能近似 `O(M)`。大量 topic/Pub 时，这比 payload copy 更早成为规模瓶颈。
+
+可扩展替代是让一组 worker 使用可等待事件集合或平台 reactor 管理多个 memfile，但跨平台 named events 是否可统一等待会影响实现复杂度。
+
+## Zero-copy 把业务 WCET 传给 Publisher
+
+假设 callback 执行 40 ms，Buffer 数为 1：
+
+```text
+t0 subscriber locks and enters callback
+t1 publisher tries next write -> waits same named mutex
+t0+40ms subscriber returns/unlocks
+publisher can write
+```
+
+此时 Publisher latency 包含 Subscriber 的业务执行时间。即使发布线程本身优先级更高，也无法绕过跨进程 mutex。
+
+Buffer 数增加到 3 后，Publisher 可先写其他两块，但持续高频发布最终仍绕回。因此 zero-copy 适合 callback 极短或上层能够 loan/retain buffer 并用更明确所有权协议的场景。
+
+## Copy 模式隔离临界区
+
+Copy 模式在锁内只执行 `memcpy(S)`，随后 callback 在锁外运行。Publisher 最坏等待接近一次复制加调度抖动，而不是完整算法 WCET。
+
+对于中等 payload，复制成本可能比不可控尾延迟更划算。是否 zero-copy 不能只看平均带宽，应比较：
+
+```text
+copy time p99
+versus
+callback WCET + mutex contention p99
+```
+
+“少一次复制”不是自动等于“实时性更好”。
+
+## ACK 的目的
+
+没有 ACK 时，send event 只表示 Publisher 发布了新内容，不知道哪些 Subscriber 已经观察。
+
+启用 ACK 后，每个订阅进程关联 ack event。Publisher 通知后等待相应确认，直到全部到达或共享 timeout budget 耗尽。
+
+```text
+Publisher signal send
+  -> Subscriber A reads -> signal ACK A
+  -> Subscriber B reads -> signal ACK B
+Publisher returns after A+B or timeout
+```
+
+ACK 可以减少覆盖尚未读取数据的风险，但把慢/故障 Subscriber 变成 Publisher 阻塞来源。
+
+## ACK timeout 的语义
+
+多个 ACK 使用同一个开始时刻时，总等待预算近似为 configured timeout，而不是每个订阅者都重新等待完整 timeout。
+
+超时后应记录该 subscriber 暂时失效，避免每次 publish 重复付出相同 timeout，直到新的 registration/health signal 恢复它。
+
+源码快照中 `SyncContent()` 先复制 event-handle map 到局部 snapshot，再把 snapshot 内的 invalid flag 置 true；变化是否回写持久 map 需要谨慎核对。就程序设计而言，健康状态必须修改权威数据，而非只修改一次迭代副本。
+
+## SHM 所有权与指针有效期
+
+Zero-copy callback 得到的是映射地址借用：
+
+```text
+valid after header validation and lock acquisition
+valid during callback
+invalid for application use after callback/unlock
+```
+
+保存裸指针到后台线程会在 Publisher 重写或 memfile 重建后读到变化/无效内存。
+
+若 API 要允许异步零拷贝，需要显式 loan handle：handle 持有 buffer lease，析构时 release；Publisher 只能复用 lease count 为零的 buffer。这个协议比 callback 借用复杂得多。
+
+## 内存预算
+
+设每个 Publisher 配 B 个 buffer，容量 C，有 P 个 Publisher：
+
+```text
+SHM payload capacity ~= P * B * C
+```
+
+还要加 header、named object、mapping page 对齐和 observer 本地 copy buffer。
+
+Reserve 使 C 高于当前 payload；大小曾出现过峰值后，memfile 可能长期保持峰值容量。监控应报告 configured、allocated 和 current data size，而不只报告消息大小。
+
+## 故障路径
+
+需要明确处理：
+
+- Publisher 在持锁时崩溃，named mutex 是否支持 owner-death recovery；
+- Subscriber 仍观察旧 memfile，Publisher 已 resize/rename；
+- event 到达但 header 版本/size 不合法；
+- ACK Subscriber 退出但 registration timeout 尚未收敛；
+- Finalize 时 observer 正在 callback；
+- 重建共享对象时其他进程仍持旧 mapping。
+
+共享内存省去网络复制，却把跨进程生命周期变成主要复杂度。
+
+## 可复刻的最小 SHM 设计
+
+第一版只用单 buffer + copy read：
+
+```cpp
+struct Header {
+  uint32_t magic;
+  uint16_t version;
+  uint16_t header_size;
+  uint64_t capacity;
+  uint64_t payload_size;
+  uint64_t sequence;
+};
+```
+
+写端锁内写 header/payload，解锁后 signal；读端锁内验证并复制，解锁后 callback。
+
+第二版加入 B 个 slot 和 round-robin。第三版加入 registration 发布 slot names。第四版才增加 ACK。最后在测得 copy 是瓶颈后，设计带 lease 的 loan API，而不是简单把 callback 移进锁内。
+
+## SHM 设计结论
+
+eCAL SHM 以 memory file 承载 bytes，以 named mutex 提交一致 sample，以 event 通知 observer，以多 buffer 缓解读写冲突，并可用 ACK 加强读取确认。
+
+它的主要优势是同机大数据吞吐；主要风险是原生 ABI、每 memfile observer 成本、resize 控制面传播，以及 zero-copy 将用户 callback 纳入跨进程临界区。真正的性能评估必须同时测复制时间、锁等待和 callback 尾延迟。

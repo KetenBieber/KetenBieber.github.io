@@ -1,0 +1,438 @@
+# 动态组件装载：注册宏、工厂对象与共享库生命周期
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Cyber RT 的部署文件只保存组件库路径和类名。运行时却能据此创建一个带具体消息模板参数的 C++ 对象：
+
+```text
+module_library: "libplanning_component.so"
+class_name: "apollo::planning::PlanningComponent"
+```
+
+这条链跨越了配置字符串、ELF 共享库、静态初始化、模板工厂、虚函数和智能指针控制块。理解它之后，DAG 装载不再是一个黑箱，也能看清插件系统中最危险的错误：对象仍活着，提供其析构函数和虚表的 `.so` 却已经卸载。
+
+本文固定 Apollo 提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，沿 `CYBER_REGISTER_COMPONENT`、class factory、`ClassLoader`、`ClassLoaderManager` 和 `ModuleController` 追踪完整生命周期。
+
+## 动态装载解决部署期组合
+
+若把所有算法组件直接链接进 mainboard，并在 `main()` 中手写构造：
+
+```cpp
+auto planning = std::make_shared<PlanningComponent>();
+auto control = std::make_shared<ControlComponent>();
+```
+
+每次更改进程布局都需要修改代码、重新编译并重新链接 mainboard。组件类型集合也会泄漏到基础运行时。
+
+Cyber RT 将两个决策推迟到部署期：
+
+- 哪个共享库进入当前进程；
+- 从该库创建哪个 `ComponentBase` 派生类。
+
+mainboard 因此只依赖稳定基类和 class loader，不依赖 Planning、Control 或 Localization 的头文件。DAG 可以把同一个组件库放进不同进程，也能让多个组件共享一个 mainboard 进程。
+
+这种灵活性不是免费的。类名拼写、注册遗漏、重复注册、编译选项不一致与 ABI 破坏都会从编译期错误变成装载期错误。
+
+## 三层类型边界
+
+整个设计同时使用三种类型表示：
+
+```text
+DAG:             "apollo::planning::PlanningComponent"  字符串
+factory registry: AbstractClassFactory<Base>*             擦除派生类型
+created object:   shared_ptr<ComponentBase>                基类所有权
+```
+
+具体派生类型只在注册宏展开和工厂模板实例化时出现。mainboard 创建对象后只保留 `shared_ptr<ComponentBase>`，通过虚函数完成 `Initialize()` 与 `Shutdown()`。
+
+这是一条刻意设计的“类型漏斗”：
+
+```text
+Derived template type
+    -> factory<Base>
+    -> Base pointer
+    -> virtual lifecycle calls
+```
+
+编译期强类型并没有消失，而是被限制在插件内部；跨库管理接口则收敛成非模板基类。
+
+## ComponentBase 是插件 ABI
+
+[`ComponentBase`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component_base.h) 提供所有组件共享的生命周期接口。简化后可以表示为：
+
+```cpp
+class ComponentBase : public std::enable_shared_from_this<ComponentBase> {
+ public:
+  virtual ~ComponentBase() = default;
+  virtual bool Initialize(const ComponentConfig& config) = 0;
+  virtual bool Init() = 0;
+  virtual void Clear() {}
+  void Shutdown();
+};
+```
+
+基类必须有虚析构函数。通过 `ComponentBase*` 删除 `PlanningComponent` 时，虚调用才能先进入派生析构，再进入基类析构。若基类析构非虚，删除行为未定义，派生成员也可能泄漏。
+
+这里的 ABI 不只指函数声明。以下内容都必须在 mainboard 与组件库之间保持兼容：
+
+- 虚函数表顺序与对象布局；
+- 编译器及其 C++ ABI；
+- `_GLIBCXX_USE_CXX11_ABI` 等标准库 ABI 开关；
+- protobuf 类型与运行库版本；
+- RTTI、异常和可见性配置；
+- 基类头文件的准确版本。
+
+给 `ComponentBase` 中间插入虚函数、改变虚继承关系或让两边使用不兼容编译选项，即使符号能成功解析，也可能在第一次虚调用时跳到错误地址。
+
+插件接口因此应当小而稳定。消息处理的模板复杂度留在 `Component<M...>` 中，跨库边界只暴露少量生命周期函数，是降低 ABI 风险的重要设计选择。
+
+## 注册宏把派生类绑定到共同基类
+
+组件源文件末尾通常写：
+
+```cpp
+CYBER_REGISTER_COMPONENT(PlanningComponent)
+```
+
+[`component.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component.h) 中的宏继续展开：
+
+```cpp
+#define CYBER_REGISTER_COMPONENT(name) \
+  CLASS_LOADER_REGISTER_CLASS(name, apollo::cyber::ComponentBase)
+```
+
+第二层宏生成一个针对 `Derived` 与 `Base` 的工厂，并通过静态对象初始化把工厂登记到全局 registry。概念代码如下：
+
+```cpp
+template<class Derived, class Base>
+class ClassFactory final : public AbstractClassFactory<Base> {
+ public:
+  Base* CreateObj() override { return new Derived(); }
+};
+
+static Registrar<PlanningComponent, ComponentBase> registrar(
+    "apollo::planning::PlanningComponent");
+```
+
+这里的 `static` 不是进程启动时一定执行。它位于插件 `.so` 中；只有动态加载器把该库映射进进程并执行其初始化段后，registrar 构造函数才会运行。
+
+因此正确顺序必须是：
+
+```text
+LoadLibrary(.so)
+  -> dynamic loader maps library
+  -> static registrar constructors run
+  -> factory enters registry
+  -> CreateClassObj(class_name)
+```
+
+如果在 `LoadLibrary()` 之前查询类名，registry 中没有对应工厂。若链接器裁剪了只含注册对象的目标文件，宏明明写在源码里，运行时仍可能找不到类。
+
+## 工厂层完成派生类型擦除
+
+registry 不能直接保存不同类型的 `ClassFactory<Derived, Base>` 对象，因此需要共同的抽象工厂：
+
+```cpp
+template<class Base>
+class AbstractClassFactory {
+ public:
+  virtual ~AbstractClassFactory() = default;
+  virtual Base* CreateObj() = 0;
+};
+```
+
+每个具体工厂知道 `new Derived`，调用者只知道返回值可视为 `Base*`。这是 Factory Method 与类型擦除的组合：
+
+- 模板在注册点记住具体派生类型；
+- 虚函数在查询点抹去派生类型；
+- 字符串 key 在部署配置与工厂之间建立映射。
+
+`CreateObj()` 返回裸指针并不表示最终所有权也应裸露。它只是工厂构造操作的最低层结果，`ClassLoader::CreateClassObj()` 必须立即把它放进 RAII 容器。
+
+## ClassLoader 将裸对象升级为受控 shared_ptr
+
+[`ClassLoader::CreateClassObj<Base>()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/class_loader/class_loader.h) 的核心职责可以简化为：
+
+```cpp
+template<class Base>
+std::shared_ptr<Base> CreateClassObj(const std::string& class_name) {
+  Base* obj = factory->CreateObj();
+  ++classobj_ref_count_;
+
+  return std::shared_ptr<Base>(
+      obj,
+      [this](Base* ptr) {
+        delete ptr;
+        this->OnClassObjDeleter();
+      });
+}
+```
+
+这里不能先返回裸指针，再由上层稍后包装。两步之间一旦抛异常或提前返回，对象就会泄漏，loader 计数也可能失真。创建和接管所有权必须成为一个逻辑事务。
+
+自定义 deleter 被保存在 `shared_ptr` 控制块中。变量的静态类型仍是 `shared_ptr<ComponentBase>`，却能在最后一个强引用消失时执行 loader 专用逻辑。这正是 `shared_ptr` 相比 `unique_ptr<Base, DeleterType>` 更适合跨多处共享组件所有权的原因之一：deleter 类型不会进入指针变量的类型签名。
+
+## 活对象计数保护库代码寿命
+
+`classobj_ref_count_` 记录由当前 loader 创建且尚未完成删除的对象数量。它不是普通业务引用计数；`shared_ptr` 控制块已经负责统计对象强引用。loader 计数统计的是“还有多少控制块最终需要调用本库相关删除路径”。
+
+两个计数处在不同层：
+
+```text
+shared_ptr use_count
+  -> 一个对象被多少强引用共同拥有
+
+ClassLoader classobj_ref_count
+  -> 这个库创建的多少对象仍未完成最终删除
+```
+
+复制一只组件 `shared_ptr` 只增加前者。最后一个副本释放时，自定义 deleter 执行 `delete`，再减少后者。
+
+卸载条件不能只检查 mainboard 的 `component_list_` 是否为空。callback、全局 registry 或异步任务中都可能隐藏组件强引用。只要最后的控制块还没触发 deleter，库就仍然必须保留。
+
+## 删除对象必须早于卸载代码
+
+组件对象在内存中通常包含一只指向派生类虚表的隐藏指针：
+
+```text
+PlanningComponent object
+  [vptr] ---> vtable in libplanning_component.so
+              destructor address
+              Initialize address
+              other virtual function addresses
+```
+
+若先执行 `dlclose()`，动态加载器可能解除库映射。之后再调用：
+
+```cpp
+component.reset();
+```
+
+最后一个 shared pointer 会尝试通过已失效的虚表调用派生析构函数。结果可能是段错误，也可能在地址尚未复用时暂时“看起来正常”，形成难复现故障。
+
+正确的不变量是：
+
+```text
+任何对象、deleter、callback 或函数指针仍可能进入插件代码
+    => 共享库必须保持 loaded
+```
+
+这比“组件 vector 已清空”更严格，因为执行中的 `Proc()` 栈帧本身也位于插件代码中。
+
+## ModuleController 是装载批次的所有者
+
+[`ModuleController`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/mainboard/module_controller.cc) 同时持有：
+
+```text
+ClassLoaderManager
+  `-- map<library_path, ClassLoader*>
+
+component_list_
+  `-- vector<shared_ptr<ComponentBase>>
+```
+
+这两个成员组成一对寿命约束：manager 让库保持加载，component list 让派生对象保持存活。声明顺序和显式 `Clear()` 都必须服从“对象先于代码销毁”。
+
+装载一份 DAG 的主路径是：
+
+```text
+ModuleController::LoadModule(dag)
+  -> resolve module_library path
+  -> ClassLoaderManager::LoadLibrary(path)
+  -> for each component config
+       -> CreateClassObj<ComponentBase>(class_name)
+       -> component->Initialize(config)
+       -> component_list_.push_back(component)
+```
+
+对象在 `Initialize()` 前已经进入 `shared_ptr`，因此 `ComponentBase::shared_from_this()` 具备有效控制块。若在裸对象阶段调用 Initialize，组件内部执行 `shared_from_this()` 会抛出 `std::bad_weak_ptr`。
+
+## 初始化失败的 RAII 回滚
+
+考虑组件对象已创建，但 `Initialize()` 返回 false：
+
+```cpp
+auto component = manager.CreateClassObj<ComponentBase>(name);
+if (!component || !component->Initialize(config)) {
+  return false;
+}
+component_list_.push_back(component);
+```
+
+局部 `component` 离开作用域后，shared pointer 自动调用自定义 deleter，派生对象被删除，loader 活对象计数恢复。失败路径不需要手写与成功路径平行的 `delete`。
+
+但“对象内存被回收”不等于“Initialize 的所有副作用都已撤销”。如果初始化到一半已经向 Scheduler、Dispatcher 或 topology 注册资源，组件实现必须让成员析构或显式 Shutdown 能清理部分状态。
+
+这说明 RAII 需要逐层成立：顶层 shared pointer 只能保证组件对象释放，不能替没有 RAII 的子系统注册完成回滚。
+
+## 安全关闭是初始化的逆拓扑
+
+关闭不能简单写成 `UnloadAllLibrary()`。一条可靠顺序是：
+
+```text
+1. component->Shutdown()
+   - 设置 shutdown flag
+   - 停止业务入口
+   - 退出 Reader/topology
+   - 删除并等待 task
+
+2. component_list_.clear()
+   - 最后强引用释放
+   - 派生析构仍能进入 .so
+   - custom deleter 减少 loader 活对象计数
+
+3. ClassLoaderManager::UnloadAllLibrary()
+   - 确认没有活对象
+   - 再卸载共享库
+```
+
+顺序的关键不是“看起来整齐”，而是关闭一张有向依赖图：
+
+```text
+Processor stack -> callback -> Component object -> plugin machine code
+Reader task     -> callback -> Component object -> plugin machine code
+shared_ptr      -> deleter  -> virtual destructor -> plugin machine code
+```
+
+只有所有指向右侧的路径都断开，`.so` 才能卸载。
+
+## 回调捕获采用 weak_ptr
+
+Component 初始化时把业务闭包交给 routine。若闭包直接按值捕获 `shared_ptr<Component>`：
+
+```cpp
+auto self = shared_from_this();
+auto callback = [self](const auto& msg) { self->Process(msg); };
+```
+
+就会形成潜在所有权环：
+
+```text
+Component -> task/reader -> callback -> Component
+```
+
+Cyber RT 使用 `weak_ptr` 捕获，在调用前临时 `lock()`：
+
+```cpp
+std::weak_ptr<Component<M0>> self =
+    std::dynamic_pointer_cast<Component<M0>>(shared_from_this());
+
+auto callback = [self](const std::shared_ptr<M0>& msg) {
+  if (auto component = self.lock()) {
+    component->Process(msg);
+  }
+};
+```
+
+weak pointer 既不延长组件寿命，也避免访问已析构对象。临时 lock 成功后，局部 shared pointer 保证本次 `Process()` 调用期间对象不被删除。
+
+它仍不能单独保证库卸载安全。关闭路径必须先从 Scheduler 移除 task，并等待正在执行的 callback 返回；否则即使对象寿命正确，Processor 仍可能正在执行 `.so` 中的 `Proc()` 指令。
+
+## 并发卸载需要状态机
+
+简单的 `loaded` 布尔值不足以描述真实装载器。至少存在这些状态：
+
+```text
+UNLOADED -> LOADING -> LOADED -> UNLOADING -> UNLOADED
+                         |
+                         `-> unload rejected: live objects
+```
+
+并发调用需要保护：
+
+- 同一路径不能重复执行两次底层 load；
+- 创建对象时库不能进入 unloading；
+- 增减活对象计数与卸载条件检查不能竞态；
+- registry 中属于该库的 factory 必须在卸载前解除关联；
+- load 失败不能留下半注册工厂。
+
+若装载器允许多次 `LoadLibrary(path)`，还需要区分“库句柄引用次数”和“库中活对象数”。前者描述多少调用者请求保持库加载，后者描述多少对象仍依赖库代码，两者都归零才具备卸载条件。
+
+## 字符串工厂的错误模型
+
+动态工厂把一部分错误推迟到运行时。常见失败包括：
+
+| 失败点 | 表现 | 根因 |
+|---|---|---|
+| 加载库 | `LoadLibrary` 失败 | 路径、依赖库或符号缺失 |
+| 查询类 | factory 不存在 | 类名不匹配或注册代码未执行 |
+| 创建对象 | 返回空或异常 | 构造失败、抽象类或工厂损坏 |
+| 基类匹配 | 无对应 Base registry | 注册时基类不一致 |
+| 初始化 | `Initialize` 返回 false | 配置或资源创建失败 |
+| 卸载 | 仍有活对象 | 隐藏 shared pointer 或在途 callback |
+
+因此日志必须同时记录 library path、class name、base type、装载器状态和活对象数。只输出“create component failed”无法区分配置拼写与 ABI 问题。
+
+部署系统还可以在启动前做静态预检：解析全部 DAG、确认库文件存在、检查类名清单、检测同进程组件名冲突。预检不能发现所有 ABI 错误，却能把一部分故障提前到车辆出发之前。
+
+## 性能影响集中在生命周期路径
+
+class loader 不在每条消息的热路径上。字符串查表、factory 虚调用和 `new Derived` 只发生在启动期，通常无需为微秒级开销优化。
+
+运行期保留的主要成本是：
+
+- Component 入口的一次虚调用；
+- shared pointer 的生命周期管理；
+- 为安全卸载维护少量原子计数或锁；
+- 组件库带来的代码页和重定位开销。
+
+对机器人中间件而言，确定的失败诊断和正确卸载远比减少一次启动期哈希查找重要。热路径优化应集中在消息复制、锁竞争与调度延迟，而不是把插件工厂改成脆弱的手写函数指针表。
+
+## 可复刻的最小插件骨架
+
+一个教学实现可以先省略真正的 `dlopen`，在单一二进制内验证工厂边界：
+
+```cpp
+class Plugin {
+ public:
+  virtual ~Plugin() = default;
+  virtual bool Start() = 0;
+  virtual void Stop() = 0;
+};
+
+using Factory = std::function<std::unique_ptr<Plugin>()>;
+
+class Registry {
+ public:
+  bool Add(std::string name, Factory factory);
+  std::unique_ptr<Plugin> Create(std::string_view name) const;
+};
+```
+
+第二阶段再引入共享库，并把返回类型改为带 loader lease 的对象：
+
+```cpp
+struct LibraryState {
+  void* handle;
+  std::atomic<std::size_t> live_objects{0};
+};
+
+std::shared_ptr<Plugin> MakePlugin(
+    Plugin* raw, std::shared_ptr<LibraryState> library) {
+  ++library->live_objects;
+  return std::shared_ptr<Plugin>(raw, [library](Plugin* p) {
+    delete p;
+    --library->live_objects;
+  });
+}
+```
+
+这里 deleter 捕获 `shared_ptr<LibraryState>`，控制块本身就持有一份库租约。即使外层 manager 意外释放状态对象，插件的最后一个 shared pointer 仍能让库状态存活到删除结束。这比 deleter 捕获裸 `this` 更容易证明生命周期安全。
+
+第三阶段加入明确状态机、并发保护、注册撤销和错误报告。最后再接入 Scheduler，并验证 Stop 会等待所有在途 callback 返回。
+
+## 插件系统的设计结论
+
+Cyber RT 动态装载链可以归纳为五条边界规则：
+
+1. 配置层只保存库路径与类名，不依赖业务头文件；
+2. 注册点使用模板记住 Derived，registry 使用基类工厂擦除 Derived；
+3. 对象创建后立即进入 RAII，初始化失败自动释放；
+4. callback 用 weak ownership 打破环，但执行中的代码仍需显式等待；
+5. 所有派生对象、deleter 和在途栈帧消失后，才能卸载共享库。
+
+掌握这五条规则后，可以替换宏、容器或动态加载 API，而不会破坏真正重要的部分：插件对象的生命不能超过其数据依赖，却必须短于提供其可执行代码的共享库。

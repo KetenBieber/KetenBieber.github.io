@@ -1,0 +1,221 @@
+# LCM 设计复盘：从零实现一条可运行的消息总线
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+前面的章节已经分别拆开公共句柄、provider、UDP 协议、接收线程、订阅分发、类型生成和日志。本章把它们重新组合成一张实现图，并给出从最小版本到可工程使用版本的开发顺序。
+
+目标不是逐行复制 LCM，而是掌握每个机制解决的问题，以及省略它会产生的具体后果。
+
+## 一条消息的完整路径
+
+```text
+Publisher application thread
+  -> generated EncodedSize(message)
+  -> allocate/reuse byte buffer
+  -> generated Encode(message, buffer)
+  -> lcm_publish(channel, buffer)
+  -> provider vtable::publish
+  -> UDPM transmit mutex
+  -> LC02 or LC03 framing
+  -> sendmsg
+
+Receiver kernel/network
+  -> recvmsg on provider thread
+  -> magic and bounds validation
+  -> optional LC03 reassembly
+  -> subscription quota admission
+  -> complete-message queue
+  -> notify pipe
+
+Application event-loop thread
+  -> poll/select
+  -> lcm_handle
+  -> dequeue one message
+  -> channel cache lookup
+  -> callback outside core mutex
+  -> generated fingerprint check and Decode
+  -> business logic
+  -> callback return
+  -> receive buffer reclaimed
+```
+
+这条链只有两个主要执行上下文：provider 接收线程与应用 handle 线程。发送发生在调用 publish 的线程中，没有隐藏发送 worker。
+
+## 七个最小模块
+
+### ByteCodec
+
+把类型对象转换为确定的 wire bytes，并在开头写 schema fingerprint。它只负责字段和字节，不知道 channel、socket 或 subscription。
+
+### BusCore
+
+保存 provider、订阅权威集合和 channel 匹配缓存。它定义公共 API，却不包含 UDP 私有字段。
+
+### Provider
+
+通过函数指针表统一 create、publish、handle、ready fd 与 destroy。它隔离传输差异，但必须清楚说明每个实现的阻塞和队列语义。
+
+### Framing
+
+把 channel、sequence 和 payload 组织成协议报文。短消息一次发送，大消息需要显式分片与边界验证。
+
+### ReceiveQueue
+
+把网络线程与 callback 线程分开。有界队列决定过载时内存是否稳定，通知 fd 决定外部事件循环能否及时醒来。
+
+### SubscriptionIndex
+
+把正则订阅编译并缓存到具体 channel。它负责配额和安全取消，不拥有 provider payload 的长期副本。
+
+### EventLog
+
+顺序保存 timestamp、channel 与原始 wire payload。它不需要理解具体类型，并能作为一种回放 provider 接回 BusCore。
+
+## 第一阶段：单线程内存总线
+
+最小版本不需要 socket、线程和 ring：
+
+```cpp
+class MemoryBus {
+ public:
+  using Bytes = std::span<const std::byte>;
+  using Handler = std::function<void(std::string_view, Bytes)>;
+
+  SubscriptionId Subscribe(std::string pattern, Handler handler);
+  void Publish(std::string channel, std::vector<std::byte> payload);
+  bool HandleOne();
+};
+```
+
+`Publish` 把拥有自身存储的 Message 放入 `std::deque`，`HandleOne` 取出一条并调用匹配 handler。
+
+这一阶段验证：注册、精确匹配、callback 顺序、取消订阅和 payload 借用期。不要先优化内存，因为错误的事件语义在加入并发后更难定位。
+
+## 第二阶段：有界队列与过载策略
+
+给总线设置最大消息数和最大总字节数。两种上限都需要，因为十条图像和十条姿态消息的内存差别巨大。
+
+明确选择：
+
+```text
+drop-newest   保留已经排队的历史
+drop-oldest   优先交付较新状态
+block         把背压传给发布者
+reject        publish 立即返回容量错误
+```
+
+不同 channel 可以需要不同策略。控制状态常用 latest-only，命令和日志则更关注不丢失。
+
+## 第三阶段：Provider 接口
+
+把 MemoryQueue 移到 `ProviderOps` 后面，让 BusCore 只调用抽象方法。先让 memq provider 通过全部订阅测试，再加入 UDP。
+
+```cpp
+struct Provider {
+  virtual SendResult Publish(Channel, Bytes) = 0;
+  virtual std::optional<Message> ReceiveOne() = 0;
+  virtual NativeHandle ReadyHandle() = 0;
+  virtual void Stop() = 0;
+  virtual ~Provider() = default;
+};
+```
+
+若需要稳定 C ABI，再把虚类改为 `ops struct + opaque self`。架构边界相同，语言机制不同。
+
+## 第四阶段：UDP 短消息
+
+先只支持小于安全 MTU 的单数据报：
+
+```text
+magic | sequence | channel_length | payload_length | channel | payload
+```
+
+显式长度比 NUL 扫描更容易做边界验证。为 header 写 encode/decode 纯函数，并用固定 byte fixture 测试大小端。
+
+此时就要加入：最大 channel、最大 payload、坏 magic 计数、截断包拒绝和来源地址记录。
+
+## 第五阶段：接收线程与通知 fd
+
+网络线程只负责 parse 和 enqueue。业务 callback 继续由 `HandleOne()` 调用者执行。
+
+队列从空变非空时设置一次通知；HandleOne 后若仍非空，ready 状态必须保持。可以使用 pipe、eventfd 或平台事件对象。
+
+关闭协议必须在此阶段完成：Stop 写退出事件、线程醒来、join、再销毁队列与 socket。
+
+## 第六阶段：分片重组
+
+重组表 key 至少包含 source identity 与 sequence。每项保存 data buffer、fragment bitmap、总数、channel 和 deadline。
+
+所有网络整数先转换字节序；所有 `offset + length` 检查使用防溢出形式。限制：单消息大小、并行重组项数、总重组字节和过期时间。
+
+完整后用 move 转移 data buffer 到 complete queue，避免再次复制大消息。
+
+## 第七阶段：生成式类型
+
+先支持少量固定基本类型与定长数组。为 schema 计算稳定 fingerprint，并生成 Size、Encode、Decode、Cleanup。
+
+建立跨语言 golden tests：同一对象在 C++ 与 Python 中编码结果逐字节相同；任意截断位置 decode 都必须安全失败。
+
+动态数组和嵌套结构最后加入，因为它们需要乘法溢出检查、部分构造回滚和递归 fingerprint。
+
+## 第八阶段：日志与回放
+
+日志直接保存 wire payload，不 decode。记录格式使用固定 endian、长度上限和 sync marker。
+
+回放 provider 逐条读取 Event，将其像 live message 一样交给 BusCore。先支持尽快回放，再加入 monotonic-clock 定时、倍率、seek 和暂停。
+
+## 关键不变量
+
+实现过程中应持续验证：
+
+1. Provider buffer 在全部 callback 返回前有效，之后不可再访问；
+2. 核心 mutex 不覆盖用户 callback；
+3. 同一 Bus 实例一次只有一个 HandleOne 分发者；
+4. unsubscribe 不会释放当前迭代仍引用的对象；
+5. queue、reassembly 与日志长度都有硬上限；
+6. shutdown 先停止并 join 线程，再释放线程可能访问的状态；
+7. publish 成功不被解释为远端接收成功；
+8. fingerprint mismatch 必须显式失败，不能继续错位解析。
+
+## 性能账本
+
+| 阶段 | 时间复杂度 | 数据动作 | 主要风险 |
+|---|---:|---|---|
+| encode | `O(S)` | 对象写入连续 bytes | 动态长度溢出 |
+| UDPM short publish | `O(1)` syscall | iovec 避免拼接 | socket/锁等待 |
+| UDPM fragmented publish | `O(N)` syscalls | 原 payload 分片视图 | 丢片、长持锁 |
+| receive | `O(packet)` | 内核复制到用户区 | socket buffer 溢出 |
+| reassembly | `O(S)` | 分片复制到完整 buffer | 内存攻击、超时 |
+| admission | `O(H)` | 只更新订阅计数 | 全局锁竞争 |
+| dispatch | `O(H)` + callbacks | payload 借用 | 慢 callback 串行阻塞 |
+| decode | `O(S)` | 构造业务对象 | 分配与 cleanup |
+
+`S` 是消息字节数，`N` 是分片数，`H` 是匹配订阅数。
+
+## LCM 的工程优势
+
+LCM 的主要优势不是功能多，而是机制少且调用链短。公共层和传输层边界清楚，callback 线程由应用控制，wire payload 可以原样记录，多语言通过生成代码而非运行时反射互通。
+
+这使它适合实验机器人、受控局域网和强调可回放数据流的系统，也适合学习消息中间件的最小骨架。
+
+## LCM 的工程限制
+
+默认 UDPM 没有可靠交付、拥塞控制或安全认证。单实例 callback 串行，慢处理需要应用自己隔离。类型演化偏严格，运行时没有 schema 协商。分片只能重组，不能恢复丢失数据。
+
+这些限制应在系统架构层处理，而不是用“网络一般不会丢包”或“callback 通常很快”作为隐含假设。
+
+## 可迁移的设计能力
+
+从 LCM 可以提取五种通用能力：
+
+- 用稳定小接口隔离可替换传输；
+- 用有界队列明确过载语义；
+- 用通知句柄把后台接收接入外部事件循环；
+- 用延迟回收处理 callback 中修改订阅关系；
+- 用相同 wire payload 连接在线通信与离线回放。
+
+掌握这些边界后，即使最终使用 ROS 2、eCAL 或自研共享内存，也能判断其中的线程、所有权、队列和协议设计是否完整。

@@ -1,0 +1,276 @@
+# Session 启动链：Runtime、模式编排与本地 Routing Face
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+`zenoh::open(config)` 最终返回一个 Session，但 Session 可用之前要构造 Runtime、Gateway、routing tables、transport manager、本地 Face 和多类后台任务。启动顺序决定网络事件到达时，路由核心是否已经具备承接它们的对象。
+
+## Session 的主要对象图
+
+```text
+Session
+  `-- Arc<SessionInner>
+        +-- GenericRuntime
+        +-- RwLock<SessionState>
+        |     +-- primitives
+        |     +-- publishers/subscribers
+        |     +-- queryables/queries
+        |     `-- local resource declarations
+        +-- Session TaskController
+        `-- callback drop synchronization
+
+Runtime
+  `-- Arc<RuntimeState>
+        +-- Gateway
+        |     `-- TablesLock -> Resource tree / Faces / Routes
+        +-- TransportManager
+        +-- Runtime TaskController
+        `-- handlers/configuration
+```
+
+Session state 管理应用实体；Runtime state 管网络、路由和拓扑。一个插件环境中的 Runtime 可以服务多个 Session，因此二者关闭时机不能简单绑定成同一个 Arc。
+
+## OpenBuilder 的表面异步
+
+公开 API 返回 builder：
+
+```rust
+let session = zenoh::open(config).await?;
+```
+
+固定版本中 [`OpenBuilder`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/api/builders/session.rs) 同时实现同步 `Wait` 和 `IntoFuture`。部分路径的 `IntoFuture` 先执行 `wait()`，再返回已经 ready 的 Future。
+
+因此 `.await` 是统一 API 外形，不足以证明初始化工作不会阻塞调用线程。阅读 async Rust 必须继续查看 Future 构造方式，而不是只看调用处有 `.await`。
+
+## Runtime Build 与 Start 分离
+
+构造 Runtime state 和启动网络 I/O 是两个阶段：
+
+```text
+RuntimeBuilder::build
+  -> validate Config
+  -> create HLC/time state
+  -> create routing Gateway and Tables
+  -> create TransportManager
+  -> assemble RuntimeState
+  -> connect handlers with WeakRuntime
+  -> initialize routing hats/admin/plugins
+
+Runtime::start
+  -> bind listeners
+  -> connect configured endpoints
+  -> start scouting/autoconnect tasks
+  -> wait configured readiness conditions
+```
+
+分阶段让 Session 能在真正网络事件发生前注册本地 routing face。
+
+## Session::init 建立本地 Face
+
+[`Session::init`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/api/session.rs#L860-L906) 创建 SessionState 与 SessionInner，向 Runtime 注册 connectivity handler，再通过 Runtime/Gateway 创建一组指向本地 Session 的 primitives。
+
+```text
+Runtime routing core
+  <-> local Face
+       <-> WeakSession primitives
+            <-> SessionState entities/callbacks
+```
+
+之后 Session 把 primitives 存入 state。Publisher/Subscriber 声明只有在 primitives 存在时才能进入路由核心。
+
+WeakSession 让 routing core 能向 Session 回调，却不反向强持有 Session，避免引用环。
+
+## 启动顺序保护早到网络事件
+
+整体顺序为：
+
+```text
+build Runtime objects
+  -> init Session and local Face
+  -> store Session primitives
+  -> start Runtime listeners/connect/scouting
+  -> return Session
+```
+
+若先启动 transport，再创建本地 Face，远端 declaration 可能在窗口期到达，却没有完整 Session/Gateway 状态可处理。
+
+这是“先装消费者，再打开生产入口”的通用并发规则。类似原则也适用于启动接收线程前先建队列与 callback registry。
+
+## Runtime 模式决定网络编排
+
+Zenoh node 可以是 client、peer 或 router。三种模式共享 routing core，却采用不同连接策略。
+
+### Client
+
+Client 通常向已知 peer/router 建 north-bound transport。配置显式 endpoint 时直接连接；启用 scouting 时可发现候选节点。
+
+若 multicast scouting 关闭且没有配置 peer，client 没有任何连接目标，启动返回错误。
+
+Client 还可能限制同时存在的 north-bound transport 数，避免无意形成复杂转发拓扑。
+
+### Peer
+
+Peer 可以监听入站连接、主动连接配置端点并参与 scouting。它既能作为数据端点，也能在特定拓扑中转发。
+
+配置可以要求等待发现/连接条件后再认为 start 成功。超时有时是错误，有时只记录 warning 后继续，必须按具体 return condition 区分。
+
+### Router
+
+Router 主要承担跨连接路由，通常启动 listener、连接已知 peer、开启 scouting，并等待配置的启动延迟/条件。
+
+它需要更完整的 routing tables、Face 和 hat/region 状态，资源规模与连接数更相关。
+
+## Listener 与 Connect 是两类方向
+
+```text
+listener: 等远端主动连接当前节点
+connector: 当前节点主动连接远端 endpoint
+```
+
+两者都由 TransportManager 创建 transport，随后触发 Runtime transport event handler。启动成功条件可以要求至少一个 listener 成功、至少一个 endpoint connected，或允许后台持续 retry。
+
+错误处理要区分：立即配置错误、单 endpoint 失败、全局 timeout 和允许重试的暂时失败。
+
+## Scouting 是发现候选传输端点
+
+Runtime 内建 scouting task 可：
+
+- 监听并响应 scout；
+- 主动发送 scout；
+- 根据 Hello 自动连接匹配节点；
+- 同时运行 responder 与 autoconnect。
+
+任务由 Runtime TaskController 管理，所以 Runtime close 能统一取消。
+
+公开独立 `zenoh::scout()` 不创建完整 Runtime。它建立自己的 socket/task 和 cancellation token，drop 时终止 scout task。二者生命周期不要混为一谈。
+
+## TaskController 表达任务归属
+
+直接 `tokio::spawn` 后丢掉 JoinHandle，会让关闭无法知道任务是否仍访问 state。TaskController 将 task 注册到 owner：
+
+```text
+Session TaskController
+  -> query timeout
+  -> session-local background work
+
+Runtime TaskController
+  -> scouting
+  -> reconnect
+  -> transport/runtime loops
+```
+
+Owner close 时先禁止/取消新任务，再等待现有任务终止。Session 可以先关自己的 timeout task，而共享 Runtime 继续服务其他 Session。
+
+## Transport 建立后创建 Face
+
+TransportManager 的新 unicast transport callback：
+
+```text
+upgrade WeakRuntime
+  -> notify optional transport handlers
+  -> determine remote role/region/bounds
+  -> Gateway::new_transport_unicast
+       -> create FaceState
+       -> create interceptors
+       -> create Mux and DeMux
+       -> register face with routing hat
+       -> accumulate declarations to send
+  -> release table/control locks
+  -> send declarations
+```
+
+Face 将一条 transport connection 纳入路由拓扑。它保存该邻居的 resource mappings、interceptors 和 pending request state。
+
+## Control Lock 与 Tables Lock
+
+Face 创建会修改多组路由状态。`ctrl_lock` 串行拓扑控制操作，Tables 写锁保护资源树和 Face map。
+
+声明消息在释放这些锁后发送。原因是发送可能进入 transport queue、触发 callback，甚至间接回入 routing core。持全局路由锁执行外部操作会构造重入死锁。
+
+通用模式为：
+
+```rust
+let commands = {
+    let _control = ctrl_lock.lock();
+    let mut tables = tables.write();
+    update_state_and_build_commands(&mut tables)
+};
+send_commands(commands); // no routing locks held
+```
+
+## Mux 与 DeMux 接入消息流
+
+Mux 是 routing-to-transport：路由结果通过目标 Face 的 Mux 发送。
+
+DeMux 是 transport-to-routing：收到 wire message 时，根据消息类型调用声明、push、request、response 等路由入口。
+
+```text
+remote transport
+  -> RuntimeSession::handle_message
+  -> DeMux
+  -> Face route method
+  -> Tables/Resource/Route
+```
+
+Link up/down 和 transport close 也会触发路由状态变更与 cache invalidation。
+
+## Session Clone 与逻辑 Strong Counter
+
+`Session` 外层由 Arc 共享，但项目还维护逻辑 strong counter，区分公开 Session clone 与内部 Arc 引用。
+
+原因是内部 callback/task 可能需要 Arc 保证内存安全，却不应因此阻止“最后一个用户 Session handle”触发 close。
+
+```text
+Arc strong count = public handles + internal implementation refs
+logical counter  = public handles that own open session semantics
+```
+
+最后一个业务 handle drop 时执行 close；内部 Weak/Arc 的存在不改变用户可见生命周期。
+
+这与 C++ 插件中“对象引用计数”和“库租约计数”类似：一个引用计数无法表达两种不同业务含义。
+
+## 启动失败的清理
+
+可能失败的阶段包括配置解析、listener bind、peer connect、scout socket、plugin/admin init 和 start condition timeout。
+
+一旦 Runtime/Session state 已创建，失败返回前要关闭已启动 task/transport，并清理本地 Face。Rust RAII 能释放内存，但后台 task 和 socket 的有序 async close 仍需显式执行。
+
+Builder/Start 最好返回 guard，只有所有阶段成功后 commit 为 Running；失败时 guard drop/rollback 关闭已经登记的资源。
+
+## 启动的性能与可用性语义
+
+`open()` 延迟可能包含：
+
+- 配置解析与插件装配；
+- listener bind；
+- DNS/endpoint connect；
+- scouting interface bind；
+- 等待 peer/start condition；
+- 固定启动 delay。
+
+Open 返回成功的含义也取决于模式和配置：Runtime 对象已启动，不一定已经连到所有期望远端。应用需要 matching listener 或 connectivity status 区分“Session 可用”和“目标数据路径已经匹配”。
+
+## 最小 Runtime 复刻
+
+第一版只实现 session-local routing：
+
+```rust
+struct SessionInner {
+    state: RwLock<SessionState>,
+    tasks: TaskController,
+    closing: AtomicBool,
+}
+```
+
+第二版增加 `Primitives` trait 和 local Face，让 Session 不直接访问 router。第三版加入一条 loopback transport 与 Mux/DeMux。第四版才实现 client listener/connect/scouting 状态机。
+
+每一步验证：锁内只提交状态，锁外调用 primitives；Weak 回调升级失败安全返回；Close 能取消并等待 owner tasks。
+
+## Session 启动设计结论
+
+Zenoh 将对象构建、Session 本地 Face 初始化和网络 Runtime 启动分开，使 transport 事件出现前路由消费者已经就绪。Client/Peer/Router 共享底层对象，却由 orchestrator 采用不同 listener、connect 和 scouting 策略。
+
+最值得迁移的能力是：公开 handle 生命周期与内部内存引用分离、后台任务归属于明确 owner、全局路由锁内只生成命令而不执行外部 I/O。

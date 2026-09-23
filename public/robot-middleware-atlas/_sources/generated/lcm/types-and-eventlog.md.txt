@@ -1,0 +1,327 @@
+# 类型与日志：lcm-gen、Fingerprint 和可回放事件流
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+LCM 网络层只认识 channel 与 bytes。跨语言对象能够互通，依赖的是 `lcm-gen` 为同一份 schema 生成等价编码器；实验能够复现，依赖的是 event log 原样保存时间、channel 和编码后的 bytes。
+
+类型系统与日志因此共用一个关键边界：日志不需要知道消息字段，只要保存 wire payload，未来拥有相同生成类型的程序就能解码。
+
+## schema 位于运行时之外
+
+一个 `.lcm` 类型可以表示为：
+
+```text
+package robot;
+
+struct pose_t {
+    int64_t utime;
+    double position[3];
+    double quaternion[4];
+    string frame;
+}
+```
+
+`lcm-gen` 解析后为 C、C++、Java、Python 等语言生成本地数据结构和序列化代码。运行时不会动态加载 schema，也不会在每条消息上做字段反射。
+
+这种 ahead-of-time generation 带来：
+
+- 字段访问是普通本地成员访问；
+- 编码循环由生成器展开或定型；
+- 接收端编译期知道目标类型；
+- provider 完全不依赖消息描述系统。
+
+代价是 schema 变更后必须重新生成并重新编译相关语言代码。
+
+## C 生成接口
+
+[`lcmgen/emit_c.c`](https://github.com/lcm-proj/lcm/blob/ad0c54cee0ec048ef12357c34349ec1443158864/lcmgen/emit_c.c) 为每种结构生成一组函数：
+
+```c
+int robot_pose_t_encoded_size(const robot_pose_t *msg);
+
+int robot_pose_t_encode(void *buf, int offset, int maxlen,
+                        const robot_pose_t *msg);
+
+int robot_pose_t_decode(const void *buf, int offset, int maxlen,
+                        robot_pose_t *msg);
+
+int robot_pose_t_decode_cleanup(robot_pose_t *msg);
+
+int64_t __robot_pose_t_get_hash(void);
+```
+
+接口把容量显式传入 encode/decode，允许每次写入前检查剩余字节。decode 可能为字符串和动态数组分配内存，所以必须提供 cleanup 对称释放。
+
+这也是 C API 中的所有权协议：成功 decode 后，调用者拥有生成结构中的动态资源；无论业务处理是否成功，都要调用对应 cleanup。
+
+## 编码先写类型 fingerprint
+
+生成的顶层 encode 先取得 64 位 hash：
+
+```c
+int64_t hash = __robot_pose_t_get_hash();
+encode_int64(buffer, offset, maxlen, &hash);
+encode_fields(...);
+```
+
+因此 payload 的前八字节不是第一个业务字段，而是类型 fingerprint。订阅 callback 使用错误类型 decode 时，生成代码先比较：
+
+```c
+int64_t expected = __robot_pose_t_get_hash();
+int64_t actual;
+decode_int64(..., &actual);
+if (actual != expected)
+    return -1;
+```
+
+Channel 并不绑定唯一类型；fingerprint 是接收端发现 schema 不匹配的最后防线。把两个不同类型发布到同一 channel 可以通过网络，但错误的 generated decoder 会拒绝 payload。
+
+## fingerprint 来自类型结构
+
+Fingerprint 不是对象内容 hash，也不是加密签名。它由结构名、字段类型、维度和嵌套类型等 schema 信息计算。
+
+嵌套类型通过递归 hash 纳入父类型：
+
+```text
+hash(parent)
+  = rotate(base_hash(parent)
+           + hash(child_a)
+           + hash(child_b) ...)
+```
+
+生成代码维护递归访问链，避免自引用类型无限递归。最终值被缓存，后续编码不必重复遍历类型图。
+
+Fingerprint 能高概率发现不兼容 schema，却不提供恶意篡改防护。攻击者可以伪造已知 hash；需要消息认证时必须额外使用 MAC、签名或安全传输层。
+
+## 固定线序与跨语言一致性
+
+所有生成器必须对这些细节保持一致：
+
+- 整数与浮点的字节序；
+- boolean 表示；
+- string 的长度和终止规则；
+- 固定数组与可变数组的长度来源；
+- 嵌套结构是否重复写 fingerprint；
+- 空数组和零长度字符串的编码。
+
+跨语言兼容不是“各语言序列化出相似 JSON”，而是每个字节位置都由规范确定。生成式代码减少手写实现分歧，也让编译器优化简单循环。
+
+## encoded_size 是内存规划接口
+
+发布便利函数通常先计算大小，再分配连续 buffer 并编码：
+
+```c
+int size = robot_pose_t_encoded_size(msg);
+void *buf = malloc(size);
+int written = robot_pose_t_encode(buf, 0, size, msg);
+lcm_publish(lcm, channel, buf, written);
+free(buf);
+```
+
+这至少产生一次与 payload 等长的用户态 buffer。高频固定大小消息可以复用 scratch buffer；C++ 实现也可以使用 `std::vector<std::byte>` 保留 capacity。
+
+必须检查 `encoded_size` 的算术溢出。由消息字段控制的动态数组长度若相乘后越过 `int` 或 `size_t`，小分配加大写入会造成严重漏洞。
+
+## decode 是构造事务
+
+包含多个动态字段的 decode 可能在中途失败。生成代码需要保证已成功分配的前序字段能够被 cleanup，且未初始化字段不会被错误释放。
+
+稳健模式是：
+
+```c
+memset(output, 0, sizeof(*output));
+if (decode_field_a(...) < 0) goto fail;
+if (decode_field_b(...) < 0) goto fail;
+return consumed;
+
+fail:
+decode_cleanup(output);
+return -1;
+```
+
+C++ 生成器可以依靠 vector/string 的 RAII，异常或提前返回时成员自动清理。C 生成器则必须显式维护部分构造不变量。
+
+## C++ 订阅包装的类型桥
+
+C++ callback 最终仍由 C 核心传入 `lcm_recv_buf_t*`。模板包装器完成：
+
+```text
+C callback(void* userdata, bytes)
+  -> cast userdata to subscription wrapper
+  -> MessageType::decode(bytes)
+  -> invoke object member function(channel, decoded message)
+```
+
+模板在编译期记住 `MessageType` 和成员函数类型，C callback 则提供统一 ABI。这与 Cyber RT 的 RoutineFactory 类似：类型化业务函数被包装成运行时可以统一存储的调用形式。
+
+区别在于 LCM callback 在 handle 线程同步 decode 和执行，没有统一 scheduler 接管。
+
+## event log 的记录单位
+
+[`eventlog.h`](https://github.com/lcm-proj/lcm/blob/ad0c54cee0ec048ef12357c34349ec1443158864/lcm/eventlog.h) 中的事件包含：
+
+```c
+struct _lcm_eventlog_event_t {
+    int64_t eventnum;
+    int64_t timestamp;
+    int32_t channellen;
+    int32_t datalen;
+    char *channel;
+    void *data;
+};
+```
+
+日志保存编码后的 data，而不是 decode 后的 C/C++ 对象。这样记录工具不需要链接所有消息类型，也能记录未知 channel。
+
+`eventnum` 给出文件内顺序，`timestamp` 给出时间位置。二者不能互相替代：相同 timestamp 的多个事件仍需稳定顺序，文件顺序也不一定等于传感器采样时间。
+
+## 磁盘格式采用自描述长度
+
+[`eventlog.c`](https://github.com/lcm-proj/lcm/blob/ad0c54cee0ec048ef12357c34349ec1443158864/lcm/eventlog.c) 按固定字段写 header，再写 channel 与 payload：
+
+```text
+sync magic
+event number
+timestamp
+channel length
+data length
+channel bytes
+data bytes
+```
+
+长度字段允许读取器跳过未知消息并定位下一事件。sync magic 帮助损坏后重新扫描候选边界。
+
+读取不可信或损坏日志时，必须限制 channel/data length，并验证它们不越过文件剩余大小。日志文件同样是二进制输入，不应因为来自本地磁盘就跳过边界检查。
+
+## read_next_event 的所有权
+
+`lcm_eventlog_read_next_event()` 分配 event 及其 channel/data，调用者必须使用 `lcm_eventlog_free_event()` 释放。
+
+这是一种 pull iterator：
+
+```c
+while ((event = lcm_eventlog_read_next_event(log))) {
+    Process(event);
+    lcm_eventlog_free_event(event);
+}
+```
+
+它每条事件产生分配，顺序扫描清晰但超大日志会受到 allocator 成本影响。可优化为复用 caller-provided buffer 或 memory mapping，不过后者需要更谨慎地处理损坏长度和映射寿命。
+
+## seek_to_timestamp 的查找策略
+
+日志 API 支持按 timestamp seek。没有外部索引时，可根据文件 offset 做近似二分，再同步到合法 event 边界并读取时间，逐步逼近目标。
+
+变长事件使“中间字节”未必是事件起点，所以 seek 不能简单把文件大小除以记录数。Sync magic 与 header 校验构成重新定位机制。
+
+大型日志若频繁随机访问，适合建立稀疏索引：每隔 N 条保存 `(timestamp, file_offset)`。查找先二分索引，再从最近 offset 顺序扫描。
+
+## file provider 把日志伪装成传输
+
+LCM 的 file provider 实现同一 provider vtable。读取模式下，`handle()` 按日志事件产生消息；写入模式下，`publish()` 创建 event 并写文件。
+
+因此应用可以通过更换 URL 在 live transport 与 replay 之间切换：
+
+```text
+udpm://...             live multicast
+file://run.lcm?mode=r  recorded stream
+```
+
+上层订阅逻辑不变。这是 provider abstraction 的直接收益：回放不是另一套 callback API，而是另一种消息来源。
+
+## 回放时间语义
+
+读出事件不等于正确回放。系统必须决定：
+
+- 尽快读取还是保持原始时间间隔；
+- 从哪个 timestamp 开始；
+- 速度倍率；
+- 暂停/单步；
+- 时间倒退或日志跨时钟域时如何处理；
+- callback 处理落后时丢弃还是整体减速。
+
+若按原始时间回放，目标发送时刻通常为：
+
+```text
+wall_start + (event.timestamp - log_start) / speed
+```
+
+应使用 monotonic clock 安排等待，避免系统墙钟校时导致回放跳跃。event timestamp 仍作为数据时间保留。
+
+## 可复现性的边界
+
+记录全部输入 channel 是复现的必要条件，但未必充分。算法结果还可能依赖：
+
+- 配置文件与标定版本；
+- 随机种子；
+- 软件提交和编译选项；
+- 外部服务响应；
+- 线程调度与同 timestamp 消息顺序；
+- 未记录的系统时间调用。
+
+完整实验包应把日志与 schema、配置、版本清单和启动拓扑关联。Fingerprint 能确认单条消息 schema，却不能描述整个程序环境。
+
+## 类型演化策略
+
+改变字段通常会改变 fingerprint，旧 decoder 直接拒绝新 payload。LCM 的默认模型偏向严格 schema identity，而不是字段级向前/向后兼容。
+
+演化方式包括：
+
+- 新建 `pose_v2_t` 并迁移 channel；
+- 同时发布旧新两种类型一段时间；
+- 在消息内部增加显式 version 和可选 payload；
+- 用转换进程把历史日志升级为新 schema。
+
+严格拒绝避免静默错读，代价是升级协调成本。控制系统通常更应接受显式失败，而不是把错位字节解释成看似合理的浮点数。
+
+## 性能与存储模型
+
+对大小为 S 的消息：
+
+```text
+publish CPU ~= O(S) encode + transport cost
+receive CPU ~= transport cost + O(S) decode
+log write    ~= header + channel + S bytes
+```
+
+记录原始 payload 不需要 decode/re-encode，日志工具的 CPU 和 schema 数量无关。压缩可以减少磁盘带宽，但会增加 CPU、随机 seek 难度和损坏影响范围。
+
+分 channel 分文件便于选择性回放，却会失去天然全局事件顺序；单文件保留顺序，但高带宽 channel 会主导存储。工程上常用单文件原始日志加离线索引。
+
+## 最小复刻路线
+
+类型生成器不必一开始支持完整语法。可从固定字段结构开始：
+
+```text
+struct Imu {
+  int64 timestamp;
+  double ax;
+  double ay;
+  double az;
+}
+```
+
+生成：结构体、`EncodedSize`、`Encode`、`Decode` 和 64 位 schema hash。用 golden byte fixtures 验证两种语言产生完全相同输出。
+
+日志层随后只需要：
+
+```cpp
+struct Event {
+  uint64_t sequence;
+  int64_t timestamp_us;
+  std::string channel;
+  std::vector<std::byte> payload;
+};
+```
+
+先实现顺序写读和长度上限，再实现 sync recovery、timestamp seek 和定时回放。不要先做反射 UI，因为 wire correctness 和损坏恢复才是日志基础。
+
+## 类型与日志的设计结论
+
+LCM 把 schema 工作放到生成期，把网络运行时保持为 bytes router，再让 event log 原样保存同一 wire payload。Fingerprint 在 decode 边界阻止错误类型，日志 provider 则复用发布订阅接口完成离线回放。
+
+这套设计牺牲了动态 schema 协商和宽松演化，换来跨语言字节一致性、较小运行时与无需类型知识的记录工具。对于强调实验复现和明确失败的机器人系统，这种边界非常有价值。

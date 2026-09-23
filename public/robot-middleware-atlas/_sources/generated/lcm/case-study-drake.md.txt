@@ -1,0 +1,393 @@
+# 项目案例：Drake 如何把 LCM 接入系统仿真图
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Drake 是模型化机器人设计与仿真框架，长期使用 LCM 连接仿真、硬件、可视化和控制程序。它没有让业务系统直接到处调用 `lcm.publish()`，而是把 LCM 封装成 Drake System，使通信成为可组合 Diagram 的一部分。
+
+真实入口包括 `drake/systems/lcm` 下的 `LcmInterfaceSystem`、`LcmPublisherSystem`、`LcmSubscriberSystem`，以及 [Allegro Hand 仿真](https://github.com/RobotLocomotion/drake/blob/v1.56.0/examples/allegro_hand/joint_control/allegro_single_object_simulation.cc)。本文源码坐标固定到 Drake `v1.56.0`；Drake 约每月发布稳定版，使用其他版本时应对照相同 tag 的头文件和示例。[Drake Releases](https://github.com/RobotLocomotion/drake/releases)
+
+核心源码入口可以按“抽象接口 → 调度桥 → 收发端”阅读：
+
+| 层次 | 固定版本源码 | 阅读重点 |
+|---|---|---|
+| transport 抽象 | [`drake_lcm_interface.h`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/drake/lcm/drake_lcm_interface.h) | Publish/Subscribe/HandleSubscriptions 契约与 handler 生命周期 |
+| 仿真调度桥 | [`lcm_interface_system.h`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/drake/systems/lcm/lcm_interface_system.h) | 怎样把 pump 声明成 System update event |
+| 订阅状态机 | [`lcm_subscriber_system.h`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/drake/systems/lcm/lcm_subscriber_system.h) | 内部消息计数、Context abstract state、unrestricted update |
+| 发布调度 | [`lcm_publisher_system.h`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/drake/systems/lcm/lcm_publisher_system.h) | trigger、period、offset 与 serializer |
+| 真实组合 | [`allegro_single_object_simulation.cc`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/examples/allegro_hand/joint_control/allegro_single_object_simulation.cc) | Builder 所有权、端口连线与运行入口 |
+
+先读接口能知道谁允许调用谁；再读调度桥能知道网络事件何时进入仿真；最后读 Allegro 组合，才不会把一串 `AddSystem` 误解成普通对象初始化代码。
+
+## 功能目标
+
+- 在仿真时间而不是任意线程时刻发布状态；
+- 把外部 LCM command 转成 Diagram 输入；
+- 让真实硬件与仿真使用相同 channel/type；
+- 在系统图中明确采样周期和状态更新事件；
+- 支持替换真实 LCM 与测试/mock 接口。
+
+## 从真实 Allegro Hand 入口开始
+
+[`allegro_single_object_simulation.cc`](https://github.com/RobotLocomotion/drake/blob/v1.56.0/examples/allegro_hand/joint_control/allegro_single_object_simulation.cc) 没有在控制器内部构造 LCM，而是先把通信加入 Diagram：
+
+```cpp
+systems::DiagramBuilder<double> builder;
+auto lcm = builder.AddSystem<systems::lcm::LcmInterfaceSystem>();
+
+auto& command_sub = *builder.AddSystem(
+    systems::lcm::LcmSubscriberSystem::Make<lcmt_allegro_command>(
+        "ALLEGRO_COMMAND", lcm));
+
+auto& command_receiver =
+    *builder.AddSystem<AllegroCommandReceiver>(kAllegroNumJoints,
+                                               kLcmPeriod);
+
+auto& status_pub = *builder.AddSystem(
+    systems::lcm::LcmPublisherSystem::Make<lcmt_allegro_status>(
+        "ALLEGRO_STATUS", lcm, kLcmPeriod));
+```
+
+`Make<Message>` 把 channel 与生成的 LCM 类型在构建期绑定。`builder.AddSystem` 把对象所有权交给 DiagramBuilder，返回的引用只用于继续配置和连线；不能在 Diagram 销毁后保存该引用。
+
+通信系统与业务适配器分开：Subscriber 输出 `lcmt_allegro_command`，`AllegroCommandReceiver` 再把它转换成控制图需要的关节向量。反向由 `AllegroStatusSender` 生成 LCM 消息，Publisher 只负责按周期编码发送。
+
+## 组合结构
+
+```text
+LCM command channel
+  -> LcmSubscriberSystem<lcmt_allegro_command>
+  -> command receiver / desired positions
+  -> PID controller
+  -> MultibodyPlant
+  -> status encoder
+  -> LcmPublisherSystem<lcmt_allegro_status>
+  -> LCM status channel
+```
+
+通信适配器变成 Diagram node，端口连接由 `DiagramBuilder` 在构建期完成。算法模块只处理 vector/value ports，不直接依赖 LCM handle。
+
+真实连接代码的形状是：
+
+```cpp
+builder.Connect(command_sub.get_output_port(),
+                command_receiver.get_input_port(0));
+builder.Connect(status_sender.get_output_port(0),
+                status_pub.get_input_port());
+```
+
+端口连接在 `Build()` 前检查数据类型和拓扑。这样错误 channel 仍可能在运行期出现，但“LCM message 接到了错误的向量端口”会更早暴露，而不是在 callback 中靠强制转换维持。
+
+## `LcmInterfaceSystem` 的作用
+
+它把 LCM receive handling 纳入 Drake 执行环境，并为 Publisher/Subscriber systems 提供共同接口。通过抽象 `DrakeLcmInterface`，测试可注入内存实现，避免依赖组播网络。
+
+这是 Dependency Inversion：控制器依赖抽象数据端口，LCM 位于系统边缘；仿真调度器决定何时更新，而不是网络 callback 直接重入动力学求解。
+
+这里还有一层执行上下文隔离。LCM 接收可以由后台处理，但 Drake 的 Context 具有明确的所有者和求值阶段；网络 callback 不应任意修改正在积分或求导的 Context。Interface System 把外部事件引入框架调度边界，再由系统事件更新状态。
+
+官方类说明给出了更精确的事实：`LcmInterfaceSystem` 本身没有输入、输出、状态或参数，只声明一个 update event，在 LCM 有等待消息时 pump subscriptions。[LcmInterfaceSystem API](https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1lcm_1_1_lcm_interface_system.html)
+
+```text
+Simulator 计算下一事件
+  -> LcmInterfaceSystem update event
+  -> DrakeLcmInterface::HandleSubscriptions(timeout=0)
+  -> LCM handler 把新 bytes 交给各 SubscriberSystem 的内部接收槽
+  -> SubscriberSystem 安排自身 unrestricted update
+  -> Context state 提交新消息
+```
+
+这比“InterfaceSystem 有个接收线程”更准确。它把 pump 动作置于仿真事件序列中，使任意 Subscriber 注册在同一个 interface 上时都由 Simulator 服务。若绕过 Simulator 手工求值系统，就必须自己复现 pump 与 update 顺序，否则输出会一直停留在旧 Context 状态。
+
+`LcmInterfaceSystem` 不允许复制或移动，符合 Diagram node 的身份语义。一个 node 在构建后有稳定地址，并被多个 Publisher/Subscriber 以非拥有指针引用。构造函数若接收外部 `DrakeLcmInterface*`，调用者必须保证该对象比 InterfaceSystem 活得更久；这是 C++ 裸指针表达的借用契约，而不是所有权转移。
+
+## Subscriber 如何跨越异步与仿真时间
+
+LCM 消息异步到达，但 Drake Context 在仿真步骤中需要一致状态。Subscriber System 保存最新解码消息，并通过离散或 unrestricted update 把它写入系统状态。更新周期决定外部命令被仿真采纳的时间粒度。
+
+优点是仿真状态转换可调度；代价是频繁 unrestricted update 可能显著降低仿真速度。性能问题应从“事件种类和频率”分析，而不只是 LCM callback 本身。
+
+若控制命令只需固定采样，离散状态更新比每条消息触发 unrestricted update 更容易分析：
+
+```text
+LCM callback -> latest-message slot
+每 kLcmPeriod：复制 latest -> Context discrete state
+控制器在仿真时刻读取一致快照
+```
+
+这会增加至多一个采样周期的输入延迟，并跳过周期内的中间命令。对设定值通常合理，对必须逐条处理的事件则应使用有界队列、序列号和事件消费系统。
+
+### `LcmSubscriberSystem` 的两份状态
+
+官方实现区分内部最新消息和 Context 中已提交消息。异步 handler 先推进内部 message count；`CalcNextUpdateTime()` 发现计数变化后安排当前最早仿真时刻的事件，`CalcUnrestrictedUpdate()` 再把解码值和计数写入 Context。[LcmSubscriberSystem API](https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1lcm_1_1_lcm_subscriber_system.html)
+
+```text
+network/internal side                    simulation Context
+latest bytes + internal_count=N
+            | CalcNextUpdateTime
+            v
+      unrestricted update event
+            | deserialize / copy
+            v
+abstract state message + context_count=N
+```
+
+输出端口只依赖 Context state，而不直接读取异步槽。这样同一个仿真时刻内反复求值输出会得到一致对象，不会因为网络线程刚好到达而改变结果。这是 Drake 把外部非确定事件转换成系统状态的关键。
+
+`GetInternalMessageCount()` 与 `GetMessageCount(context)` 表达两种事实：前者表示网络侧累计收到多少，后者表示当前 Context 已经采纳多少。二者之差说明存在尚未提交的新消息，但不能直接解释为完整 FIFO 深度，因为 SubscriberSystem 关注的是最近处理消息。
+
+初始化参数 `wait_for_message_on_initialization_timeout` 也有明确取舍：小于等于零时只复制已经到达的消息，不在初始化期间等待；大于零时会 pump LCM 直到收到至少一条或墙上时钟超时。把它设为无限等待会让缺少硬件发布者的仿真永远无法初始化，因此生产程序应给有限 deadline 和安全默认值。
+
+### 初始值与陈旧命令
+
+默认构造的 LCM message 可能全零，但“全零”未必是合法安全命令。Receiver System 应同时输出或内部保存有效位、message count 和源时间戳：
+
+```cpp
+struct CommandSnapshot {
+  Eigen::VectorXd value;
+  std::int64_t sequence{};
+  double source_time{};
+  bool valid{};
+};
+```
+
+控制器在 `valid == false` 或数据年龄超过 timeout 时进入安全状态，而不是把 value-initialized message 当成真实零目标。仿真时间与消息中的设备时间属于不同时钟域；需要先定义偏移/同步策略，不能直接相减。
+
+## Publisher 的采样策略
+
+`LcmPublisherSystem` 可按固定 publish period 读取输入并编码。Allegro 示例给发布器传入 `kLcmPeriod`，使状态输出频率成为模型参数。若每个内部积分步都发布，网络和编码会把仿真速度绑死。
+
+发布周期与 MultibodyPlant 的离散更新周期不是同一个概念。Plant 可以以更细步长求解动力学，LCM 只按较粗周期输出可观测状态。把二者强制设为相同会让外部监控频率反向决定物理求解精度。
+
+`LcmPublisherSystem` 支持初始化一次发布、per-step、periodic 和 forced publish。周期构造参数还包含 offset，用于把多个 channel 的发送相位错开。[LcmPublisherSystem API](https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1lcm_1_1_lcm_publisher_system.html)
+
+| Trigger | 适合用途 | 风险 |
+|---|---|---|
+| initialization | 发布静态模型/配置 | 重启消费者可能错过一次性消息 |
+| periodic | 状态与传感器流 | 最多一个周期采样等待 |
+| per-step | 调试每一步内部状态 | 自适应积分时流量不可预测 |
+| forced | 测试或显式快照 | 调用方负责时机与线程 |
+
+Publisher 在事件触发时求值输入端口、用 serializer 编码，再调用共享 `DrakeLcmInterface::Publish`。输入值若计算昂贵，发布事件会把这部分求值成本计入仿真推进；网络发送若阻塞，也会直接影响墙上运行速度。因此“LCM 发布周期”同时是通信参数和仿真调度参数。
+
+## 类型生成与边界
+
+Drake 的 `lcmt_*` 类型由 LCM schema 生成。系统内部使用强类型 C++ 对象，在 LCM 边缘编码；channel 名和 message type 在 Publisher/Subscriber System 构造时绑定。
+
+schema fingerprint 能发现不兼容，但滚动升级仍需要新类型或桥接。记录日志时要同时保存 Drake 版本和 LCM schema commit。
+
+消息适配器还负责单位、关节顺序和时间戳。`lcmt_allegro_command` 到内部向量的转换不能仅复制数组：应验证关节数量、拒绝 NaN/Inf、决定缺失关节的默认值，并把消息时间与仿真时间的关系写清楚。网络时间戳不能自动成为仿真事件时间。
+
+### Serializer 是变化隔离层
+
+非模板构造函数接收 `shared_ptr<const SerializerInterface>`；模板 `Make<LcmMessage>` 只是为具体生成类型创建 serializer 的便利工厂。这让 `LcmSubscriberSystem` 的状态机不需要为每种 `lcmt_*` 类型重新实现。
+
+```text
+bytes <-> SerializerInterface <-> AbstractValue(LcmMessage)
+                                    |
+                                Drake port/state
+```
+
+`shared_ptr<const ...>` 表示多个 System 可以共享不可变 serializer，引用计数管理寿命，`const` 限制并发调用时修改配置。它不自动证明 serializer 内部线程安全；真正实现仍应是无状态或自行同步。
+
+如果自定义消息适配器在 decode 中分配超大数组，恶意或损坏长度仍可能耗尽内存。生成代码的 fingerprint 检查之后，还要做业务最大长度、数值范围和单位验证。
+
+## 多总线配置与依赖注入
+
+大型机器人可能同时有控制 LCM、传感器 LCM 和测试内存总线。Drake 的 `LcmBuses` 用名字映射到 interface，`ApplyLcmBusConfig` 可按配置为每条总线向 DiagramBuilder 加入 InterfaceSystem；返回对象只保存指向 builder 所有系统的别名。[Drake LCM namespace](https://drake.mit.edu/doxygen_cxx/namespacedrake_1_1systems_1_1lcm.html)
+
+```text
+"control" -> LcmInterfaceSystem(udpm://...)
+"sensors" -> LcmInterfaceSystem(udpm://...)
+"test"    -> memory/null interface
+```
+
+业务 driver 按 bus name 查找接口，而不是自行构造 URL。这样部署配置决定 transport，系统拓扑仍能在构建期集中检查。测试可强制注入内存实现；禁用 LCM 时也能使用 null/memq-null 配置，不需要在每个组件散落 `if (use_lcm)`。
+
+## 如何增加自己的 LCM 输入输出
+
+开发一个新设备适配通常分四层：
+
+1. 定义 `.lcm` schema 并生成 C++ 类型；
+2. 编写 Receiver/Encoder System，在 LCM 类型与内部端口类型之间转换；
+3. 在 DiagramBuilder 中创建 Subscriber/Publisher 并连接端口；
+4. 为 channel、发布周期和超时策略提供部署配置。
+
+Receiver 不应顺手执行控制算法。保持转换层纯粹以后，可以直接向 Receiver 输入构造的 LCM message 做单元测试，也可以绕过 LCM 给控制器注入向量。
+
+### 从消息端口写出最小 Receiver
+
+假设生成消息 `lcmt_device_command` 含有关节数组和源时间戳，Receiver 的职责只是验证并转换成框架内部向量。下面是结构等价的教学骨架，不是 Drake 仓库的逐字源码：
+
+```cpp
+class DeviceCommandReceiver final : public drake::systems::LeafSystem<double> {
+ public:
+  explicit DeviceCommandReceiver(int joint_count)
+      : joint_count_(joint_count) {
+    // 端口携带的不是裸 bytes，而是一个类型化 abstract value。
+    input_ = &this->DeclareAbstractInputPort(
+        "command", drake::Value<lcmt_device_command>{});
+
+    // 输出是控制图熟悉的定长向量，不再泄漏 LCM 类型。
+    output_ = &this->DeclareVectorOutputPort(
+        "desired_position", joint_count_,
+        &DeviceCommandReceiver::CalcDesiredPosition);
+  }
+
+ private:
+  void CalcDesiredPosition(
+      const drake::systems::Context<double>& context,
+      drake::systems::BasicVector<double>* output) const {
+    const auto& message = input_->Eval<lcmt_device_command>(context);
+    if (message.joint_position.size() !=
+        static_cast<std::size_t>(joint_count_)) {
+      throw std::runtime_error("joint count does not match model");
+    }
+    Eigen::VectorXd value(joint_count_);
+    for (int i = 0; i < joint_count_; ++i) {
+      value[i] = message.joint_position[i];
+      if (!std::isfinite(value[i])) {
+        throw std::runtime_error("command contains NaN or Inf");
+      }
+    }
+    output->SetFromVector(value);
+  }
+
+  int joint_count_{};  // 构造后不变的系统配置
+  const drake::systems::InputPort<double>* input_{};   // 非拥有别名
+  const drake::systems::OutputPort<double>* output_{}; // 非拥有别名
+};
+```
+
+`DeclareAbstractInputPort` 用 `Value<lcmt_device_command>` 建立运行时类型标签；连接时 Drake 可以检查端口类别，求值时 `Eval<T>` 再检查具体类型。它比 `void*` 安全，但消息字段是否合理仍由适配器验证。`DeclareVectorOutputPort` 注册的是一个延迟求值函数：只有下游需要该端口时，框架才调用 `CalcDesiredPosition`。因此计算函数必须是逻辑上的纯函数，不能在一次求值中悄悄递增计数或消费消息，否则缓存重算会改变系统行为。
+
+两个端口指针只是 `LeafSystem` 内部端口对象的非拥有别名。端口由基类管理，Receiver 不应 `delete`，也不应把指针暴露给寿命超过 System 的对象。`joint_count_` 则是模型拓扑的一部分；若运行时命令可以改变自由度，就不能继续使用固定尺寸向量端口，而要重新设计类型或重建 Diagram。
+
+### 将有效性和超时建模为状态，而非临时判断
+
+上面的组合输出适合无状态演示，但工业控制还需要“最后一个有效命令”和“何时失效”。这时 Receiver 应声明离散状态，并用周期事件提交快照：
+
+```text
+abstract input: lcmt_device_command
+periodic unrestricted/discrete update:
+  validate -> write desired_position, source_time, sequence, valid
+vector output:
+  read only committed state
+timeout output/status:
+  compare simulation time with accepted_at_sim_time
+```
+
+把验证放在 update 中意味着错误命令不会在任意一次端口求值时突然抛出；状态更新点成为唯一提交边界。需要区分至少三个时间：消息携带的设备源时间、LCM 被本进程接收的墙上时间、Context 接纳消息的仿真时间。控制超时若目的是“仿真多久没有采纳新命令”，应使用最后一项；硬件健康监控则通常还要检查前两项。
+
+状态中保存 `sequence` 而不仅是向量，可以检测重复和倒序。若协议没有 sequence，可使用 Subscriber 的 message count 判断本进程是否看到了新消息，但它不能代替跨进程序号：发布者重启、日志回放和转发桥都会改变二者含义。
+
+### Encoder 与 Publisher 保持两段式
+
+输出方向也应分成纯转换和副作用：
+
+```text
+plant/controller typed ports
+  -> DeviceStatusEncoder::CalcOutput
+       组装 lcmt_device_status，设置单位、顺序、时间戳
+  -> LcmPublisherSystem
+       在 trigger 到来时 serialize + Publish(channel)
+```
+
+Encoder 是普通 `LeafSystem`，输出 `Value<lcmt_device_status>`；Publisher 是唯一知道 channel 与 transport 的对象。这样一个状态消息可以同时连接真实 Publisher、日志记录器和断言系统，而无需让 Encoder 发送三次。反过来，若 Encoder 内部直接 `lcm.Publish`，一次输出端口重算可能产生重复网络副作用，仿真回滚或自动微分求值也会变得不可预测。
+
+### 在 DiagramBuilder 中完成所有权与连线
+
+```cpp
+auto* lcm = builder.AddSystem<drake::systems::lcm::LcmInterfaceSystem>();
+auto* subscriber = builder.AddSystem(
+    drake::systems::lcm::LcmSubscriberSystem::Make<lcmt_device_command>(
+        "DEVICE_COMMAND", lcm));
+auto* receiver = builder.AddSystem<DeviceCommandReceiver>(joint_count);
+
+builder.Connect(subscriber->get_output_port(), receiver->get_input_port());
+builder.Connect(receiver->get_output_port(), controller->get_input_port());
+```
+
+这里存在三种不同所有权：Builder 拥有所有 System；Publisher/Subscriber 借用 `LcmInterfaceSystem`；局部变量只是指向 Builder 所有对象的别名。`Build()` 后，Builder 把系统树移交给 Diagram，端口拓扑不可随意改变。不要用 `unique_ptr` 同时保存已经交给 Builder 的 System，也不要让 interface 比引用它的收发系统更早销毁。
+
+如果 LCM interface 由外部进程级容器拥有，构造 `LcmInterfaceSystem` 时可以传入借用指针，但应用必须用明确的成员声明顺序保证逆序析构正确：外部 LCM 对象先构造、最后析构；Diagram 后构造、先析构。C++ 成员按声明逆序销毁，不按构造函数初始化列表的视觉顺序销毁。
+
+### 从空目录到可运行设备桥的实现顺序
+
+1. 固定 `.lcm` schema、单位、数组上限、sequence 与时间戳定义，生成类型后先把 fingerprint 当作协议版本边界。
+2. 写无状态 Receiver/Encoder，只处理类型转换与数值验证，在 Diagram 中用常量源和捕获器连通端口。
+3. 接入 `LcmSubscriberSystem` 和内存 interface，确认 pump、Context 提交与端口求值是三件不同的事。
+4. 加入有效位、最后接纳时间和安全默认状态，再决定 latest-value 还是 bounded-event-queue。
+5. 接入 `LcmPublisherSystem`，独立选择 plant step、command sample 和 status publish 三个周期。
+6. 最后替换成真实 LCM URL，并把 channel、bus name、period、offset、timeout 放入部署配置。
+
+这条顺序先稳定类型和时间语义，再引入网络。真正可复刻的最小闭环不是“收到了字符串”，而是同一套 Receiver/Controller/Encoder 在内存总线、真实 LCM 和日志回放下保持相同的端口与调度语义。
+
+## 测试边界
+
+测试可注入 `DrakeLcmInterface` 的内存实现，发布一条命令后推进仿真至采样点，检查 Receiver 的离散状态；随后推进至发布事件，解码捕获的状态消息。还应覆盖错误长度、旧时间戳、从未收到命令、连续多消息只取最新以及 Diagram 关闭时仍有接收活动。
+
+不要用“睡眠若干毫秒后检查”验证仿真逻辑。测试应显式推进 Simulator 的仿真时间，这正是把通信建模为 System 后获得的确定性。
+
+### 一条可重复测试
+
+```text
+1. 用内存 DrakeLcmInterface 创建 Diagram
+2. 发布 sequence=10 的 command
+3. 只 pump interface，不推进 Simulator：Context 输出仍为旧值
+4. AdvanceTo(采样边界)：Context count 与 command 更新
+5. AdvanceTo(status publish event)：捕获并解码 status
+6. 再发布 11、12，验证 latest 或队列策略
+7. 超过命令 timeout，验证安全输出
+```
+
+这个测试明确区分 transport 接收、Context 提交和周期发布三个事件。若三者用 wall-clock sleep 混在一起，失败时无法判断是网络未到、Simulator 未推进还是发布事件尚未发生。
+
+## 日志回放进入仿真时钟
+
+Drake 还提供 `DrakeLcmLog` 与 `LcmLogPlaybackSystem`。后者根据 Context 中的仿真时间推进日志游标，而不是让一个独立 wall-clock player 随机向仿真灌数据。官方 message-passing 命名空间把它与 Publisher/Subscriber 放在同一组抽象中。[Drake message passing](https://drake.mit.edu/doxygen_cxx/group__message__passing.html)
+
+```text
+log timestamp
+  -> playback system 计算下一个日志事件的 simulation time
+  -> Simulator 截断积分步到该时间
+  -> log interface 交付消息
+  -> Subscriber unrestricted update
+```
+
+这样同一日志在尽快仿真、慢速调试或批量回归中仍保持相同的仿真时间顺序。日志只保存曾被记录的 wire payload；Drake 二进制、schema、Diagram 配置和随机种子仍要另行归档。
+
+## 数据结构与性能
+
+最新消息槽的空间为 `O(message_size)`，读取为 `O(message_size)` 解码/复制；队列方案的空间为 `O(capacity × message_size)`。Publisher 的编码成本与字段和数组长度近似线性相关。总体端到端延迟由网络到达、下一次采样等待、系统计算和下一次发布等待共同组成。
+
+多个 LCM 系统共享 `LcmInterfaceSystem`，避免每个 Diagram node 建立独立底层实例。代价是接收处理和 channel dispatch 共享资源；高流量 channel 需要测量是否拖慢其他订阅。
+
+更完整的延迟分解为：
+
+```text
+L = network arrival
+  + wait until interface pump
+  + wait until Subscriber update event
+  + adapter validation/conversion
+  + controller/plant computation
+  + wait until Publisher trigger
+  + encode + provider send
+```
+
+仿真时间延迟和墙上时间延迟要分开报告。Simulator 可以比实时更快或更慢；消息在 2 ms 仿真时间内传播，并不保证墙上只经过 2 ms。与真实硬件闭环时才需要 pacing，把仿真时间和 wall clock 关系纳入控制。
+
+## 设计取舍
+
+把通信变成 System 增加了适配类和 Context 状态，却换来仿真/硬件一致接口、可测试性和明确采样时刻。最新消息缓存适合控制设定值，但会跳过中间命令；若每条事件都重要，需要队列型系统和明确容量。
+
+另一个取舍是类型绑定：模板化 Publisher/Subscriber 提供强类型和生成代码便利，但 schema 演进需要重新构建。对稳定机器人接口这是可接受的；对动态消息浏览器，则需要额外的反射或原始字节工具。
+
+## 可复用架构
+
+在自己的机器人框架中，可将中间件限制在 ingress/egress adapter：接收器把异步消息转成时间戳快照或有界事件队列，核心计算图只消费类型化端口，发布器按系统时钟采样。这比在算法类内部创建 LCM 实例更容易测试和替换 transport。
+
+最小复刻可以先实现三个 System：`LatestMessageSubscriber<T>`、`MessageToVector<T>` 和 `PeriodicPublisher<T>`。当它们能在虚拟时间测试中证明采样时刻、初始值、超时和关闭语义，再接入真实 LCM provider。这样中间件故障与动力学模型错误不会在第一天就混为一体。

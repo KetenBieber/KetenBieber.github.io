@@ -1,0 +1,260 @@
+# 订阅与分发：正则缓存、队列配额和回调期删除
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Provider 交给核心层的是一条完整消息：channel、payload 视图和接收时间。核心层随后要决定哪些 subscription 能看见它、哪些订阅已经积压过多，以及 callback 执行期间取消订阅是否安全。
+
+这些逻辑集中在 [`lcm.c`](https://github.com/lcm-proj/lcm/blob/ad0c54cee0ec048ef12357c34349ec1443158864/lcm/lcm.c)。它展示了一个小型事件分发器必须处理的三个问题：匹配成本、过载隔离和可重入生命周期。
+
+## subscription 的状态
+
+```c
+struct _lcm_subscription_t {
+    char *channel;
+    lcm_msg_handler_t handler;
+    void *userdata;
+    lcm_t *lcm;
+    GRegex *regex;
+
+    int callback_scheduled;
+    int marked_for_deletion;
+
+    int max_num_queued_messages;
+    int num_queued_messages;
+};
+```
+
+前半部分描述匹配与调用，后半部分描述生命周期和背压。`userdata` 是 C API 的依赖注入方式：框架原样保存，在调用 handler 时传回，常用于指向 C++ 对象或应用状态。
+
+userdata 的寿命由调用者负责。LCM 不知道它指向栈、堆还是静态对象；在 unsubscribe 完成前释放 userdata 会产生悬空指针。
+
+## 两级订阅容器
+
+`lcm_t` 同时维护：
+
+```text
+handlers_all:  [subscription*, ...]
+handlers_map:  actual channel -> [matching subscription*, ...]
+```
+
+`handlers_all` 是权威集合。`handlers_map` 是按已经出现过的具体 channel 建立的匹配缓存。
+
+例如订阅：
+
+```text
+"POSE_.*"
+"POSE_FRONT"
+"LIDAR_.*"
+```
+
+第一次收到 `POSE_FRONT` 时，核心遍历全部 subscription 做 regex match，并缓存两个结果。后续同名消息直接查询 hash table。
+
+这避免每条消息都执行所有正则，但缓存大小随实际出现过的 channel 名数量增长。若外部可以发送无限随机 channel，必须考虑 channel cache 的内存上界。
+
+## subscribe 的装配顺序
+
+`lcm_subscribe()` 先通知 provider，再分配核心 subscription：
+
+```text
+provider->subscribe(channel)
+  -> allocate subscription
+  -> duplicate channel
+  -> compile ^pattern$
+  -> append handlers_all
+  -> update all existing handlers_map entries
+```
+
+正则通过 `^` 与 `$` 锚定，确保匹配整个 channel。调用者传入的 channel 字符串本身可以包含正则语法。
+
+provider subscribe 成功、但后续正则编译失败时，需要对应的 provider rollback。任何跨两层的装配都应检查这种部分成功路径；否则远端或 provider 内部可能保留没有核心 handler 的订阅。
+
+## 新订阅反向更新缓存
+
+如果 `handlers_map` 已缓存 `POSE_FRONT`，之后新增 `POSE_.*` 订阅，不能等下一次 channel 首见才更新。代码遍历 map，对所有已知 channel 检查新 regex 并追加匹配项。
+
+因此复杂度分配为：
+
+```text
+subscribe: O(number of known concrete channels)
+first message of new channel: O(number of subscriptions)
+steady message dispatch: O(1) lookup + O(matches)
+```
+
+这是典型的读多写少优化。机器人数据面消息远多于运行期 subscribe 操作时，代价分配合理。
+
+## lcm_try_enqueue_message 只预留资格
+
+Provider 完整接收一条消息后，先调用：
+
+```c
+int lcm_try_enqueue_message(lcm_t *lcm,
+                            const char *channel)
+```
+
+它遍历匹配 handler：
+
+```c
+if (sub->num_queued_messages < sub->max_num_queued_messages ||
+    sub->max_num_queued_messages <= 0) {
+    sub->num_queued_messages++;
+    keepers++;
+}
+```
+
+若 `keepers == 0`，provider 立即丢弃 payload。若至少有一个订阅者有容量，provider 只保存一份完整消息。
+
+这不是传统的“每 subscription 一条 payload queue”。`num_queued_messages` 是资格计数，实际 buffer 位于 provider 的全局 FIFO。分发到该消息时，只调用计数仍大于零的 handler。
+
+## 单副本与订阅者隔离的折中
+
+一份 payload 对多个 handler 的设计节省内存：
+
+```text
+one MessageBuffer
+  +-> subscription A pending count
+  +-> subscription B pending count
+  `-> subscription C full, no count increment
+```
+
+但全局 FIFO 仍意味着 handler 执行顺序串行。A 很慢时，B 即使有独立配额，也要等待 A callback 返回。
+
+配额隔离的是“为某订阅者保留多少历史”，不是 CPU 执行隔离。需要并行时，callback 应快速转交到应用自有队列；转交时必须复制或 decode，因为 provider payload 在 handle 返回后失效。
+
+## dispatch 前冻结迭代边界
+
+`lcm_dispatch_handlers()` 取得当前匹配数组，并保存初始长度：
+
+```c
+int nhandlers = handlers->len;
+for (int i = 0; i < nhandlers; ++i)
+    handlers[i]->callback_scheduled = 1;
+```
+
+固定 `nhandlers` 保证 callback 中新增的订阅不会突然参与当前消息。新订阅从下一条消息开始生效，事件边界可预测。
+
+`callback_scheduled` 表示这批迭代仍持有 subscription 裸指针。它不是“当前正在调用”单一 handler，而是整批 handler 的生命保护标记。
+
+## 用户 callback 在核心锁外执行
+
+分发循环为：
+
+```c
+if (!sub->marked_for_deletion &&
+    sub->num_queued_messages > 0) {
+    sub->num_queued_messages--;
+    g_rec_mutex_unlock(&lcm->mutex);
+    sub->handler(buf, channel, sub->userdata);
+    g_rec_mutex_lock(&lcm->mutex);
+}
+```
+
+先减少 pending count，再释放锁，随后调用未知用户代码。这样 callback 可以 publish 或 unsubscribe，也不会让网络线程在全局订阅锁上等待整个算法计算。
+
+锁外 callback 同时意味着重新加锁后所有共享状态都可能变化。循环不能假设 map、订阅标记或全局列表仍保持调用前状态，只能依赖预先冻结的数组元素生命周期。
+
+## callback 内 unsubscribe 使用延迟删除
+
+如果 handler 在自身 callback 中调用 unsubscribe，立即从数组删除并 free 会让 dispatch 循环持有悬空指针。LCM 检查：
+
+```c
+if (subscription->callback_scheduled) {
+    subscription->marked_for_deletion = 1;
+    return success;
+}
+```
+
+当前批次结束后，dispatch 清除 scheduled 标记，收集 marked subscription，再统一从 `handlers_all` 和所有 channel cache 删除并 free。
+
+这是 deferred reclamation：逻辑删除立即生效，物理回收推迟到已知没有迭代者的安全点。
+
+C++ 中可以用 `shared_ptr<Subscription>` 简化对象寿命，但仍需要定义“当前消息是否继续调用刚取消的订阅”。内存安全不会自动给出事件语义。
+
+## 取消订阅对当前消息的语义
+
+回调 A 若取消尚未执行的回调 B，B 的 `marked_for_deletion` 会变为 true。dispatch 到 B 时检查标记并跳过。
+
+因此取消可以影响同一条消息中排在后面的 handler。实际顺序来自匹配数组插入顺序，不应被业务当作强协议保证。
+
+需要事务式 fan-out 的系统可以先对 handler 强引用快照，再规定当前消息一定投递给快照中的全部订阅；LCM 选择了更直接的即时逻辑删除。
+
+## handle_mutex 与递归限制
+
+同一 `lcm_t` 的所有 `handle()` 由 `handle_mutex` 串行化。另有 `in_handle` 断言禁止 callback 递归调用 handle。
+
+如果允许递归，内层 handle 可能：
+
+- 处理下一条 provider buffer；
+- 改变 subscription pending count；
+- 删除外层循环仍标记 scheduled 的对象；
+- 让 callback 调用栈深度由消息链无界增长。
+
+禁止递归把事件循环保持为明确的一层。callback 可以 publish，因为发布不进入同一分发状态机。
+
+## 正则与缓存的线程安全
+
+订阅增删、首次 channel 缓存建立、pending count 和删除标记都受 `lcm->mutex` 保护。该锁是递归 mutex，因为内部帮助函数可能在已经持锁时再次进入 `lcm_get_handlers()`。
+
+递归锁降低函数组合难度，却也可能掩盖层次不清和意外重入。自行实现时可以采用非递归 mutex，并明确区分：
+
+```text
+GetHandlers()        // acquires lock
+GetHandlersLocked()  // caller already owns lock
+```
+
+这样锁契约更容易静态审查，也能发现同线程重复获取导致的设计问题。
+
+## 队列上限的语义
+
+`max_num_queued_messages <= 0` 表示不设上限。默认值为 30，可按 subscription 修改。
+
+上限为 N 的真实含义是：最多 N 条尚未被该 subscription 消费的 provider 消息为它保留投递资格。达到上限后，新消息对该订阅者被丢弃，旧消息继续等待。
+
+这是 drop-newest 策略，而许多控制系统更希望 drop-oldest、只保留最新状态。LCM 的全局单副本 FIFO 很难为不同订阅者同时执行不同的 payload 淘汰策略；若需要 latest-only，应在 callback 后的应用队列中实现覆盖槽。
+
+## 分发复杂度
+
+已知 channel 的单条消息成本近似为：
+
+```text
+O(1) hash lookup
++ O(H) pending-count admission
++ O(H) callback scan
++ sum(callback execution time)
+```
+
+其中 H 是匹配 subscription 数。两次 O(H) 通常远小于业务 callback，但大量通配订阅会扩大每条消息成本。
+
+全局 mutex 在 admission 和 dispatch bookkeeping 阶段竞争。callback 在锁外，因此锁持有时间不直接包含业务 WCET。
+
+## 可复刻的数据结构
+
+```cpp
+struct Subscription {
+  Regex pattern;
+  Callback callback;
+  std::size_t pending = 0;
+  std::size_t limit = 30;
+  bool dispatching = false;
+  bool remove_requested = false;
+};
+
+class SubscriptionIndex {
+  std::vector<std::shared_ptr<Subscription>> all_;
+  std::unordered_map<std::string,
+      std::vector<std::weak_ptr<Subscription>>> cache_;
+};
+```
+
+使用 weak pointer 的 channel cache 可避免缓存反向延长已取消订阅寿命。dispatch 先锁定一组 shared pointer 快照，再释放 index mutex 执行 callback。
+
+仍需单独实现 pending quota，因为 shared pointer 只解决内存寿命，不解决过载策略。
+
+## 分发层的设计结论
+
+LCM 订阅层通过两级索引把正则成本移到首次 channel 和订阅变更，通过每订阅者计数限制积压，再用锁外 callback 与延迟删除解决可重入生命周期。
+
+最值得复用的不是 GLib 容器，而是四条规则：权威集合与热路径缓存分离；payload 单副本但配额按订阅者统计；永不持内部锁调用用户代码；取消订阅的逻辑生效与物理回收分开处理。

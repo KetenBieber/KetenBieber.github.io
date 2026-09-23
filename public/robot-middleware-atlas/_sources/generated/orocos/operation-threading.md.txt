@@ -1,0 +1,203 @@
+# Operation 线程模型：ClientThread、OwnThread 与消息执行
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Operation 看起来像普通成员函数，但 RTT 允许调用发生在调用者线程，也允许把调用封送到组件 Activity。这个选择直接决定并发安全、返回延迟和优先级传播。
+
+源码入口：[`Operation.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/Operation.hpp)、[`OperationCaller.hpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/OperationCaller.hpp) 与 [`ExecutionEngine.cpp`](https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ExecutionEngine.cpp)。
+
+## 功能边界：Operation 是命令，不是持续数据流
+
+Port 表达连续数据关系，Operation 表达一次带参数、结果和执行线程选择的命令。配置、查询、模式切换与短事务适合 Operation；高频传感器样本不应包装成每样本一次远程函数调用。
+
+```text
+Operation declaration
+  = name + signature + callable target + execution policy + documentation
+
+Operation invocation
+  = arguments + completion state + Engine + cancellation outcome
+```
+
+选择 OwnThread 后，调用不再具有普通 C++ 函数的时间与引用语义：参数可能排队，目标可能先停止，结果可能稍后收集。这些都是接口契约的一部分。
+
+## 声明把函数与执行策略绑定
+
+组件可暴露 Operation：
+
+```cpp
+addOperation("setMode", &Controller::setMode, this, RTT::OwnThread)
+    .doc("Change controller mode")
+    .arg("mode", "New operating mode");
+```
+
+注册记录至少包含名字、类型信息、目标可调用对象和 ExecutionThread。调用者通过 `OperationCaller<R(Args...)>` 获得类型化代理，代理并不保证最终是一次直接 C++ 调用。
+
+成员函数指针 `&Controller::setMode` 不包含对象地址，因此注册还传入 `this`。绑定后的可调用对象概念上近似：
+
+```cpp
+auto callable = [this](Mode mode) -> bool {
+  return this->setMode(mode);
+};
+```
+
+这里捕获的是裸 `this`。Operation registry 与 Engine 队列必须在 Controller 析构前停止并清空；成员函数指针不会自动拥有对象。动态部署按字符串找到 Operation 后仍要校验完整签名，不能只比较名字和参数数量。
+
+## ClientThread 是借用调用者的栈
+
+ClientThread 路径近似：
+
+```text
+caller thread
+  -> OperationCaller::operator()
+  -> invoke stored callable
+  -> result returns on same stack
+```
+
+它没有队列延迟，异常和返回值也沿普通调用栈传播。但目标组件必须能承受任意调用者并发进入。若 `updateHook` 同时访问同一成员，组件需要原子变量、锁或不可变快照。
+
+适合 ClientThread 的 Operation 通常是纯函数、只读快照，或内部已经明确同步的短操作。不能因为“更快”就把修改复杂组件状态的接口全部设为 ClientThread。
+
+## OwnThread 是 Active Object
+
+OwnThread 路径把调用描述成消息：
+
+```text
+caller
+  -> allocate/prepare invocation state
+  -> enqueue to ExecutionEngine
+  -> trigger component Activity
+  -> component thread dequeues
+  -> invoke callable
+  -> publish result / completion
+  -> caller observes result
+```
+
+组件状态只在自己的 Activity 中修改，形成 Active Object 模式。并发调用被串行化，但返回时间包含排队、唤醒和前序工作时间。
+
+若高优先级线程同步等待低优先级组件 Activity，就发生优先级反转。实时路径应避免无界等待，可使用异步发送、超时，或让目标 Activity 具有合适优先级。
+
+## 同步调用与异步 Send 共享执行实体
+
+同步调用需要等待结果；异步发送先返回 SendHandle，再查询完成：
+
+```cpp
+auto handle = op.send(argument);
+// 调用方继续工作
+if (handle.collectIfDone(result) == RTT::SendSuccess) {
+    use(result);
+}
+```
+
+异步并没有消除工作，只把等待从调用栈变成显式状态对象。SendHandle 必须拥有参数存储、结果槽和完成状态；ExecutionEngine 完成消息后唤醒或标记它。
+
+复刻时应定义调用方提前销毁 handle、组件关闭、Operation 被移除和执行中抛异常时，谁释放 invocation state。共享状态可用 `shared_ptr<CallState>`，但要防止 Engine 队列和 caller handle 形成回环引用。
+
+## 参数生命周期必须跨越排队时间
+
+直接调用时引用参数只需活到函数返回；OwnThread 消息可能晚得多才执行。下面的设计危险：
+
+```cpp
+const Command& local = make_command();
+op.send(local); // 若消息只保存地址，local 先析构
+```
+
+消息层必须复制/移动值，或明确要求共享所有权。复制大对象会造成延迟和分配；共享指针降低复制，却把可变性和生命周期暴露给两条线程。实时接口应优先使用固定容量、移动成本明确的参数类型。
+
+## Engine 队列需要有界与公平策略
+
+若 OwnThread 消息无限排队，调用者可以耗尽内存。若一次周期 drain 全部消息，`updateHook` 可能饥饿。实现应明确：
+
+- 最大在途调用数；
+- 满队列时同步调用是阻塞、失败还是超时；
+- 每次 step 最多执行多少 Operation；
+- stop/error 状态是否拒绝新调用；
+- 高低优先级 Operation 是否分队列。
+
+一个简单的有界策略是每周期最多执行 `B` 个消息。排队上界近似为 `ceil(N/B) × T`，其中 `N` 是前方消息数、`T` 是组件周期；仍需加上每批业务执行时间。
+
+## 关闭时先拒绝新调用再清队列
+
+关闭协议应按顺序执行：
+
+```text
+accepting = false
+  -> 新 Operation 返回 ComponentStopped
+  -> 已排队调用按策略完成或取消
+  -> 唤醒所有同步等待者
+  -> Activity join
+  -> 释放 Operation registry 与 CallState
+```
+
+只清空队列但不完成 waiting state，会让同步调用者永久等待。取消也必须是一个可观察结果，不能伪装成默认返回值。
+
+## 可迁移的设计判断
+
+Operation 的本质是“带线程亲和性的命令”。在其他框架中复刻时，应让线程策略出现在接口声明或类型中，而不是埋在实现注释。只要一个方法可能跨线程排队，它的参数所有权、取消、超时和关闭结果就是公开契约的一部分。
+
+## ClientThread 的优先级和返回值边界
+
+ClientThread 会继承调用者执行上下文。低优先级调用者运行关键组件逻辑时仍是低优先级；高优先级调用者进入带普通 mutex 的组件又可能等待低优先级持锁者。没有队列不等于没有调度风险。
+
+只读 Operation 也不应返回内部容器引用。调用返回后 updateHook 可能修改或释放容器；应返回值副本、不可变共享快照，或由调用方提供容量明确的输出缓冲。
+
+## OwnThread 自调用与死锁
+
+若组件 Activity 正在 updateHook 内同步调用同一 Engine 的 OwnThread Operation，并等待结果，新命令只有当前线程继续处理 Engine 才能执行，于是自死锁。
+
+框架可以检测当前执行线程后直接调用，也可以拒绝同步自调用。直接执行会改变排队排序语义；更容易推理的组件设计是内部调用私有普通函数，Operation 只作为外部入口。
+
+高优先级线程同步等待低优先级 OwnThread 同样会发生优先级反转。需要 timeout、异步 send、合适 Activity priority，或重新设计调用方向。
+
+## CallState 的 C++ 内存与状态语义
+
+```text
+Created -> Queued -> Running -> Completed
+             |          |
+             `-------> Cancelled
+             `-------> ComponentStopped
+Running --exception--> Failed
+```
+
+只有第一个终结路径能写结果并唤醒等待者。可用 mutex + condition variable，或用 release 发布结果、acquire 观察完成；否则调用者可能先看见 done，再读到尚未同步的结果对象。
+
+SendHandle 析构通常只放弃观察，不应悄悄强杀运行中的函数。需要取消时，CallState 保存共享 stop token，目标函数在安全点协作检查。任意 C++ 函数无法被安全异步终止。
+
+Engine 队列和 caller handle 可共同持有 `shared_ptr<CallState>`，但 CallState callback 不能反向强持有 Engine 形成环。终结后应释放参数与 callable 捕获的大对象。
+
+## 参数类别决定跨线程安全
+
+OwnThread 更适合值参数和拥有型返回值。异步 `T& output` 无法保证调用者栈在稍后执行时仍存在。大只读输入可用 `shared_ptr<const T>`，但调用者必须接受对象寿命延长和引用计数成本。
+
+移动 vector 能转移缓冲区，避免深复制；接口应要求显式 `std::move`，让调用者知道源对象内容不再可靠。固定容量类型更适合实时命令，因为复制/移动与内存上界可分析。
+
+## 有界 invocation pool 与公平性
+
+队列节点若每次 `new`，高频 send 会产生运行期分配与碎片。固定容量 pool 给出空间上界；满池时立即失败，或只允许非实时调用者在 deadline 内等待。
+
+单 FIFO 简单，但长 Operation 造成队头阻塞；优先级队列保护紧急命令，又可能饿死管理请求。除了容量，还要限制每 Engine step 的 batch 和每 Operation 的 WCET，避免命令风暴推迟 updateHook。
+
+## 关闭、取消与异常收敛
+
+关闭线程在 Engine 锁内把待取消 CallState 移到局部列表并标记，解锁后再通知等待者。若在锁内完成 callback，callback 重入 Operation/stop 会死锁。
+
+正在 Running 的 Operation 是否允许完成取决于设备安全协议。不能先向调用者报告 cancelled，却让函数继续后台写硬件；需要 cooperative cancel 或等待它退出，再声明组件 Stopped。
+
+ClientThread 异常可沿调用栈传播；OwnThread 异常若逃出 Activity 入口可能终止线程。Engine 必须捕获，将状态置为 Failed，并按策略触发 errorHook。跨进程 transport 只能发送稳定错误码/消息，不能把 C++ 异常对象当 wire contract。
+
+## 设计模式、性能与局限
+
+OperationCaller 是 Proxy，OwnThread invocation 是 Command + Active Object，CallState/SendHandle 类似 Future/Promise。这些模式将线程亲和性从业务函数中剥离。
+
+代价是普通函数外观隐藏排队、参数复制、取消和关闭成本。ClientThread 低延迟但破坏状态串行；OwnThread 保持封装却增加 queue latency、自死锁与优先级反转风险。异步只释放调用线程，不减少目标工作量。
+
+性能应记录 send 分配、队列高水位、排队年龄、Operation WCET、同步等待 p99、取消数量和 updateHook deadline miss，而不只是空队列调用时间。
+
+## 最小复刻顺序
+
+先实现签名固定的直接 callable；加入 `OperationCaller<R(Args...)>` 类型检查；再实现有界 Command 队列和单 Engine worker；随后加入共享 CallState、同步等待与异步 collect；再添加 timeout/cancel/stop；最后实现优先级、部署反射和远程 transport。
+
+验收条件包括：绑定对象不会早于排队调用析构；引用参数不跨队列悬空；自线程同步调用行为明确；满队列不无界分配；异常转为 Failed；关闭唤醒全部等待者；完成/取消恰好一次；batch 上限能保护周期 updateHook。

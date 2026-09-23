@@ -1,0 +1,507 @@
+# 完整消息链：从 Receiver 到 `Component::Proc()`
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+前面的章节已经分别建立了对象装配、有界 ring、Dispatcher/Notifier 与 CRoutine/Scheduler。现在把这些局部机制放回同一条时间线，跟随一枚消息从 transport callback 一直走到 `Component::Proc()`。
+
+如果只看 Cyber RT 暴露给业务层的接口，很容易形成一个过于简单的印象：Reader 收到消息，框架调用 `Component::Proc()`，链路到此结束。本章不再把中间类当成第一次出现的名词，而是检查它们组装后是否形成一条闭合的数据、线程和生命周期路径。
+
+真正决定运行时行为的问题却藏在这句话中间：消息由哪个线程收进来，为什么不会直接在接收线程里执行 `Proc()`，数据存在哪里，谁把协程变成可运行状态，调度器又在什么时候选中它？这些问题会直接决定一次感知—规划—控制链路的排队延迟、抖动和数据年龄。
+
+本文固定在 Apollo 仓库提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，沿正常部署使用的 reality mode 追踪单输入 `Component<M0>`：Reader 建立数据入口，但业务 `func` 不作为 Reader callback 直接执行，而是另建组件 task 交给 Cyber scheduler。为了回答这个问题，真正需要进入的源码空间只有六组目录：`component`、`node`、`transport`、`data`、`croutine` 和 `scheduler`。
+
+## 先把整条链放进脑中
+
+稳定运行时存在两条不同的时间线。数据线负责把消息放进有界缓存，执行线负责让消费该缓存的协程重新获得 CPU：
+
+```text
+transport callback 所在线程
+    |
+    v
+Receiver<M>::OnNewMessage(shared_ptr<M>)
+    |
+    v
+ReceiverManager<M> 注册的 listener
+    |
+    v
+DataDispatcher<M>::Dispatch(channel_id, msg)
+    |                              |
+    | 写入 shared_ptr              | 发布“channel 有新数据”事件
+    v                              v
+CacheBuffer<shared_ptr<M>>    DataNotifier::Notify(channel_id)
+    ^                              |
+    |                              v
+DataVisitor<M>              Scheduler::NotifyProcessor(task_id)
+    |                              |
+    | TryFetch                     | 设置事件位并唤醒 worker
+    +---------------+--------------+
+                    |
+                    v
+              Processor OS 线程
+                    |
+          ProcessorContext::NextRoutine()
+                    |
+              CRoutine::Resume()
+                    |
+       RoutineFactory -> DataVisitor::TryFetch()
+                    |
+       component lambda -> Process() -> Proc()
+```
+
+这张图最重要的不是类名，而是中间的断点：`Dispatch()` 只把数据写进缓存并发事件；`NotifyProcessor()` 也不执行回调。只有某个 `Processor` 线程选中对应 `CRoutine`，协程恢复后再次读取缓存，业务 `Proc()` 才真正开始运行。
+
+Dispatcher 负责把同一对象写入各订阅缓存；DataVisitor 代表某个消费者的私有读取位置；CRoutine 保存可暂停和恢复的执行上下文；Processor 才是承载协程的 OS 线程。前两者属于数据面，后两者属于执行面，DataNotifier 是两者之间的桥。
+
+## 初始化阶段已经把两条消费支路装好了
+
+消息到来之前，`Component<M0>::Initialize()` 已经创建了 Reader、组件自己的 `DataVisitor` 和一个调度任务。关键实现位于 [`cyber/component/component.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component.h#L163-L237)：
+
+```cpp
+std::weak_ptr<Component<M0>> self =
+    std::dynamic_pointer_cast<Component<M0>>(shared_from_this());
+
+auto func = [self, role_attr](const std::shared_ptr<M0>& msg) {
+  auto ptr = self.lock();                 // ① 不让 callback 延长组件寿命
+  if (ptr) {
+    ptr->Process(msg);                    // ② 虚函数入口前还有关闭检查
+  }
+};
+
+if (cyber_likely(is_reality_mode)) {
+  reader = node_->CreateReader<M0>(reader_cfg);  // ③ 不把 func 交给 Reader
+} else {
+  reader = node_->CreateReader<M0>(reader_cfg, func);
+}
+
+readers_.emplace_back(std::move(reader));
+
+data::VisitorConfig conf = {
+    readers_[0]->ChannelId(),
+    readers_[0]->PendingQueueSize()};
+auto dv = std::make_shared<data::DataVisitor<M0>>(conf); // ④ 组件专用缓存视图
+
+croutine::RoutineFactory factory =
+    croutine::CreateRoutineFactory<M0>(func, dv);        // ⑤ 回调和取数器装进协程
+
+return scheduler::Instance()->CreateTask(factory, node_->Name());
+```
+
+`func` 捕获的是 `weak_ptr<Component<M0>>`。如果捕获强引用，调度器持有协程、协程持有闭包、闭包再持有组件，就可能形成让组件无法析构的所有权环。弱引用把关系改成“调度任务可以尝试访问组件，但不拥有组件”。
+
+更容易被忽略的是第 ③ 到第 ⑤ 步。在 reality mode 下，组件创建 Reader 时没有把业务回调传进去，随后却另外创建了组件专用的 `DataVisitor` 和 task。Reader 并未因此变成空壳；它自己的 `Init()` 还会建立另一套 `DataVisitor + CRoutine`。
+
+[`Reader<MessageT>::Init()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader.h#L259-L313) 把 Reader 的队列入口和 transport receiver 连接起来：
+
+```cpp
+if (reader_func_ != nullptr) {
+  func = [this](const std::shared_ptr<MessageT>& msg) {
+    this->Enqueue(msg);                   // 写入 Reader 的 Blocker
+    this->reader_func_(msg);
+  };
+} else {
+  func = [this](const std::shared_ptr<MessageT>& msg) {
+    this->Enqueue(msg);                   // reality mode 仍会执行
+  };
+}
+
+croutine_name_ = role_attr_.node_name() + "_" + role_attr_.channel_name();
+auto dv = std::make_shared<data::DataVisitor<MessageT>>(
+    role_attr_.channel_id(), pending_queue_size_);
+croutine::RoutineFactory factory =
+    croutine::CreateRoutineFactory<MessageT>(std::move(func), dv);
+sched->CreateTask(factory, croutine_name_);
+
+receiver_ = ReceiverManager<MessageT>::Instance()->GetReceiver(role_attr_);
+```
+
+于是，一个单输入组件在正常模式下通常有两条进程内消费支路：
+
+```text
+                            +-> Reader DataVisitor -> Reader task -> Blocker::Publish
+DataDispatcher(channel) ----|
+                            +-> Component DataVisitor -> Component task -> Proc
+```
+
+它们共享同一个 `MessageT` 对象，却各自拥有缓存槽位、读取游标、通知项和调度任务。Reader 支路维持通用 `Reader::Observe()/GetLatestObserved()` 语义，Component 支路负责持续驱动业务计算；任何一方变慢，都不会把另一方尚未读取的数据“消费掉”。代价是每增加一条支路，就多一次 shared pointer 写槽、一次缓存加锁和一个通知项。正因为一个 channel 可以有多份独立缓存，Dispatcher 的 value 才不是“唯一 Reader”，而是一组缓存弱引用。
+
+## Transport Receiver 不是最终回调执行者
+
+同一消息类型和 channel 的多个 Reader 不会各自创建一套底层接收端。模板单例 `ReceiverManager<MessageT>` 用 channel name 去重，并把 transport listener 固定为 `DataDispatcher::Dispatch()`。实现位于 [`cyber/node/reader_base.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader_base.h#L199-L224)：
+
+```cpp
+std::lock_guard<std::mutex> lock(receiver_map_mutex_);
+if (receiver_map_.count(channel_name) == 0) {
+  receiver_map_[channel_name] =
+      transport::Transport::Instance()->CreateReceiver<MessageT>(
+          role_attr,
+          [](const std::shared_ptr<MessageT>& msg,
+             const transport::MessageInfo& msg_info,
+             const proto::RoleAttributes& reader_attr) {
+            data::DataDispatcher<MessageT>::Instance()->Dispatch(
+                reader_attr.channel_id(), msg);
+          });
+}
+return receiver_map_[channel_name];
+```
+
+这一层做了两件事。第一，transport 只需解析一次消息，进程内的多位消费者再共享 `shared_ptr<MessageT>`。第二，Reader 的数量和传输连接的数量被解耦：增加一个进程内订阅者，通常只是向 Dispatcher 注册一只新缓存，而不是重建网络端点。
+
+代价也随之出现。底层 receiver 的角色属性和 QoS 来自第一次创建；后来的同类型同 channel Reader 复用它。阅读配置问题时，不能只看某一个 Reader 的构造参数，还要确认 receiver 是否早已存在。
+
+`Receiver<M>::OnNewMessage()` 本身只是同步调用已保存的 listener。它不创建新线程，也没有隐藏的工作队列。因此，`Dispatch()` 最初运行在哪个线程，取决于消息由哪种 transport 送来。
+
+### INTRA：发送调用栈上的同步扇出
+
+同进程路径中，`IntraReceiver` 把 `OnNewMessage` 注册给 `IntraDispatcher`；`IntraDispatcher::OnMessage()` 随即执行对应 `ListenerHandler::Run()`。正常的同类型路径直接传递原 `shared_ptr<MessageT>`，既不序列化 payload，也不切换到 scheduler worker。
+
+这意味着缓存锁竞争和通知扇出的成本会反映到发送者调用时延上。所谓“进程内零拷贝”只描述 payload 没有被复制，并不表示发送路径没有原子引用计数、mutex、容器遍历和唤醒成本。
+
+### SHM：共享内存接收线程先解析，再进入 Dispatcher
+
+[`ShmDispatcher::Init()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/transport/dispatcher/shm_dispatcher.cc#L220-L224) 创建专用线程。它从 notifier 取得 `(channel_id, block_index)`，定位共享内存 block，再调用已注册 listener。
+
+普通共享内存路径并不是把业务对象地址直接交给组件，而是新建 `MessageT` 并从 block 反序列化。核心代码见 [`shm_dispatcher.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/transport/dispatcher/shm_dispatcher.h#L229-L257)：
+
+```cpp
+auto msg = std::make_shared<MessageT>();
+RETURN_IF(!message::ParseFromArray(
+    rb->buf,
+    static_cast<int>(rb->block->msg_size()),
+    msg.get()));
+
+listener(msg, msg_info);  // 解析、扇出和通知都还在 shm dispatcher 线程
+```
+
+因此普通 SHM 消除了跨进程 socket payload 传输，却没有消除反序列化和对象分配。Arena 分支可以引用共享区内对象，但其 block 读锁与 C++ `shared_ptr` 的寿命不能简单等同：读锁保护的是同步 listener 调用阶段，而 `Proc()` 可能要等 scheduler 稍后才执行。实现依赖更具体的 arena/block 复用约束，不能仅凭接口类型是 `shared_ptr` 就断言数据会一直有效。
+
+### RTPS：listener 线程承担字符串复制和反序列化
+
+Fast RTPS 回调 `SubListener::onNewDataMessage()` 在互斥区内取样，再构造 `std::string`；`RtpsDispatcher` 随后分配 `MessageT` 并调用 `ParseFromString()`。这一段成本发生在 RTPS listener 线程，而非 Cyber 的 Processor 线程。
+
+从控制链看，这一点很实用：即使 `Proc()` 被安排在独立高优先级 worker 上，前面的 RTPS listener 仍可能受到字符串分配、反序列化和其自身 OS 调度的影响。提高 Cyber task priority 不会自动缩短这部分上游时间。
+
+## `DataDispatcher`：按 channel 把一个对象扇出到多只缓存
+
+[`DataDispatcher<T>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_dispatcher.h#L37-L90) 的核心结构很小：
+
+```cpp
+using BufferVector =
+    std::vector<std::weak_ptr<CacheBuffer<std::shared_ptr<T>>>>;
+
+std::mutex buffers_map_mutex_;
+AtomicHashMap<uint64_t, BufferVector> buffers_map_;
+```
+
+key 是 `channel_id`，value 是该 channel 下所有 `DataVisitor` 缓存的弱引用列表。`weak_ptr` 很关键：全局 Dispatcher 可以比 Reader 和 Component 活得更久，但 registry 不应因此延长订阅者寿命。
+
+消息到来时，真正的扇出仍在 [`cyber/data/data_dispatcher.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_dispatcher.h#L37-L90)：
+
+```cpp
+bool Dispatch(const uint64_t channel_id,
+              const std::shared_ptr<T>& msg) {
+  BufferVector* buffers = nullptr;
+  if (!buffers_map_.Get(channel_id, &buffers)) {
+    return false;
+  }
+
+  for (auto& buffer_wptr : *buffers) {
+    if (auto buffer = buffer_wptr.lock()) {
+      std::lock_guard<std::mutex> lock(buffer->Mutex());
+      buffer->Fill(msg);                  // 复制 shared_ptr，不复制 T
+    }
+  }
+
+  return notifier_->Notify(channel_id);   // 数据全部落槽后再发事件
+}
+```
+
+设同一 channel 注册了 `B` 只缓存，这段分发至少是 `O(B)`：逐项锁定弱引用、逐只加锁和写槽。payload 不会被复制，但 `shared_ptr` 控制块的引用计数会变化，多个核心同时处理同一对象时还可能争用那条 cache line。
+
+这里的锁粒度有意放在单只 buffer，而不是整个 channel。这样不同缓存的消费者互不共享读取锁；但 producer 仍串行访问它们，一个慢锁会推迟后续所有 buffer 的写入和通知。对拥有许多 observer 的高频 channel，这一扇出点比 hash lookup 本身更值得关注。
+
+`AtomicHashMap` 使用固定 bucket，避免每次查找都获取全局 map mutex；value 却是可变 `vector`。`AddBuffer()` 在 `buffers_map_mutex_` 下追加，`Dispatch()` 遍历时没有拿同一把锁。这套实现更适合“启动阶段完成注册、稳定阶段只读”的使用方式。若要把它改成支持运行时高频热插拔的 registry，需要 copy-on-write snapshot、读写锁或 RCU 一类明确的并发策略。
+
+另一个长期运行问题是过期弱引用没有在这条路径中被移除。它不会造成对象泄漏，却会让反复创建和销毁 Reader 的进程不断积累空槽，增加每次 `Dispatch()` 的扫描成本。工业实现若允许动态组件重载，应让注册返回可注销 token，或定期压缩列表。
+
+## `CacheBuffer`：有界、覆盖最旧项，而且落后时跳到最新项
+
+`CacheBuffer(size)` 实际分配 `size + 1` 个槽位，用多出的空槽区分满和空。逻辑容量仍是调用者给出的 `size`。关键实现见 [`cyber/data/cache_buffer.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/cache_buffer.h#L29-L94)：
+
+```cpp
+explicit CacheBuffer(uint64_t size) {
+  capacity_ = size + 1;                   // ① 留一格区分 full / empty
+  buffer_.resize(capacity_);
+}
+
+bool Full() const {
+  return capacity_ - 1 == tail_ - head_;  // ② 有效元素上限仍是 size
+}
+
+void Fill(const T& value) {
+  if (fusion_callback_) {
+    fusion_callback_(value);              // ③ 多输入时 M0 可改走融合路径
+  } else if (Full()) {
+    buffer_[GetIndex(head_)] = value;     // ④ 覆盖最旧槽
+    ++head_;
+    ++tail_;
+  } else {
+    buffer_[GetIndex(tail_ + 1)] = value;
+    ++tail_;
+  }
+}
+```
+
+`head_` 和 `tail_` 是单调递增的逻辑序号，真正访问数组时才取模。这比让两个下标直接在 `[0, capacity)` 内回绕更容易判断某个消费者的私有游标是否已经落后。
+
+消费者并不共享一个“弹出即删除”的队头。每个 `DataVisitor` 保存自己的 `next_msg_index_`，`ChannelBuffer::Fetch()` 用它读取底层 ring。[`Fetch()` 的索引修正](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/channel_buffer.h#L57-L77) 决定了慢消费者的真实行为：
+
+```cpp
+if (*index == 0) {
+  *index = buffer_->Tail();               // 第一次只取当前最新项
+} else if (*index == buffer_->Tail() + 1) {
+  return false;                           // 已经追到生产者之后
+} else if (*index < buffer_->Head()) {
+  auto interval = buffer_->Tail() - *index;
+  // log dropped interval
+  *index = buffer_->Tail();               // 历史已被覆盖，直接追到最新项
+}
+m = buffer_->at(*index);                  // 复制一份 shared_ptr
+```
+
+游标是 visitor 私有状态，不是 ring 的共享读指针。第一次读取从当前 `tail_` 开始；正常情况下 `TryFetch()` 每成功一次就把它加一；如果游标已经小于 `head_`，说明对应历史已被覆盖，下一次读取直接推进到 `tail_`。这不是逐条补齐尚未处理的缓存历史（backlog），而是牺牲连续性、尽快追上新数据。
+
+因此它更接近机器人状态流常见的 freshness 语义：内存有界，消费者过慢时丢旧样本。对于里程计、姿态或当前障碍物集合，这通常比处理几十毫秒前的完整队列更合理；对于审计日志、计费或必须逐事件处理的状态机则不合适。
+
+## `DataNotifier` 传的是事件，不是消息
+
+[`DataVisitor<M0>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_visitor.h#L168-L193) 构造时完成两项注册：把自己的 buffer 加入 `DataDispatcher<M0>`，再把 notifier 加入全局 `DataNotifier`。取数时，它只推进自己的游标：
+
+```cpp
+DataVisitor(uint64_t channel_id, uint32_t queue_size)
+    : buffer_(channel_id, new BufferType<M0>(queue_size)) {
+  DataDispatcher<M0>::Instance()->AddBuffer(buffer_);
+  data_notifier_->AddNotifier(buffer_.channel_id(), notifier_);
+}
+
+bool TryFetch(std::shared_ptr<M0>& m0) {
+  if (buffer_.Fetch(&next_msg_index_, m0)) {
+    ++next_msg_index_;
+    return true;
+  }
+  return false;
+}
+```
+
+Notifier 不携带 payload。Dispatcher 已经先把数据写入所有 buffer，然后才按 channel 发通知。多个快速到达的通知可以合并，消费者恢复后依然以 buffer 状态为准。这是一种很有价值的分离：调度器只管理“任务可能有工作”这一事实，不需要把任意消息类型塞进自己的 run queue。
+
+创建 task 时，[`Scheduler::CreateTask()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/scheduler.cc#L42-L69) 把 visitor 的 notify callback 绑定到 task id：
+
+```cpp
+auto cr = std::make_shared<CRoutine>(func);
+cr->set_id(task_id);
+DispatchTask(cr);
+
+if (visitor != nullptr) {
+  visitor->RegisterNotifyCallback([this, task_id]() {
+    if (stop_.load()) {
+      return;
+    }
+    this->NotifyProcessor(task_id);
+  });
+}
+```
+
+于是完整唤醒关系是：
+
+```text
+DataDispatcher::Dispatch(channel)
+  -> DataNotifier::Notify(channel)
+    -> channel 下每个 Notifier callback
+      -> Scheduler::NotifyProcessor(task_id)
+        -> 找到 CRoutine
+        -> SetUpdateFlag()
+        -> 唤醒相应 ProcessorContext 的 condition variable
+```
+
+“通知”到这里仍然没有执行 `Proc()`。它只是让协程从等待态回到可选状态，并使睡眠中的 worker 重新检查 run queue。
+
+## 防止在“检查为空”和“进入休眠”之间丢通知
+
+协程函数由 [`CreateRoutineFactory<M0>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70) 生成。它循环尝试从 visitor 取数据，成功时调用业务函数，失败时让出执行权：
+
+```cpp
+for (;;) {
+  CRoutine::GetCurrentRoutine()->set_state(RoutineState::DATA_WAIT);
+
+  if (dv->TryFetch(msg)) {
+    f(msg);                               // 最终进入 Component::Process
+    CRoutine::Yield(RoutineState::READY); // 可能还有 backlog，继续可运行
+  } else {
+    CRoutine::Yield();                    // 没有数据，保持 DATA_WAIT
+  }
+}
+```
+
+顺序不能随意交换：先把自己标为 `DATA_WAIT`，再检查 buffer。否则可能出现消费者看见空队列，producer 随即写入并通知，但消费者之后才进入等待，导致这次通知无人接住。
+
+Cyber 又用 `CRoutine::updated_` 原子事件闩锁封住这一窗口。producer 侧的 `SetUpdateFlag()` 清除该 flag，表示等待边界上发生了更新；scheduler 扫描 routine 时，[`UpdateState()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h#L176-L207) 用 `test_and_set` 消费这个状态：
+
+```cpp
+if (!updated_.test_and_set(std::memory_order_release)) {
+  if (state_ == RoutineState::DATA_WAIT ||
+      state_ == RoutineState::IO_WAIT) {
+    state_ = RoutineState::READY;
+  }
+}
+```
+
+完整握手由三方完成：consumer 先设 `DATA_WAIT`、再检查 buffer 并 yield；producer 写入 buffer 后调用 `SetUpdateFlag()` 并唤醒 context；scheduler 的 `NextRoutine()` 再调用 `UpdateState()`，把观察到更新的 `DATA_WAIT/IO_WAIT` routine 转为 `READY`。若通知恰好发生在“检查为空”和“真正休眠”之间，flag 仍留下期间发生过更新的信息。
+
+它不是一条消息对应一个计数的 semaphore，而是可合并事件：buffer 的 `head/tail` 保存“有几条数据”，事件闩锁只保证“非空 buffer 最终会被再次检查”。成功处理一条消息后，协程用 `Yield(READY)` 保持可运行，因此即使没有下一次通知，也能继续清理 backlog。
+
+自己实现类似机制时，可以用 event flag，也可以用递增 sequence counter。关键不是选哪个原语，而是维持同一个不变量：只要 buffer 从空变为非空，消费者最终一定会再次检查它；即使多次唤醒被合并，也不能让已有数据永久睡在队列里。
+
+## `Processor` 才是 `Proc()` 所在的 OS 线程
+
+Scheduler 把 `CRoutine` 放入某个 `ProcessorContext` 管理的 run queue，`Processor` 则拥有真正的 OS 线程。[`Processor::Run()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L40-L62) 的主循环非常直接：
+
+```cpp
+while (running_.load()) {
+  auto croutine = context_->NextRoutine();
+  if (croutine) {
+    croutine->Resume();
+    croutine->Release();
+  } else {
+    context_->Wait();
+  }
+}
+```
+
+`Resume()` 切入协程栈，继续运行刚才的 RoutineFactory 循环。`TryFetch()` 取得 `shared_ptr<M0>` 后调用组件闭包，闭包再进入 `Process()`：
+
+```cpp
+bool Component<M0, NullType, NullType, NullType>::Process(
+    const std::shared_ptr<M0>& msg) {
+  if (is_shutdown_.load()) {
+    return true;
+  }
+  return Proc(msg);
+}
+```
+
+至此才能准确回答最初的问题：`Proc()` 通常运行在 Cyber scheduler 创建的 `Processor` OS 线程中，不在 SHM dispatcher、RTPS listener 或 INTRA publisher 的调用栈上。前者负责执行，后者负责生产数据和事件。
+
+这也是 transport 与 scheduler 分层的核心价值。网络接收线程不需要承担不可预测的业务 WCET；组件可以使用统一的 task priority、group、CPU affinity 和调度策略；同一套 `DataVisitor` 还能接入 INTRA、SHM、RTPS 三种上游。
+
+代价是一次消息至少多出缓存写入、事件分发、worker 唤醒、run queue 选择和协程切换。它减少了接收线程被业务阻塞的风险，却没有让延迟凭空消失，而是把延迟变成更容易配置和隔离的几个阶段。
+
+## Classic scheduler 的 priority 不是抢占式实时调度
+
+Classic 策略按优先级从高到低扫描持久化的 routine vector。核心选择逻辑实际位于 [`ClassicContext::NextRoutine()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/classic_context.cc#L52-L73)：
+
+```cpp
+for (int i = MAX_PRIO - 1; i >= 0; --i) {
+  ReadLockGuard<AtomicRWLock> lk(lq_->at(i));
+
+  for (auto& cr : multi_pri_rq_->at(i)) {
+    if (!cr->Acquire()) {
+      continue;
+    }
+    if (cr->UpdateState() == RoutineState::READY) {
+      return cr;
+    }
+    cr->Release();
+  }
+}
+```
+
+这里不是“READY task 被弹出、运行后排到队尾”的典型队列，而是从高优先级 vector 前端反复扫描。选择成本与扫描到目标前经过的 routine 数量相关；同优先级任务也没有从这段代码中得到显式 round-robin 游标。若靠前任务持续保持 READY，靠后任务可能承受额外等待。
+
+尚未开始运行的 routine 受 `NextRoutine()` 的扫描顺序影响；已经进入 `Proc()` 的 routine 则受合作式执行约束。一个 `Proc()` 在返回或主动 yield 之前，同一 Processor 不会因为另一只更高优先级 Cyber task 就强行抢占它。因此需要区分四个层次：
+
+1. 控制业务认为谁更重要；
+2. Cyber run queue 中的 task priority；
+3. Processor OS 线程采用的 policy、priority 和 CPU affinity；
+4. SHM/RTPS 等 transport 线程自己的 OS 调度属性。
+
+只调高第 2 层，不会缩短正在执行的低优先级 `Proc()`，也不会自动提高 transport listener 的优先级。把 Processor 设成 `SCHED_FIFO` 同样不能消除普通 mutex 引起的优先级反转。
+
+Choreography 策略把指定任务绑定到更明确的 Processor，隔离性比共享扫描更直观，但应用仍需约束 callback 的最坏执行时间（WCET）、阻塞行为和内存分配。Cyber 提供的是构建软实时执行拓扑的工具，不是端到端截止时间证明。
+
+多输入版本会在 M0 buffer 上安装 `AllLatest` 融合 callback：M0 触发，其他输入只提供当时的 latest snapshot。这是“主输入到来时采样并保持其他输入最新值”的 sample-and-hold，不是时间同步器；其锁序、tuple 分配和数据年龄需要单独沿多输入链展开。
+
+## 有界内存下的过载与丢数据语义
+
+设 producer 周期为 `Tp`，某个 visitor 的逻辑队列深度为 `P`。消费者没有落后时，它可以按序读取保留窗口；最老样本仅由队列造成的数据年龄上限接近 `(P - 1) * Tp`。一旦落后超过 ring 窗口，下一次 fetch 会追到当前尾部，跳过已覆盖历史。
+
+过载链可以按源码行为写成：
+
+```text
+producer 继续 Dispatch
+  -> ring 满时覆盖最旧 shared_ptr
+  -> 多次通知可以合并
+  -> routine 每处理一条后保持 READY，尝试清 backlog
+  -> visitor 游标落到 head 之前时跳到 tail
+```
+
+所以它的取舍是“有界内存 + producer 通常不等待业务消费者 + 允许丢旧数据”。但 producer 仍可能在 `Dispatch()` 中等待 buffer mutex 和 notifier 扇出；不能把它称为完整的 non-blocking data path。
+
+对于 100 Hz 输入，`P=10` 代表约 90 ms 的历史窗口。若控制器逐条追赶，这些旧状态通常已经失去价值；`P=1` 更接近 keep-last。对于 1 kHz 输入，同样的深度也意味着约 9 个控制周期。队列深度不是单纯的吞吐参数，而是在“保留连续历史”和“保证数据新鲜”之间选择。
+
+端到端 callback 启动时间可以拆成下面这些区段。它们不是固定常数；在不同 transport 和调度策略下，有些区段可能为零、互相重叠或受批处理影响：
+
+```text
+Lstart = Ltransport_decode
+       + Ldispatcher_fanout_and_buffer_locks
+       + Lnotifier_and_scheduler_bookkeeping
+       + Lprocessor_wakeup
+       + Lrunqueue_scan
+       + Lcurrent_nonpreemptive_callback
+       + Lcoroutine_resume
+       + Lvisitor_fetch
+```
+
+闭环完成时间还要再加 `Cproc` 和下游 actuator path。尤其是 `Lcurrent_nonpreemptive_callback`：若同一 Processor 正在执行另一个 2 ms 的 `Proc()`，新到达的高优先级 task 即使已经被唤醒，也可能先承担这段剩余执行时间。RTPS 字符串分配、protobuf 解析、shared pointer 原子计数、mutex 竞争、condition-variable 唤醒、page fault 和 OS 抢占也会形成长尾。协程切换通常比内核线程切换轻，但它无法抵消链路其他部分的不确定性。
+
+## 关闭时，先阻止新业务，再拆接收与任务
+
+[`ComponentBase::Shutdown()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component_base.h#L46-L60) 的拆解顺序与初始化大致成镜像：
+
+```text
+设置 Component shutdown flag
+  -> Clear()
+  -> Reader::Shutdown(): topology / receiver 引用 / Reader task
+  -> 移除 Component task，并等待正在持有执行权的 routine
+  -> DataVisitor 与 CacheBuffer 析构
+  -> Dispatcher 中 weak buffer 仍可能留槽，但 lock() 失败
+```
+
+入口处的 `Process()` 检查使已经排队、但尚未进入业务代码的消息不再调用 `Proc()`。
+
+`Reader::Shutdown()` 退出 topology、释放自己的 receiver/channel manager 引用，并删除 Reader task。task 消失后，其 `DataVisitor` 和缓存可以析构；Dispatcher 中相应 `weak_ptr::lock()` 随后失败，不再向该缓存写数据。
+
+不过 ReceiverManager 还可能长期持有按 channel 共享的 receiver，所以 `reader->receiver_ = nullptr` 不必然立即销毁底层 transport 对象。Notifier registry 也可能保留旧回调；回调使用 task id 查找 scheduler 状态，目标任务不存在时只能返回失败。这些残留项主要带来扫描开销，也说明完整的动态卸载设计需要显式注销，而不能只依赖弱引用兜底。
+
+移除正在运行的 routine 时，scheduler 需要等其 `Acquire()` 执行权释放。若某个 `Proc()` 永不返回，局部 shutdown 也可能被永久拖住。合作式调度把 callback 的终止责任交给业务代码，因此组件实现必须能响应自身停止条件，不能在 `Proc()` 中做无期限阻塞 I/O。
+
+全局 `Scheduler::Shutdown()` 则让各 context 退出等待、逐项移除 routine，再停止并 join Processor 线程。全局 `cyber::IsShutdown()` 与单个组件的 `is_shutdown_` 是两层条件：一个控制进程级数据入口，一个保护局部业务对象，不能混为同一个生命周期开关。
+
+## 从完整消息链提取运行时设计
+
+如果从零实现一个 Cyber-like 最小运行时，最稳妥的顺序不是先造一个庞大 scheduler，而是沿依赖逐层闭合：
+
+先实现固定容量的 `shared_ptr` ring，写清 overwrite-oldest、消费者私有游标和落后时的跳转规则。再用 `ChannelBuffer` 把 channel identity 与存储组合起来，让多个 visitor 能独立消费。
+
+随后实现 `channel_id -> weak buffer list` 的 Dispatcher registry。若系统允许运行中注册和注销，必须从一开始定义 snapshot 或读写同步，而不是假设 vector 永远不变。Notifier 只传事件，不传 payload，并返回可注销句柄。
+
+有了数据面，再实现“设为 WAIT → 检查 buffer → yield”的 consumer loop和防丢唤醒 event latch。`ProcessorContext` 只负责选择 ready routine，`Processor` 只负责 OS 线程上的 select/resume/wait；这种分层让 Classic、绑定式或 deadline-aware 策略能够替换，而业务对象不知道具体 scheduler。
+
+最后再接 Component wrapper 和不同 transport。每接一种 transport，都标清 payload 第一次分配、复制或解析的位置，以及 listener 所在线程。到这一步，系统才真正拥有可解释的端到端延迟链。
+
+Cyber RT 这套设计最值得借鉴的地方，是把“消息是否存在”与“任务何时运行”拆成两个可独立演化的子系统：有界缓存保存事实，可合并事件推动调度。它带来了 transport 隔离、统一调度和新鲜度优先的过载行为；同时也留下弱引用表膨胀、共享 vector 的动态注册边界、持久 run queue 的公平性以及多输入时间一致性等工程代价。
+
+读完源码后，`Component::Proc()` 就不再是一个神秘 callback。它是一次 transport 接收、一次进程内缓存扇出、一次事件传播、一次 worker 唤醒、一次 routine 选择和一次协程恢复共同作用的终点。机器人闭环的可预测性，也正是由这些看似“不属于算法”的细节共同决定的。

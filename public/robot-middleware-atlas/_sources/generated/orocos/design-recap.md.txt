@@ -1,0 +1,200 @@
+# Orocos RTT 设计总结：可复刻的实时组件内核
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+Orocos RTT 把机器人控制软件拆成三个正交平面：TaskContext 管理状态与接口，Activity/ExecutionEngine 管理执行，Port/ChannelElement 管理数据。它的价值不在某个 lock-free 容器，而在这些边界让线程、资源和数据时效能够被逐项审计。
+
+## 完整结构
+
+```text
+Deployment
+  -> TaskContext
+       ├─ TaskCore lifecycle + hooks
+       ├─ Service
+       │    ├─ Operations: ClientThread / OwnThread
+       │    ├─ Properties / Attributes
+       │    └─ child Services / peer requesters
+       ├─ ExecutionEngine (Runnable)
+       │    └─ Activity: periodic / triggered / slave
+       └─ DataFlowInterface
+            ├─ OutputPort<T>
+            └─ ChannelElement chain
+                 ├─ DATA object
+                 ├─ BUFFER / CIRCULAR_BUFFER
+                 └─ transport
+```
+
+## 核心设计模式
+
+- Template Method：基类固定状态转换，派生组件覆盖 hooks；
+- Strategy：Activity、ExecutionThread 和 ConnPolicy 可部署替换；
+- Active Object：OwnThread Operation 通过消息在组件线程串行执行；
+- Chain of Responsibility：ChannelElement 组合端点、存储与 transport；
+- Service Object：Operation、Property 和 Attribute 形成可反射接口；
+- RAII：Activity、channel 与调用状态需要由对象生命周期回收。
+
+## 优点与代价
+
+优点是线程归属显式、生命周期适合设备资源、端口策略区分历史与新鲜度、组件逻辑可在不同 Activity 上复用。ClientThread/OwnThread 让接口能选择低延迟或状态隔离。
+
+代价是 C++ 模板、typekit 和插件体系复杂；实时性依赖用户类型与 OS；状态、Service、Port 的 API 面较大；跨机传输无法继承同进程容器的确定性；旧式 Boost 与插件 ABI 增加现代化成本。
+
+## 最小实现顺序
+
+1. TaskCore 状态枚举、前置条件和 hooks；
+2. Runnable 与可 join 的单线程 PeriodicActivity；
+3. ExecutionEngine，分离 Operation queue、Port callback queue 和 hook；
+4. 类型化 Input/OutputPort 与单向 ChannelElement；
+5. DATA、BUFFER、CIRCULAR_BUFFER 和 FlowStatus；
+6. ClientThread 与 OwnThread Operation、结果状态和取消；
+7. Service registry、Property、Attribute 与 peer；
+8. lock-free 容器、typekit、插件、部署和远程 transport。
+
+先用锁实现正确状态机和容量语义，再替换热点容器。直接从 lock-free 开始，会同时调试内存模型与业务协议。
+
+## C++ 最小接口骨架
+
+```cpp
+class ExecutionEngine : public Runnable {
+public:
+    bool enqueue(std::unique_ptr<Invocation>);
+    void notify_port(PortCallback);
+    void step() override;
+    void close();
+};
+
+class TaskContext : public TaskCore {
+public:
+    bool setActivity(std::shared_ptr<Activity>);
+    Service& provides();
+    DataFlowInterface& ports();
+private:
+    std::shared_ptr<ExecutionEngine> engine_;
+};
+
+template<class T>
+class InputPort {
+public:
+    FlowStatus read(T&, bool copy_old = true);
+    FlowStatus readNewest(T&);
+};
+```
+
+每个接口都需要关闭结果和线程契约。例如 `enqueue` 在 Engine closing 时必须失败；`setActivity` 必须拒绝危险的活动替换；`read` 必须区分 NoData、OldData 和 NewData。
+
+## 完成判定
+
+可运行的复刻至少应证明：
+
+- 非法生命周期转换不调用 hook，hook 失败不提交目标状态；
+- OwnThread Operation 只在组件 Activity 执行，关闭能唤醒全部等待者；
+- Operation 洪泛时 queue 和每周期预算都有上界；
+- DATA 只承诺最新值，BUFFER 与 CIRCULAR 的丢弃方向符合 policy；
+- `readNewest` 的 backlog 成本可观测；
+- callback 或 Operation 重入组件不会因框架锁死锁；
+- Activity stop 后线程不再访问 Engine，重复 close 无额外副作用；
+- Running 阶段动态分配、最大 jitter、drop 和 deadline miss 均可测量。
+
+## 从一次控制周期看全部对象如何协作
+
+前面的类型不是彼此独立的知识点。一次正常控制周期把它们串成下面这条路径：
+
+```text
+Activity 定时唤醒
+  -> ExecutionEngine 获得本周期执行权
+     -> 先处理有限数量的 OwnThread Operation
+     -> 调用 TaskContext::updateHook()
+        -> InputPort::read() 经过 ChannelElement 读取样本
+        -> 组件计算控制量
+        -> OutputPort::write() 将样本交给各输出 Channel
+     -> 记录周期耗时、队列深度与 deadline miss
+```
+
+这里最重要的不是调用顺序，而是三条边界：Activity 只决定“何时运行”；Engine 决定“本轮允许做多少工作”；TaskContext 只实现业务状态机。把定时器、消息队列和控制算法都塞进组件类，会让每个组件各自发明一套线程协议，也无法统一停止。
+
+端口同样不等于队列。`InputPort<T>` 是业务可见的读端，`ChannelElement<T>` 是可组合的数据路径，DATA 或 BUFFER 才决定储存语义。端口因此不必知道数据来自同进程、共享内存还是网络；传输层也不必理解组件的生命周期。
+
+## 所有权、线程与可阻塞性
+
+| 对象 | 建议所有者 | 主要执行线程 | 能否阻塞 | 关闭时必须完成的事 |
+|---|---|---|---|---|
+| TaskContext | Deployment/进程容器 | 不固定，由 Activity 驱动 | hook 中通常不可阻塞 | 先停止 Activity，再销毁组件 |
+| Activity | TaskContext 或部署器 | 自有工作线程 | 等待下一周期可以，业务执行不可无界等待 | 请求停止、唤醒、join |
+| ExecutionEngine | TaskContext | Activity 线程 | 只允许有界队列操作 | 拒绝新任务并完成或取消旧任务 |
+| OwnThread Invocation | Engine 队列 | 目标组件 Activity | 调用者可在非实时线程等待 | 完成、失败或取消必须恰好一次 |
+| ClientThread Operation | Service | 调用者线程 | 由调用者环境决定 | 不得依赖组件线程局部状态 |
+| ChannelElement | 端口连接图 | writer/reader/transport 线程 | 取决于 policy，必须显式 | 断开上下游并唤醒等待者 |
+
+这个表揭示了 RTT 最值得迁移的工程能力：接口不仅声明参数和返回值，还要声明执行上下文。函数“线程安全”并不等于适合实时线程；一个带互斥锁、文件 I/O 或未知回调的只读查询，也可能制造优先级反转。
+
+## 最小内核的装配方式
+
+下面的代码不是 RTT 公共 API 的复制，而是展示复刻时各对象之间应有的依赖方向：
+
+```cpp
+class RuntimeTask {
+public:
+    explicit RuntimeTask(std::unique_ptr<TaskLogic> logic)
+        : logic_(std::move(logic)), engine_(*logic_) {}
+
+    bool configure(const Config& cfg) {
+        if (state_ != State::PreOperational) return false;
+        // 分配端口储存、设备句柄和工作区；失败则仍留在原状态。
+        if (!logic_->configure(cfg)) return false;
+        state_ = State::Stopped;
+        return true;
+    }
+
+    bool start(std::unique_ptr<Activity> activity) {
+        if (state_ != State::Stopped || !logic_->start()) return false;
+        activity_ = std::move(activity);
+        state_ = State::Running;
+        return activity_->start([this] { engine_.step(kOperationBudget); });
+    }
+
+    void stop() noexcept {
+        if (state_ != State::Running) return;
+        activity_->stop_and_join();       // join 后才可触碰 Engine 生命周期
+        engine_.cancel_pending();
+        logic_->stop();                   // 写入安全输出
+        state_ = State::Stopped;
+    }
+
+private:
+    State state_{State::PreOperational};
+    std::unique_ptr<TaskLogic> logic_;
+    ExecutionEngine engine_;
+    std::unique_ptr<Activity> activity_;
+};
+```
+
+`kOperationBudget` 是不可省略的系统参数。如果 Engine 每轮先清空全部 Operation，再执行 `updateHook`，外部请求洪泛就能让控制循环永久饥饿。反过来，如果永远只执行周期 hook，管理命令又会无限延迟。正确做法是为每类工作设数量或时间预算，并把超预算次数变成指标。
+
+## 失败模型与关闭证明
+
+一个可解释的复刻至少区分四类失败：
+
+| 失败位置 | 对外结果 | 状态变化 | 资源处理 |
+|---|---|---|---|
+| configureHook 返回 false | configure 失败 | 保持 PreOperational | 回滚本次取得的资源 |
+| startHook 返回 false | start 失败 | 保持 Stopped | 不启动 Activity |
+| updateHook 可恢复错误 | 标记 RunTimeError | Running/Error 依策略 | 输出进入安全值，等待监管决策 |
+| Engine/线程不可恢复异常 | 调用失败并告警 | FatalError | 停止接收工作，走 stop/join/cleanup |
+
+关闭顺序可以用一个简单的不变量证明：销毁 Engine 前，不再存在能够调用 `step()` 的线程；销毁 TaskContext 前，不再存在引用其 Service、Port 或 Operation 的排队任务。为此，关闭必须先禁止新工作，再唤醒阻塞者，再 join 执行线程，最后按依赖逆序释放对象。仅仅设置 `running=false` 并不能证明线程已经离开组件代码。
+
+## 可迁移的设计能力
+
+从 RTT 中最值得带到其他系统的不是类名，而是以下方法：
+
+1. 把业务生命周期与执行策略分离，使同一组件可由周期、事件或从属 Activity 驱动；
+2. 把“最新状态”和“完整事件”建模为不同连接策略，而不是给所有数据套同一种队列；
+3. 让跨线程调用拥有显式完成状态、取消语义和关闭结果；
+4. 在进入 Running 前完成分配、连接和解析，把不可预测工作赶出实时路径；
+5. 用所有权、线程归属、容量和最坏时间四张表审查每一个扩展点。
+
+达到这些条件，才复刻了 RTT 的设计核心：不是让组件“跑起来”，而是让执行和数据边界能够被推理。

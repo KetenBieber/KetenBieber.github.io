@@ -1,0 +1,242 @@
+# eCAL 功能与组件地图：发现驱动的多传输发布订阅
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+eCAL 的核心功能是让动态启动的进程先发现彼此，再为每对 Publisher/Subscriber 选择合适传输，并把多条物理路径汇入统一回调。源码可以按五个功能域阅读。
+
+## 使用场景与非目标
+
+eCAL 适合主机内或受控局域网中的高带宽机器人数据流，例如相机、点云、车辆传感器和多进程仿真。它的优势是同一 Publisher API 能按端点位置与能力选择 SHM、UDP 或 TCP，并提供监控、录制和回放生态。
+
+它不是分布式数据库，也不替业务定义跨 topic 事务、严格全局顺序或无限离线积压。发现成功只表示实体可见，不能证明消费者及时处理；选择可靠传输也不能替应用解决过期数据和过载。
+
+## 功能域与组件
+
+| 功能域 | 核心组件 | 对外能力 | 实现难点 |
+|---|---|---|---|
+| 进程运行时 | CGlobals | Initialize/Finalize | 线程、Gate、Provider 的依赖顺序 |
+| 发现控制面 | Registration Provider/Receiver、SampleApplier | 自动发现、租约过期 | 软状态、重复注册、陈旧实体 |
+| 发布连接 | PublisherImpl、PubGate | Topic 发布与匹配 | 能力协商、每连接选层 |
+| 传输层 | SHM/UDP/TCP Writer/Reader | 本机与跨机通信 | 复制、队列、ACK、故障语义 |
+| 接收交付 | SubGate、SubscriberImpl | Callback/同步 Read | 去重、借用 payload、慢回调 |
+
+## 从机器人需求反推组件
+
+| 需求 | 首先进入的组件 | 还必须检查的边界 |
+|---|---|---|
+| 同机发送相机和点云 | SHM writer/reader、memfile pool | buffer 数、慢读者、resize 与崩溃恢复 |
+| 局域网广播低延迟状态 | UDP layer、registration | 分片、丢包、sample 去重 |
+| 可靠传输远端字节流 | TCP layer、connection state | 队头阻塞、慢消费者、重连 |
+| 进程动态启停后自动相遇 | Registration Provider/Receiver | 租约、identity、重复/陈旧样本 |
+| 一个 topic 多个本地实体 | PubGate/SubGate | topic 索引、所有权、注销竞态 |
+| 监控和录制现有数据流 | registration/monitoring、recorder | 可见性不等于业务及时处理 |
+| 全局初始化多个库模块 | CGlobals、Initialize/Finalize | 计数、部分失败与逆序关闭 |
+
+定位问题时应先判断属于哪一平面。发现表能看到实体但没有数据，通常要继续检查 capability 和 transport；Send 返回成功但算法没有新数据，要检查 reader layer、SubGate 去重、callback/队列与数据年龄；Finalize 卡住，则从 registration/transport worker 和在途 callback 反向追踪。
+
+## 固定源码入口
+
+本系列固定 eCAL 源码为 [`1ec0ea2f`](https://github.com/eclipse-ecal/ecal/tree/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717)：
+
+| 层 | 文件/对象 | 先追踪的动作 |
+|---|---|---|
+| 全局编排 | `ecal_globals.cpp`、`CGlobals` | Initialize、模块创建、Finalize |
+| 发布门面 | `ecal_publisher.cpp` | facade 如何创建/锁定 Impl |
+| 发布实现 | `ecal_publisher_impl.cpp` | Create、订阅更新、DetermineTransportLayer、Write |
+| 发布索引 | `ecal_pubgate.cpp` | 实体注册、查找、控制面事件分发 |
+| 订阅实现 | `ecal_subscriber_impl.cpp` | reader 注册、ApplySample、callback/read |
+| 订阅索引 | `ecal_subgate.cpp` | transport 样本怎样定位本地实体 |
+| 发现 | `registration/*` | 周期发送、接收、SampleApplier、过期 |
+| SHM | `io/shm/*` | memfile header、同步、buffer rotation、observer |
+
+阅读顺序不应按目录字母排列。先从公开 Publisher 的 Send 追到底层 writer，再从 registration 样本反向追到 PublisherImpl 的连接状态，最后沿 Subscriber reader 回到 callback，才能把控制面和数据面接起来。
+
+## 自顶向下数据链
+
+```text
+Initialize -> Registration 周期广播
+Publisher/Subscriber registration 相遇
+  -> capability intersection
+  -> connection 选择 SHM / UDP / TCP
+Send -> selected writers
+  -> reader layers
+  -> SubGate 去重与路由
+  -> Subscriber callback 或 latest-value Read
+```
+
+这条链可拆成两个时间尺度：Registration 周期性维护“谁存在、支持什么”；Send 高频使用已经建立的 writer 集合。控制面允许最终一致，数据面追求短路径。若每次 Send 都重新发现和协商，发布延迟会被网络控制面支配。
+
+### 发现时间线
+
+```text
+local Publisher Create
+  -> PubGate 持有 Impl
+  -> Registration Provider 周期发布 descriptor
+  -> remote Registration Receiver 收到
+  -> SampleApplier 过滤/归一化
+  -> remote Sub/Pub Gate 应用匹配状态
+  -> 双方根据位置与 capability 建立/启用 layer
+```
+
+descriptor 到达不是同步握手完成。远端可能先看到 registration，稍后才打开 reader/writer；本地也可能在首次 Send 时仍没有目标。业务若要求启动屏障，需要显式等待匹配条件或在应用协议中增加 ready，不能把“休眠一秒”当正确性机制。
+
+### 单次发送时间线
+
+```text
+CPublisher::Send
+  -> weak facade lock PublisherImpl
+  -> 检查实体运行状态
+  -> 取得稳定 layer/connection snapshot
+  -> SHM / UDP / TCP writer 写入
+  -> 更新 sequence、统计与返回状态
+```
+
+发送路径应避免持有发现表的长锁。控制线程可生成不可变连接计划，Send 复制计划指针后锁外 I/O；代价是刚删除的连接可能仍被当前发送快照使用，writer 必须容忍关闭并返回明确错误。
+
+## 核心对象与所有权
+
+```text
+CGlobals
+  |-- Registration provider / receiver threads
+  |-- PubGate --shared--> PublisherImpl <--weak-- CPublisher facade
+  |-- SubGate --shared--> SubscriberImpl <--weak-- CSubscriber facade
+  `-- transport layer factories / observers
+
+PublisherImpl
+  |-- connection state per subscriber/capability
+  `-- SHM / UDP / TCP writers
+
+SubscriberImpl
+  |-- reader-layer inputs
+  `-- callback / receive buffer / duplicate state
+```
+
+Gate 既是按 topic 查找实体的索引，也是实现对象的所有权根。公开 facade 持弱引用，使全局 Finalize 清空 Gate 后，遗留句柄安全失效而不是指向已释放内存。Transport callback 在分发前取得局部强引用快照，解锁后再进入实体和用户代码。
+
+### 所有权与借用表
+
+| 对象 | 所有权根 | 临时使用者 | 关闭约束 |
+|---|---|---|---|
+| PublisherImpl | PubGate | facade Send、registration 更新 | 阻止新 Send，等待在途操作，再清 Gate |
+| SubscriberImpl | SubGate | reader layer、callback/read 调用 | 注销 reader，等待 callback，再释放 |
+| registration provider/receiver | CGlobals | 周期线程、SampleApplier | 先停新控制事件，再拆 Gate |
+| SHM/TCP/UDP writer | PublisherImpl/transport runtime | Send 快照 | writer 关闭需容忍旧快照 |
+| payload view | transport/sample owner | Subscriber callback | callback 返回后失效，异步必须复制/转移 |
+| monitoring descriptor | registration/monitoring state | tools/observer | 不应反向保活业务实体 |
+
+`shared_ptr` 只能延长内存寿命，不能定义操作是否仍被允许。Impl 即使被一次 Send 的局部强引用保活，也可能处于 Stopping；方法必须同时检查状态。相反，单独的 atomic running 也不能保护已释放对象，facade 仍需安全取得寿命租约。
+
+## 控制面：软状态如何收敛
+
+每个实体周期发布 registration；接收端按实体 identity 更新缓存和最后可见时间；超时未刷新则移除。重复 registration 是正常情况，更新操作必须幂等。网络短暂丢包只延迟收敛，不应立即删除健康实体。
+
+一条 registration 需要携带 topic、类型、进程/主机 identity、传输能力和打开数据面所需参数。identity 若只使用 topic，会把多个 Publisher 合并；若进程重启复用旧 identity，又可能让陈旧连接与新实体混淆。
+
+能力协商是集合交集：本机且双方支持 SHM 时可选择共享内存；远端可选 UDP/TCP；配置还能禁用某层。若多层同时启用，需要 sample identity 去重，否则同一发布可能从两条路径交付两次。
+
+软状态表至少应区分实体身份、进程实例和最后可见时间。进程重启若只复用 topic/host，会让旧 transport 状态污染新实体；identity 中需要 boot/session 维度，或在新 registration 到达时明确替换旧 epoch。
+
+过期阈值过短会把丢包抖动放大成连接 churn，过长则让故障实体停留更久。registration 周期 `T` 与失效阈值 `E` 应结合网络丢包率和恢复目标选择，并观察连续未见次数，而不是只用一次定时器事件删除。
+
+## 数据面：三类传输的语义差异
+
+| Layer | 合适负载 | 主要成本 | 失败/过载表现 |
+|---|---|---|---|
+| SHM | 同机大图像、点云 | 映射、跨进程同步、可选复制 | buffer 被慢读者占用、对象重建 |
+| UDP | 局域网低延迟状态流 | 分片、内核缓冲、丢包 | 不保证到达；大消息丢一片即失整条 |
+| TCP | 需要可靠字节流的远端连接 | 每连接队列、重传、队头阻塞 | 慢消费者可能积压或反压 |
+
+“自动选最快层”不是完整策略。相机流可能接受丢旧，命令流可能要求可靠与有界确认；layer 选择必须结合 payload、频率、可靠性与消费者速度。
+
+### 线程与数据移动矩阵
+
+| 阶段 | 常见线程 | 数据/状态 | 主要风险 |
+|---|---|---|---|
+| Initialize/Finalize | 应用管理线程 | 全局模块图 | 并发初始化、部分失败、重复关闭 |
+| registration send/receive | 周期/接收 worker | descriptor 与实体缓存 | 重复、陈旧、锁竞争 |
+| Publisher Send | 应用线程 | 借用 payload、连接快照 | 编码/复制、I/O、部分成功 |
+| SHM observer | transport worker | memfile header/payload view | resize、崩溃 owner、慢借用 |
+| UDP/TCP reader | transport worker | frame/sample | 分片、队列、重连 |
+| SubGate dispatch | reader/分发线程 | Impl 强引用快照 | 去重、锁外 callback |
+| Subscriber callback | 分发或配置线程模型 | 借用样本 | 慢用户代码、自注销 |
+
+应用需要知道 callback 在哪个线程发生，才能决定是否允许阻塞、是否与同步 Read 并发以及如何关闭。把 callback 一律再投递线程池会增加队列和数据年龄；直接执行又会让用户 WCET 反压接收路径，必须结合消息类别选择。
+
+### SHM 不是一个抽象名词
+
+共享内存路径至少包含：命名/打开 memfile、校验内部 header、跨进程同步、选择可写 buffer、发布 sample identity、reader 借用或复制、槽位回收。任何一步失败都要处理进程异常退出和版本/尺寸不匹配。
+
+若 publisher 拥有 `B` 个最大容量 `Smax` 的槽，单实体 payload 内存主项约为 `B×Smax`。zero-copy reader 持有槽位期间，publisher 可用槽减少；慢 callback 会从消费端跨进程反馈为发送端等待或覆盖压力。减少 memcpy 不等于降低最坏延迟。
+
+## 一次发送要检查的四个边界
+
+1. 调用者 buffer 是否在 Send 返回前保持有效，writer 是否立即复制；
+2. 当前连接快照是否允许 discovery 线程并发增删；
+3. 多 layer 写入的成功含义是任一成功、全部成功还是逐端点统计；
+4. Subscriber 汇聚后如何根据 publisher id/clock 去重和判断过期。
+
+这四点分别对应 C++ 借用、并发快照、错误聚合和协议 identity。只分析 `memcpy` 次数无法说明发送语义。
+
+## 章节对应关系
+
+《阅读基础》建立控制面、数据面和 Gate 概念；《Publisher 发送链》解释连接选择和多层写入；《Registration 控制面》解释发现；《SHM 数据路径》深入本机大数据；《Subscriber 接收链》解释汇聚与去重；《全局生命周期》收束线程和资源。
+
+可以把这些章节变成七个连续源码任务：
+
+1. 从 CPublisher 构造进入 PubGate，确认 facade 与 Impl 的强弱引用；
+2. 从 `Send` 进入 `CPublisherImpl::Write`，记录每个 layer 的选择与复制；
+3. 从 registration provider 的周期 tick 进入 SampleApplier，画出 identity/timeout；
+4. 从 Subscriber descriptor 回到 PublisherImpl，确认 capability 交集怎样更新连接；
+5. 从一个 SHM sample 进入 observer、SubGate 和 SubscriberImpl callback；
+6. 验证多 layer 同时到达时 sample identity 如何去重；
+7. 从 Finalize 逆序追踪控制线程、transport、Gate、Impl 与 callback。
+
+读完后应能解释“发现了却没数据”“同一消息为何重复”“Finalize 为什么等待”分别落在哪一段，而不是只给配置建议。
+
+## 关键取舍
+
+软状态发现避免依赖中心注册服务，但必须周期发送并处理超时；每连接选层能适应本机/远端差异，却增加状态机和重复数据去重；SHM 降低 payload 复制，但 zero-copy 会把 subscriber 持锁时间传回 publisher。
+
+另一个重要取舍是全局运行时。集中 CGlobals 能统一线程和 provider 生命周期、减少每实体资源，却引入初始化计数、部分失败回滚和 Finalize 顺序。库调用方不能把全局关闭视为销毁一个普通 Publisher。
+
+### 模式与工程代价
+
+- Facade/PImpl：公开对象保持小而稳定，Impl 可变；代价是间接访问和失效句柄语义；
+- Registry/Gate：统一 topic 索引与所有权；代价是共享锁域和注销竞态；
+- Strategy：SHM/UDP/TCP 替换传输；代价是 capability、错误聚合和去重；
+- Soft State：周期 registration 无中心依赖；代价是收敛延迟与超时取舍；
+- Immutable Snapshot：Send 锁外复用连接计划；代价是旧计划延迟释放；
+- Observer：transport 与 monitoring 分发事件；代价是 callback 生命周期和关闭屏障。
+
+## C++ 设计能力
+
+重点不是 facade 类名，而是：PImpl 隔离 ABI、Gate 用索引管理动态实体、锁内复制快照后锁外调用 callback、condition variable 用谓词处理虚假唤醒、RAII 按逆依赖关闭全局对象。
+
+阅读每个类时可用同一组问题：
+
+- `shared_ptr` 的所有权根在哪里，是否可能形成环；
+- `span`、裸指针和 callback payload 的有效期到哪里；
+- mutex 保护哪个跨字段不变量，是否在锁内做 I/O 或回调；
+- atomic 只是状态提示，还是被错误当成多字段事务；
+- 构造中途失败由哪个 owner 逆序撤销 registration、线程和 OS handle；
+- Finalize 返回后是否仍可能有 observer 或 callback 在途。
+
+## 性能与可行性判断
+
+关键自变量包括 Publisher/Subscriber 数、每 topic 匹配数、payload 大小、发送频率、SHM buffer 数、UDP 分片数、TCP 队列容量与 callback WCET。内存预算至少包含实体表、每连接状态、SHM `publisher × buffers × capacity` 和 Subscriber 本地复制缓冲。
+
+可行性不能只用平均吞吐判断。应观察 Send p50/p99、SHM mutex 等待、drop/overwrite、registration 收敛时间、数据年龄、callback 队列高水位和关闭耗时。zero-copy 只有在持锁 callback 的最坏时间可控时才可能改善尾延迟。
+
+定量预算可分四部分：控制面成本近似实体数与 registration 频率之积；数据面 CPU 近似 `publish_rate × (serialization + Σlayer_cost)`；SHM 主内存近似各 publisher 的槽数乘最大容量；接收延迟由 transport、SubGate、callback 排队和用户 WCET 共同组成。
+
+多层发送的返回值不足以表达每端点结果时，必须用逐层统计补充。否则调用者看到 Send 成功，却无法发现 TCP 长期断开而 UDP 偶尔成功。对控制命令还应增加序号、deadline 与业务确认；可靠字节流不等于恰好执行一次。
+
+## 实现路线
+
+先做固定配置的单 transport pub/sub；再加入 Gate 与多 Subscriber；随后增加 registration 租约和 capability；最后加入 SHM buffer rotation、多路径去重与进程级生命周期。
+
+阶段完成条件应明确：固定 transport 版能够有界排队和关闭；Gate 版允许 callback 自注销且不死锁；发现版能容忍重复与短暂丢包；SHM 版验证 header 边界、进程崩溃和 resize；多层版证明同一 sample 最多交付一次；全局版证明部分初始化失败和重复 Finalize 不泄漏资源。

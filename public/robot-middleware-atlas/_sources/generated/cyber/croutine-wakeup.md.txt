@@ -1,0 +1,339 @@
+# 任务唤醒与执行：从 event latch 到 Processor
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+上一章结束时，transport 线程已经做完两件事：消息写入 `CacheBuffer`，`DataNotifier` 调用了 `Scheduler::NotifyProcessor(task_id)`。但业务 `Proc()` 仍未执行。
+
+这一章回答执行面的核心问题：task id 怎样找到一只 CRoutine，休眠中的 worker 怎样被唤醒，为什么“检查队列为空”和“准备睡眠”之间不会丢事件，Classic scheduler 又怎样选择最终运行的 routine。
+
+先给出本章边界：消息 payload 已经留在 ring 中，后续调度链不再搬运它。调度器只传播 task identity 和 runnable state，直到 Processor 恢复协程，DataVisitor 才重新从 ring 取出 `shared_ptr<Message>`。
+
+```text
+DataNotifier callback                         Processor OS thread
+      |                                             |
+      v                                             |
+Scheduler::NotifyProcessor(task_id)                 |
+      |                                             |
+      +-> CRoutine event latch                      |
+      +-> ProcessorContext::Notify() ---------------+ wake
+                                                    v
+                                      ProcessorContext::NextRoutine()
+                                                    |
+                                      CRoutine::UpdateState()
+                                                    |
+                                      CRoutine::Resume()
+                                                    |
+                                      DataVisitor::TryFetch()
+                                                    |
+                                      Component::Process/Proc()
+```
+
+## Task 的函数、数据与调度身份
+
+Component 初始化时已经构造 `RoutineFactory`。Factory 中有两样东西：一段未来要运行的函数，以及与该函数配套的 DataVisitor。
+
+[`Scheduler::CreateTask()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/scheduler.cc#L37-L69) 把它变成调度对象：
+
+```cpp
+auto func = factory.create_routine();
+auto visitor = factory.GetDataVisitor();
+
+auto cr = std::make_shared<CRoutine>(func);
+cr->set_id(task_id);
+DispatchTask(cr);
+
+if (visitor != nullptr) {
+  visitor->RegisterNotifyCallback([this, task_id]() {
+    if (stop_.load()) {
+      return;
+    }
+    this->NotifyProcessor(task_id);
+  });
+}
+```
+
+`CRoutine` 持有 `func`，而 `func` 的 lambda 又按值持有 DataVisitor。Scheduler 的 task map 和策略 run queue 持有 `shared_ptr<CRoutine>`。于是 task 存活期间，DataVisitor、读取游标和 CacheBuffer 也会存活。
+
+task id 是调度身份，不是线程 id。多只 CRoutine 可以由同一 Processor 线程轮流执行；同一只 CRoutine 也不是永远绑定在创建它的线程上，具体约束由 scheduling policy 和 context 决定。
+
+创建顺序同样重要：`DispatchTask(cr)` 先让策略认识这只 routine，随后才注册按 task id 唤醒它的 callback。这样第一个 notifier 事件到来时，scheduler 已经有目标对象可查。
+
+## `CreateRoutineFactory` 生成的不是一次性 callback
+
+单输入 [`CreateRoutineFactory<M0>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70) 返回一个永不主动结束的循环：
+
+```cpp
+for (;;) {
+  CRoutine::GetCurrentRoutine()->set_state(RoutineState::DATA_WAIT);
+
+  if (dv->TryFetch(msg)) {
+    f(msg);
+    CRoutine::Yield(RoutineState::READY);
+  } else {
+    CRoutine::Yield();
+  }
+}
+```
+
+这里容易把“协程函数”误解成普通函数。普通函数调用后会一直运行到 return，再销毁栈帧；CRoutine 在 `Yield()` 时保存自己的执行上下文和栈位置，切回 Processor 主上下文。下次 `Resume()` 时，它从上次 Yield 后继续，而不是重新从函数第一行创建所有局部状态。
+
+循环顶部先把自身状态设为 `DATA_WAIT`，然后才调用 `TryFetch()`。有数据时执行业务函数，并以 `READY` 状态 yield，表示可能还有 backlog，可以继续被选择；没有数据时按当前等待状态 yield，让 Processor 去做其他任务或休眠。
+
+为什么处理一条后不是立刻进入 `DATA_WAIT`？若 ring 中已有多条消息，保持 READY 可以继续 drain，而不必等待另一个 notify。下一次循环顶部仍会先设等待态、再检查 buffer；确认真的空了才睡。
+
+## 最经典的丢唤醒窗口
+
+一个错误实现可能这样写：
+
+```text
+consumer: 检查 queue -> 发现空
+producer: 写入 queue -> notify
+consumer: 进入 wait
+```
+
+producer 发通知时 consumer 还没有真正等待，通知没有唤醒任何人；随后 consumer 睡下，而 queue 已经非空。如果未来不再来消息，这条数据会永久卡住。
+
+condition variable 本身不会替你记住过去发生的 notify。正确实现必须让“检查条件”和“准备等待”之间有受保护的状态，或让事件留下可被之后观察的序号/flag。
+
+Cyber 使用 `CRoutine::updated_` 作为一位 event latch，并配合 RoutineFactory 的顺序关闭窗口。
+
+## `updated_` 的命名比布尔值更绕
+
+[`CRoutine`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h#L176-L207) 中，producer 侧 `SetUpdateFlag()` 会 clear atomic flag；scheduler 侧 `UpdateState()` 再通过 `test_and_set` 检查并恢复置位。
+
+其状态转换核心是：
+
+```cpp
+if (!updated_.test_and_set(std::memory_order_release)) {
+  if (state_ == RoutineState::DATA_WAIT ||
+      state_ == RoutineState::IO_WAIT) {
+    state_ = RoutineState::READY;
+  }
+}
+```
+
+直觉上可以把“clear”理解为“还有一次更新尚未被 scheduler 消费”，把“set”理解为“当前没有未消费更新”。这里不能只看变量名猜 true/false 含义，要同时阅读写侧和读侧。
+
+`atomic_flag` 保证多个线程同时修改这一位状态时不会发生普通数据竞争。代码给出的 memory order 是实现细节；消息 payload 的一致性并不靠这个 flag 单独承担，ring 的读写还由 CacheBuffer mutex 建立同步。
+
+event latch 只有一位，因此 A、B、C 三次更新可能合并成一个“有更新”。消息数量由 ring 保存，flag 只保证 consumer 最终再检查一次。
+
+## 把竞态逐步走一遍
+
+最危险时序发生在 routine 已写 `DATA_WAIT`、但尚未完成 `TryFetch()/Yield()` 时：
+
+```text
+Processor/routine                         producer/transport
+       |                                        |
+       | state = DATA_WAIT                      |
+       |                                        | Fill(message)
+       |                                        | SetUpdateFlag()
+       |                                        | context.Notify()
+       | TryFetch()                             |
+       | Yield(...)                             |
+       v                                        v
+```
+
+若 `TryFetch()` 已经看到消息，它会执行 callback，随后 `Yield(READY)`，不会睡死。
+
+若交错使这次 `TryFetch()` 仍返回空，producer 已经清除了 `updated_`。routine yield 后，下一次 scheduler 扫描调用 `UpdateState()`，观察到未消费更新并把 `DATA_WAIT` 改回 READY。它会再次 Resume 并检查 ring。
+
+所以防丢唤醒依靠两部分共同成立：
+
+```text
+consumer ordering:
+  set DATA_WAIT -> check data -> yield
+
+event memory:
+  producer marks update -> scheduler consumes mark -> READY
+```
+
+只复制其中一半都不够。若 consumer 先 check 再写 DATA_WAIT，即使有 event flag也可能覆盖状态；若没有 event latch，正确顺序仍会在 yield 边界丢掉通知。
+
+## `NotifyProcessor()` 实际还要唤醒 OS 线程
+
+把 CRoutine 标成可能 READY 还不够。如果承载它的 Processor 正在 condition variable 上睡眠，必须让 OS 线程重新运行。
+
+Classic 策略的 [`NotifyProcessor()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L163-L181) 在 task map 中找到 CRoutine，调用 `SetUpdateFlag()`，再通知对应 group 的 context。`ClassicContext::Notify()` 增加 wake 计数并 `condition_variable::notify_one()`。
+
+完整调用是：
+
+```text
+DataNotifier::Notify(channel)
+  -> visitor Notifier callback
+    -> SchedulerClassic::NotifyProcessor(task_id)
+      -> id_cr_ lookup
+      -> croutine->SetUpdateFlag()
+      -> ClassicContext::Notify()
+        -> condition_variable.notify_one()
+```
+
+这个调用仍在 transport 线程中同步执行，直到 `notify_one()` 返回。真正的 Processor 何时得到 CPU 由 Linux scheduler 决定，因此 CV wakeup 之后还有 OS 调度延迟。
+
+`notify_one()` 也不是指定“必须唤醒执行这个 task 的某一线程”。Classic group 的多个 Processor 可以等待同一 context，醒来的 worker 再扫描全部 routine 状态。
+
+## Classic run queue 实际是持久 vector
+
+“run queue”容易让人联想到一只只包含 READY task 的队列：任务 ready 时 push，运行后 pop。Classic 并不是这样。
+
+每个 group 有 20 个优先级槽，每个槽是一只持久的 `vector<shared_ptr<CRoutine>>`。task 加入后无论 READY、WAIT 还是 SLEEP 都留在 vector 中，状态决定当前能否被选择。
+
+[`ClassicContext::NextRoutine()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/classic_context.cc#L52-L73) 从 19 降到 0 扫描：
+
+```cpp
+for (int i = MAX_PRIO - 1; i >= 0; --i) {
+  ReadLockGuard<AtomicRWLock> lock(lq_->at(i));
+
+  for (auto& cr : multi_pri_rq_->at(i)) {
+    if (!cr->Acquire()) {
+      continue;
+    }
+    if (cr->UpdateState() == RoutineState::READY) {
+      return cr;
+    }
+    cr->Release();
+  }
+}
+```
+
+`Acquire()` 是另一只原子 flag，用来防止两个 Processor 同时执行同一 CRoutine。拿不到就跳过；拿到以后先调用前面解释的 `UpdateState()`，再判断是否 READY。
+
+找到目标之前，worker 可能扫描许多等待 task。选择成本不是 priority heap 的 `O(log n)`，而与高优先级和当前优先级中被检查的 routine 数量相关。
+
+## 同优先级任务的公平性边界
+
+vector 扫描总从头开始，没有从源码看到显式 round-robin 游标，也没有让刚运行的 task 自动移到尾部。
+
+若同优先级第一只 routine 持续有 backlog，它处理一条后 `Yield(READY)`，下一次扫描仍可能首先遇到它。靠后的 routine 只有在前者暂时不 READY、Acquire 失败或其他 Processor 并行取得前者时更容易被选中。
+
+这不等于后续 task 必然永远饥饿，因为多个 Processor、callback 执行时间和状态变化都会影响结果；但从结构上不能宣称同优先级天然公平。工业配置应限制持续 READY 的高频 task，必要时分组或使用更明确的 processor 绑定。
+
+一个需要公平性的自研版本可以维护每优先级的 rotating cursor，或只把 READY task 放进真正的 deque，运行一轮后排到队尾。代价是通知、去重和并发入队状态会复杂得多。
+
+## `Processor::Run()` 才进入真正 OS 线程
+
+[`Processor`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L40-L62) 拥有 `std::thread`，主循环不断向 context 请求下一只 routine：
+
+```cpp
+while (running_.load()) {
+  auto croutine = context_->NextRoutine();
+  if (croutine) {
+    croutine->Resume();
+    croutine->Release();
+  } else {
+    context_->Wait();
+  }
+}
+```
+
+没有 ready routine 时，`Wait()` 在 condition variable 上睡眠；有目标时，`Resume()` 从 Processor 主栈切换到 CRoutine 保存的栈。
+
+RoutineFactory 恢复后调用 `DataVisitor::TryFetch()`。这一步才重新获取 CacheBuffer mutex，并把 ring 槽中的 shared pointer 复制到局部 `msg`。随后执行 Component 初始化时绑定的 lambda，依次进入 `Process(msg)` 和用户 `Proc(msg)`。
+
+因此线程边界可以明确画在：
+
+```text
+transport thread:
+  Fill -> DataNotifier -> NotifyProcessor -> condition_variable.notify_one
+
+Processor thread:
+  wake -> NextRoutine -> UpdateState -> Resume -> TryFetch -> Proc
+```
+
+消息对象通过 ring 连接两个线程，不通过调用栈直接跨越。
+
+## 协作式执行的非抢占边界
+
+进入 `CRoutine::Resume()` 后，当前 Processor 一直执行这只 routine，直到它 `Yield()` 回主栈。对 Component task 而言，Yield 位于用户 `Proc()` 返回之后。
+
+所以一个执行 20 ms 的 `Proc()` 会占住 Processor 约 20 ms。即使期间更高 Cyber priority 的 routine 变成 READY，同一 worker 也不能从任意 C++ 指令位置安全夺回控制权。
+
+这就是合作式调度：task 在约定边界主动让出，而不是由 Cyber scheduler 进行指令级抢占。Linux 仍可抢占整个 Processor OS 线程去运行其他 OS 线程，但那不是 Cyber routine 之间的抢占。
+
+优点是 routine 切换点清楚，不需要每个 callback 一只内核线程；缺点是 callback 最坏执行时间和阻塞行为直接决定同组任务的长尾。
+
+## 四种“优先级”不要混在一起
+
+机器人系统里至少有四个层次：
+
+1. 应用语义优先级：控制指令是否比日志或可视化重要；
+2. Cyber task priority：Classic 扫描哪个 vector 在前；
+3. Processor OS thread priority 与 affinity：Linux 何时运行承载 worker；
+4. transport 线程 priority：SHM dispatcher 或 RTPS callback 何时产生数据。
+
+提高第 2 层只改变 `NextRoutine()` 的选择顺序，不会让正在运行的低优先级 `Proc()`被打断，也不会让上游 RTPS listener 更早完成反序列化。
+
+把 Processor 设为 `SCHED_FIFO` 也不自动解决互斥锁优先级反转。若高优先级 Processor 等待一把由低优先级线程持有的普通 mutex，仍可能被间接阻塞。
+
+Choreography 策略能把指定 task 放到更明确的 Processor context，减少与无关组件共享扫描和执行时间；它仍要求 OS policy 实际设置成功，并要求该 Processor 上的 callback 合作式返回。
+
+## 100 Hz 与 1 kHz 控制链的调度后果
+
+100 Hz 控制周期是 10 ms。若同一 Processor 上另一只 callback 尚余 3 ms 才返回，新任务即使已经完成 transport、Fill 和 notify，也先承担这 3 ms 非抢占等待，再加 CV wake、run queue 扫描和自身计算。
+
+1 kHz 周期只有 1 ms。同样的固定开销占比扩大十倍，偶发 allocator 慢路、page fault、mutex contention 或一次 1 ms 以上 callback 都可能跨周期。
+
+端到端 callback 启动可拆成：
+
+```text
+Lstart = Ltransport
+       + Ldispatch
+       + Lnotify
+       + Los_wakeup
+       + Lrunqueue_scan
+       + Lremaining_current_callback
+       + Lcontext_switch
+       + Lfetch
+```
+
+Cyber 让这些阶段可观察、可分组、可配置，却没有提供 deadline miss handler、budget enforcement 或 WCET 证明。把它称为软实时运行时更准确。
+
+对关键控制链，常见结构选择是独立 group/CPU、很小的 input queue、短而不阻塞的 `Proc()`、预热内存、确认 OS policy/affinity 系统调用成功，并把日志、录制和可视化放到其他 group。
+
+## Shutdown 对运行中 CRoutine 的等待
+
+Scheduler 删除一只 routine 时，不能在它正在 Processor 栈上执行 `Proc()` 的同时释放对象。`Acquire()` flag 除了防止双 worker 重入，也让删除路径知道 task 是否仍在运行。
+
+Classic 删除会先从 task id map 擦除并 Stop，再在 run queue 写锁下等待 `Acquire()` 成功，随后才移除对应 shared pointer。正在执行的 Processor 在 `Resume()` 返回后调用 `Release()`，删除线程才可能继续。
+
+这避免 callback 使用已析构 DataVisitor 或 Component，却带来一个边界：永不返回的 `Proc()` 会让 shutdown 永远等待。C++ 没有安全通用的方法从外部杀死任意线程栈，业务代码必须自行设计取消点和有限等待。
+
+## 手搓最小执行面
+
+在已有 ring、Dispatcher 和 Notifier 后，最小 task 可以先不用真正 stackful coroutine，而用显式状态机：
+
+```cpp
+enum class TaskState { Ready, DataWait, Running, Stopped };
+
+struct Task {
+  TaskId id;
+  std::function<bool()> step;   // 有数据则处理一条并返回 true
+  std::atomic<bool> updated;
+  std::atomic<TaskState> state;
+};
+```
+
+producer 写数据后把 `updated=true` 并通知 condition variable。worker 醒来，在 mutex 保护的 task 列表中找 runnable task，CAS 把它从 Ready 改为 Running，执行一次 `step()`，再根据是否还有数据决定 Ready 或 DataWait。
+
+实现时应写出四个不变量：
+
+```text
+1. 同一 task 不得被两个 worker 同时执行
+2. buffer 非空后，task 最终必须再检查一次
+3. 多次 notify 可以合并，消息数量由 buffer 保存
+4. stop 后不再开始新 callback，正在运行的 callback 有清晰退出/等待规则
+```
+
+等状态机正确后再替换为 stackful coroutine，增加 `Resume/Yield` 和独立栈。不要让协程库的上下文切换细节掩盖 runnable state 的正确性。
+
+公平策略也应单独设计。若用 ready deque，就明确入队去重和轮转；若用持久 task vector，就明确扫描复杂度与 starvation 边界。priority、OS affinity 和实时 policy 最后再加，因为它们不能修复错误的唤醒协议。
+
+## 从局部机制回到完整消息链
+
+现在所有局部机制已经有了位置：DAG 创建对象，DataVisitor 拥有 ring，Dispatcher 写数据，Notifier 传播事件，event latch 防止丢唤醒，Classic 选择 routine，Processor 恢复协程。
+
+下一章不再引入新的核心对象，而是选一条消息把这些部件完整组装起来，并对 INTRA、SHM、RTPS 的线程和复制点做对照。读者此时看到 `Receiver -> Dispatcher -> Buffer -> Notifier -> Scheduler -> Processor -> Proc`，每个箭头都已经有具体数据结构和状态机支撑。

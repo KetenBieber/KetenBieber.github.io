@@ -1,0 +1,183 @@
+# LCM 使用教程：类型生成、发布与订阅
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+LCM 类型文件是跨语言协议源。先定义 schema，再用 `lcm-gen` 生成 C++ header；官方 C++ binding 是 header-only wrapper，但程序仍链接 LCM C runtime。[LCM C++ Tutorial](https://lcm-proj.github.io/lcm/content/tutorial-cpp.html)
+
+## 从 schema 到 wire bytes
+
+生成的 C++ 类型大致提供编码大小、编码、解码与类型哈希。发布调用不是把 C++ 对象地址发到网络，而是：
+
+```text
+state_t object
+  -> getEncodedSize()
+  -> encode(buffer)
+  -> type fingerprint + fields in defined order
+  -> lcm.publish(channel, bytes)
+```
+
+接收端先核对 fingerprint，再按相同字段布局构造对象。`std::vector`、`std::string` 和指针从不直接跨进程；它们只是生成类在本进程中的表示。
+
+## 类型定义
+
+```text
+package atlas;
+
+struct state_t {
+  int64_t timestamp_us;
+  int64_t sequence;
+  int32_t joint_count;
+  double joints[joint_count];
+  string frame;
+}
+```
+
+生成 C++：
+
+```bash
+lcm-gen -x state_t.lcm
+```
+
+得到 `atlas/state_t.hpp`。变量数组的长度字段必须与 vector 实际元素数一致；编码器按长度字段读取，错误值可能导致越界或截断。
+
+`joint_count` 同时存在于 schema 和 C++ vector，是一种冗余不变量。把赋值封装起来，避免每个调用点各自维护：
+
+```cpp
+atlas::state_t make_state(const std::vector<double>& joints,
+                          std::int64_t sequence) {
+  if (joints.size() > kMaxJoints) throw std::length_error("too many joints");
+  atlas::state_t result;
+  result.timestamp_us = now_us();
+  result.sequence = sequence;
+  result.joints.assign(joints.begin(), joints.end());
+  result.joint_count = static_cast<std::int32_t>(result.joints.size());
+  result.frame = "arm_base";
+  return result;
+}
+```
+
+形参以 `const&` 借用调用者 vector，不发生入口复制；返回对象通过 `assign` 拥有自己的元素。若工程使用 C++20，可改用 `std::span<const double>` 接受 vector、array 和其他连续缓冲区，同时仍保持不拥有的只读视图语义。
+
+官方类型教程列出各语言生成参数和数组映射。[LCM-gen Tutorial](https://lcm-proj.github.io/lcm/content/tutorial-lcmgen.html)
+
+## Publisher
+
+```cpp
+#include <lcm/lcm-cpp.hpp>
+#include "atlas/state_t.hpp"
+
+int main() {
+  lcm::LCM lcm;
+  if (!lcm.good()) return 1;
+
+  atlas::state_t msg;
+  msg.timestamp_us = now_us();
+  msg.sequence = 1;
+  msg.joints = {0.1, 0.2, 0.3};
+  msg.joint_count = static_cast<int32_t>(msg.joints.size());
+  msg.frame = "arm_base";
+  lcm.publish("ATLAS_STATE", &msg);
+}
+```
+
+`publish` 在调用中编码消息。不要在 `joint_count` 与 vector 不一致时发送。channel 约定使用稳定常量，并约定单一类型。
+
+发布成功表示本地 provider 接受或发送了报文，不表示任何订阅者存在，更不表示远端解码成功。需要业务确认的命令必须单独设计 ack channel。
+
+## Subscriber
+
+```cpp
+class Handler {
+ public:
+  void onState(const lcm::ReceiveBuffer*, const std::string& channel,
+               const atlas::state_t* msg) {
+    std::cout << channel << " seq=" << msg->sequence << '\n';
+  }
+};
+
+int main() {
+  lcm::LCM lcm;
+  if (!lcm.good()) return 1;
+  Handler handler;
+  lcm.subscribe("ATLAS_STATE", &Handler::onState, &handler);
+  while (0 == lcm.handle()) {}
+}
+```
+
+callback 在调用 `handle()` 的线程执行。回调阻塞会停止该 LCM 实例的后续 dispatch；耗时任务应复制所需字段到有界 worker queue。
+
+### 回调参数的所有权
+
+`ReceiveBuffer*` 与生成消息指针是 LCM 在本次分发中提供的借用对象。回调返回后不能保存指针：
+
+```cpp
+void Handler::onState(const lcm::ReceiveBuffer*, const std::string&,
+                      const atlas::state_t* msg) {
+  StateSnapshot owned;
+  owned.sequence = msg->sequence;
+  owned.timestamp_us = msg->timestamp_us;
+  owned.joints = msg->joints;           // 深复制动态数组
+  if (!queue_.try_push(std::move(owned))) ++drops_;
+}
+```
+
+复制不是因为回调“速度不够”，而是把借用生命周期转换为 worker 可持有的所有权。把 `msg` 指针直接放进队列，即使通常能运行，也是 use-after-free。
+
+Handler 对象自身也必须比 subscription 活得更久。一个安全的声明与关闭次序是：先构造 Handler，再订阅；关闭时停止 handle loop、取消订阅，然后才能销毁 Handler。
+
+## `handle()` 决定线程模型
+
+LCM 的 callback 不由任意内部线程并发调用；哪个线程调用 `handle()`，哪个线程执行一个消息的 callback。这给应用明确控制，也意味着同一实例上的慢 callback 会串行阻塞其他 channel。
+
+```cpp
+std::atomic_bool stop{false};
+while (!stop.load()) {
+  const int rc = lcm.handleTimeout(100); // 周期醒来检查退出和维护任务
+  if (rc < 0) {
+    report_provider_error();
+    break;
+  }
+}
+```
+
+与永久阻塞的 `handle()` 相比，超时接口让主循环有机会响应停止，但 100 ms 也成为最坏关闭检测延迟之一。若已有 epoll、Qt 或机器人调度循环，则监控 `getFileno()`；fd readable 后再调用 `handle()`，把通信纳入统一事件循环。
+
+不要让两个线程同时对同一 LCM 实例调用 `handle()`，除非所用版本明确保证这种用法；单分发者模型更容易推理 callback 顺序和 unsubscribe 生命周期。
+
+## Subscription 容量与取消
+
+订阅返回的对象用于配置容量和取消。容量限制是每订阅可排队消息数，不是可靠性保证；队列满时仍会丢弃：
+
+```cpp
+auto* sub = lcm.subscribe("ATLAS_STATE", &Handler::onState, &handler);
+sub->setQueueCapacity(4);
+// 停止 handle loop 后
+lcm.unsubscribe(sub);
+```
+
+容量 4 适合吸收短调度抖动，却不能解决 callback 每秒只能处理 50 条、发布者每秒发送 100 条的持续过载。应测到达率、服务率、队列容量与允许的数据年龄，再选择丢弃或把重工作移出 callback。
+
+## 集成现有事件循环
+
+`getFileno()` 返回可监控 fd。fd readable 后调用 `handle()`，此时官方文档保证不会阻塞。不要无条件从 GUI/控制线程调用阻塞 handle。
+
+## Schema 兼容
+
+LCM 类型指纹能检测不兼容定义。修改字段会产生新指纹；滚动升级时应使用新类型名或桥接进程，而不是假设旧消费者忽略未知字段。
+
+桥接进程同时订阅 `ATLAS_STATE_V1`、发布 `ATLAS_STATE_V2`，显式完成单位、默认值和字段映射。这样兼容策略有可测试代码，而不是依赖二进制解析“碰巧没有失败”。
+
+## 验收
+
+- C++ 与另一语言生成代码互通；
+- 故意使用旧 schema 时能观察指纹/解码失败；
+- `joint_count` 为 0、最大值和非法不一致均有测试；
+- handler 慢时队列和 UDP drop 可观测；
+- sequence gap 与时间戳 age 进入指标。
+- 关闭前停止唯一的 handle 分发者，再 unsubscribe 并销毁 Handler；
+- callback 返回后没有保存 ReceiveBuffer 或生成消息裸指针；
+- 满负载时 subscription 容量和 worker queue 均保持上界。

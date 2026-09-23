@@ -1,0 +1,54 @@
+LCM
+===
+
+固定源码版本：``ad0c54cee0ec048ef12357c34349ec1443158864``
+
+LCM 用很小的 C 运行时完成低延迟消息分发。顶层 ``lcm_t`` 保存 provider vtable、订阅关系和 handle 状态；UDPM provider 用 LC02/LC03 报文、多播 socket、接收线程、重组表、有限 ring 与通知 pipe，把网络接收和用户 callback 分到两个执行上下文。
+
+它的价值在于机制少而边界清楚：publish 可以一直追到 ``sendmsg/iovec``，receive 可以一直追到 fragment reassembly 与锁外 callback。相应代价也直接可见——多播没有端到端可靠性，分片放大丢包概率，队列容量和主线程调用 ``handle`` 的节奏决定数据是否及时。
+
+阅读源码时从 public entry 出发，沿真实调用链标出对象所有权、线程切换、队列、锁和数据复制，再回到关闭路径检查在途工作如何收束。
+
+统一学习路径
+------------
+
+本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权，最后才进入语言机制、性能取舍、最小复刻和实际项目。
+
+1. **功能介绍与需求分析**：:doc:`建立使用场景、核心保证与适用边界 <overview>`。
+2. **组件地图**：:doc:`先看清公开入口、核心对象和控制流关系 <architecture-map>`。
+3. **自顶向下源码实现**：:doc:`从第一条主调用链进入实现 <provider-vtable>`，再按下方源码目录顺序阅读后续模块。
+4. **C/C++ 或 Rust 机制**：:doc:`把所有权、模板、RAII、ABI 与并发原语映射回设计目的 <c-abi-cpp-design-lab>`。
+5. **设计取舍与性能边界**：:doc:`汇总数据结构复杂度、优点、缺点和失效条件 <design-recap>`。
+6. **可迁移思想与最小复刻**：仍在 :doc:`设计总结 <design-recap>` 中按依赖顺序实现，并以关闭、过载和竞态不变量判定是否完成。
+7. **实际开发与知名项目**：从 :doc:`环境与基础操作 <use-environment>` 开始，最后进入 :doc:`真实项目案例 <case-study-drake>`。
+
+
+源码解读
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   overview
+   architecture-map
+   foundations
+   provider-vtable
+   udpm-publish-protocol
+   receive-reassembly
+   subscription-dispatch
+   types-and-eventlog
+   c-abi-cpp-design-lab
+   design-recap
+
+
+使用教程
+--------
+
+.. toctree::
+   :maxdepth: 2
+
+   use-environment
+   use-pubsub-types
+   use-operations
+   case-study-drake
+

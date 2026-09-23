@@ -1,0 +1,233 @@
+# Resource Tree 与 Route Cache：从 Key Expression 到可复用路由
+
+```{contents} Contents
+:depth: 2
+:local:
+```
+
+
+如果每次数据或查询到达时，都遍历全部订阅者、Queryable 和 Face，再重新执行 key-expression 匹配，路由成本会随声明数量线性增长。Zenoh 的解决方案分为两层：用 Resource tree 保存表达式及其相交关系，再用带版本号的 Route cache 保存“从某个来源出发应该去哪些目的地”。
+
+理解这两层后，Publisher 数据路径中的 `get_data_route()` 和 Query 路径中的 `get_query_route()` 就不再是黑盒。它们本质上都是：把字符串定位到 Resource，尝试命中缓存，必要时依据当前拓扑重新计算。
+
+## Resource 是按 `/` 分段的表达式树
+
+以下声明：
+
+```text
+robot/arm/state
+robot/arm/cmd
+robot/**
+```
+
+不会作为三个互不相关的字符串存入普通哈希表，而是共享前缀节点：
+
+```text
+root
+└─ robot
+   ├─ arm
+   │  ├─ state
+   │  └─ cmd
+   └─ **
+```
+
+源码中的节点可压缩表示为：
+
+```rust
+struct Resource {
+    parent: Option<Arc<Resource>>,
+    expr: String,                         // 根到当前节点的完整表达式
+    suffix: usize,                        // 当前 chunk 在 expr 中的起点
+    nonwild_prefix: Option<Arc<Resource>>,
+    children: SingleOrBoxHashSet<Child>,
+    context: Option<Box<ResourceContext>>,
+    face_contexts: IntHashMap<FaceId, Arc<FaceContext>>,
+}
+
+struct ResourceContext {
+    matches: Vec<Weak<Resource>>,
+    // 不同 routing region 的 data/query route caches
+    // 以及跨 region 合并后的 data route
+}
+```
+
+`expr` 保留完整表达式，便于直接交给 key-expression 算法；`suffix` 又避免每次都重新扫描字符串寻找当前分段。`parent` 与 `children` 提供树形导航，`nonwild_prefix` 则快速定位通配符出现前的最长确定前缀。
+
+只有实际承载声明或路由上下文的终点需要 `ResourceContext`。纯粹作为路径中间段的节点可以没有 context，从而减少大量小对象的额外内存。
+
+源码位置：[`Resource` 与 `ResourceContext`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/resource.rs#L319-L405)。
+
+## `Arc`、`Weak` 与树所有权各司其职
+
+节点被路由、Face 映射和匹配集合并发引用，所以使用 `Arc<Resource>` 共享所有权。父节点通过 `Arc` 持有子节点，子节点也需要返回父节点；若两个方向都用强引用，会形成引用环，计数永远无法归零。
+
+Zenoh 在非所有权关系中使用 `Weak<Resource>`：
+
+```text
+parent --Arc--> child
+match A --Weak--> match B
+```
+
+`Weak` 可以通过 `upgrade()` 暂时尝试取得 `Arc`。节点已被回收时，升级返回 `None`，不会访问悬空指针。它适合表达“我知道这个对象，但不负责让它存活”。
+
+匹配边尤其适合弱引用，因为 `a/*` 与 `a/b` 的相交关系是对称的；若双方互持 `Arc`，两者即使都没有声明，也会互相阻止回收。
+
+## `make_resource` 迭代创建节点
+
+Resource 创建过程沿 `/` 逐段推进：
+
+```text
+make_resource("robot/arm/state")
+  current = root
+  chunk "robot": children 中存在则复用，否则创建
+  chunk "arm":   children 中存在则复用，否则创建
+  chunk "state": children 中存在则复用，否则创建
+  terminal: 若没有 ResourceContext，则升级为声明终点
+```
+
+实现刻意采用迭代而非递归。这样树深度由输入表达式决定时，不会把同样深度转化成调用栈深度，也更容易在循环中维护当前完整表达式和 suffix。
+
+精确表达式的树查找成本为 `O(D)`，`D` 是 `/` 分段数；每一层通常执行一次 children 哈希查找。它不是按字符串字符数逐个遍历所有声明。
+
+源码位置：[`make_resource`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/resource.rs#L586-L647)。
+
+## `matches` 把昂贵的相交判断前移到声明期
+
+Key expression 不是简单相等关系。例如：
+
+```text
+a/*       intersects a/b
+a/**      intersects a/b/c
+a/b       does not intersect x/b
+```
+
+`match_resource` 在声明或资源建立时计算相交集合，并维护双向弱引用边：
+
+```text
+Resource("a/*")  --Weak--> Resource("a/b")
+Resource("a/b")  --Weak--> Resource("a/*")
+```
+
+这样路由失效时，无需重新扫描整个资源树来寻找“哪些缓存可能受本次声明变化影响”，而是从当前节点沿 `matches` 直接触达相关节点。
+
+这是典型的读写权衡：
+
+- 声明路径更贵，需要计算相交关系并维护边；
+- 高频数据路径更便宜，可以直接使用预计算关系与 route cache；
+- 通配符越宽，匹配边越多，内存和失效扇出越大。
+
+源码位置：[`match_resource` 与匹配边维护](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/resource.rs#L896-L919)。
+
+## Route cache 的 key 包含来源区域与节点
+
+同一个 key expression 从不同来源进入，允许转发的方向可能不同。原因包括拓扑防环、路由角色差异、来源 Face 过滤和区域策略。因此缓存不能只用 resource 作为 key。
+
+`Routes<T>` 的逻辑 key 是：
+
+```text
+(source Region, source NodeId) -> T
+```
+
+内部使用 `RegionMap<Vec<Option<T>>>` 一类布局。Region 先选择一组稠密槽位，NodeId 再直接索引 `Vec`。当 NodeId 分布较稠密时，这比嵌套哈希表减少一次哈希与对象分配；若 NodeId 极度稀疏，扩容和空槽则成为空间代价。
+
+缓存值通常是 `Arc<Route>`。命中时只需克隆 `Arc`，不复制目的地集合。Route 构造完成后按不可变对象使用，因此多个发送线程可以安全共享同一快照。
+
+## 版本号让全局失效保持常数成本
+
+每个缓存记录生成时看到的路由版本：
+
+```rust
+struct Routes<T> {
+    version: u64,
+    mappings: RegionMap<Vec<Option<T>>>,
+}
+```
+
+查找流程如下：
+
+```text
+get_or_set_route(current_version, region, node_id)
+  |
+  +─ cache.version != current_version -> MISS
+  |
+  +─ mapping[region][node_id] 存在 -> HIT，clone Arc<Route>
+  |
+  └─ MISS
+       1. 不持缓存写锁计算 route
+       2. 获取写锁
+       3. 再检查一次是否已有其他线程填入
+       4. 若版本变化，清空本地 cache 并更新 version
+       5. 写入新 route
+```
+
+第 3 步是 double-check。两个线程可以同时在读锁下发现 miss，并并行计算相同路由；先获得写锁者填入结果，后获得者重新检查后复用已有值。这允许重复少量计算，换取不在昂贵路由计算期间独占写锁。
+
+源码位置：[`Routes` 与 `get_or_set_route`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/resource.rs#L225-L319)。
+
+## 局部失效与全局失效解决不同规模的变化
+
+声明变更只影响与某个表达式相交的资源，适合局部失效：
+
+```text
+declare queryable("a/**")
+  -> clear resource("a/**") query route cache
+  -> 遍历 matches
+       clear resource("a/*") cache
+       clear resource("a/b") cache
+       保留 resource("x/**") cache
+```
+
+Face、拓扑或 routing region 发生变化时，潜在影响接近全局。逐个遍历所有 Resource 清缓存的成本很高，于是系统只递增版本号：
+
+```text
+HatTablesData.routes_version += 1
+TablesData.routes_version    += 1
+```
+
+旧缓存仍留在原处，但下一次访问会看到版本不一致，然后惰性清空并重算。全局失效动作本身接近 `O(1)`，代价被分摊到后续真实访问的资源上。
+
+两种策略组合后形成清晰边界：已知受影响集合较小时精确清除；影响范围难以枚举时推进 epoch/version。
+
+源码位置：[`Hat cache 失效`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/hat/mod.rs#L273-L315)，[`Queryable 声明触发 query route 失效`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/queries.rs#L73-L111)。
+
+## 资源清理不能只看“没有声明”
+
+一个 Resource 即使不再直接承载声明，也可能仍被子节点、Face mapping、Route 或临时计算引用。`Resource::clean` 只尝试删除满足条件的叶节点：
+
+```text
+不是 root
+AND children 为空
+AND 当前强引用数不超过实现预期的临时引用阈值
+```
+
+删除前，它从所有匹配节点的 `matches` 中移除自己，再从父节点 children 删除，随后向上尝试清理已经变空的祖先。
+
+固定版本中使用 `Arc::strong_count <= 3` 判断当前是否只剩预期引用。这个数字与调用现场持有的临时 clone 数耦合，不是通用的所有权证明。修改清理代码时若多保留一个局部 `Arc`，就可能让节点永远达不到阈值；若错误减少计数假设，又可能从树索引中提前移除仍在使用的节点。
+
+Runtime 强制关闭时不再依赖普通增量清理，而由 `root_res.close()` 深度 drain children、断开 parent/nonwild 引用并清空 contexts。它是完整 teardown 路径。
+
+源码位置：[`Resource::clean` 与 `close`](https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/net/routing/dispatcher/resource.rs#L535-L577)。
+
+## 数据结构与性能模型
+
+设资源节点数为 `R`，表达式平均深度为 `D`，当前节点的相交资源数为 `M`，目的 Face 数为 `F`：
+
+| 操作 | 典型复杂度 | 容易被忽略的成本 |
+|---|---:|---|
+| 精确 resource 查找/创建 | `O(D)` | 每段 children lookup 与字符串存储 |
+| 建立匹配集合 | 与候选资源数相关 | keyexpr 相交算法、去重、双向 Weak 边 |
+| route cache hit | 近似 `O(1)` | `RwLock` 读、RegionMap、Vec 索引、Arc clone |
+| route cache miss | 取决于 Hat 算法，常含 `O(M + F)` | 目的 Face 去重、写锁与 Route 分配 |
+| 局部失效 | `O(M)` | 清自身与全部相交资源缓存 |
+| 全局失效 | `O(1)` | 后续首次访问承担重算抖动 |
+
+通配符密度是重要自变量。大量 `/**` 表达式会同时扩大匹配图边数、局部失效扇出和路由候选集合。只测试 payload 吞吐，无法暴露这个瓶颈；性能评估应同时改变资源数、平均深度、通配符比例、Face 数和拓扑变更频率。
+
+## 最小复刻的四个阶段
+
+1. 先实现按 `/` 分段的树，只支持精确 key；验证创建、查找和叶节点回收。
+2. 加入 `*`、`**` 相交判断，并用非拥有边保存双向 matches；验证删除任意一端后没有悬挂访问。
+3. 为每个 Resource 增加不可变 `Arc<Route>` 缓存；在读 miss 后执行写锁 double-check。
+4. 最后加入局部 matches 失效和全局 version 失效；统计实际 route compute 次数，证明 hit 与 invalidation 确实发生。
+
+Resource tree 的价值不是把字符串换成树，而是把声明期建立的结构、数据期复用的 Route 和拓扑变化时的失效协议组合成一个整体。缺少任何一部分，缓存都可能返回已经过时的目的地集合。
