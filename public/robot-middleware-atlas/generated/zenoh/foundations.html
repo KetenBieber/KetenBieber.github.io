@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face &mdash; Robot Middleware Source Tutorials</title>
+  <title>Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间 &mdash; Robot Middleware Source Tutorials</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -1280,31 +1280,21 @@
 <li class="toctree-l2 current"><a class="reference internal" href="index.html">Eclipse Zenoh</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="index.html#id1">统一学习路径</a></li>
 <li class="toctree-l3 current"><a class="reference internal" href="index.html#id2">源码解读</a><ul class="current">
-<li class="toctree-l4 current"><a class="current reference internal" href="#">Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="#zenoh-topic">Zenoh 不只是 Topic 总线</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id1">从应用到网络的整体路径</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#session">Session 是公开运行时入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#arc">Arc 表示线程安全共享所有权</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#weak">Weak 打破所有权环</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#rwlock">RwLock 区分读者与写者</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#trait">Trait 表示行为接口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#builder">Builder 分离参数收集与状态提交</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#async-task">async 与 Task</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#channel">Channel 连接异步生产者与消费者</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#key-expression">Key Expression 的三种核心关系</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id2">相等</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#intersects">Intersects</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#includes">Includes</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="#id1">机器人数据首先需要一套稳定的名字</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#key-expression-key-key">Key Expression 既能指向一个 key，也能描述一组 key</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#key">相交表示两组 key 至少有一个共同成员</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id2">包含表示一个表达式覆盖另一个表达式的全部范围</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#resource-tree">Resource Tree 共享表达式前缀</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#face">Face 表示路由边界的一侧</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#wireexpr-scope-suffix-key">WireExpr 用 Scope 加 Suffix 压缩 Key</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#mux-demux">Mux 与 DeMux 的方向</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#route-cache">Route Cache 避免每条消息重算</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#query-reply-request-response-socket">Query 与 Reply 不等于 Request/Response Socket</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id3">三层背压必须分开</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id4">后续源码阅读的固定问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id3">四种常用动作拥有不同的时间语义</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#session">Session 是应用进入数据空间的入口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id4">第一段发布代码只完成打开、声明和写入</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#subscriber">Subscriber 把后续样本交给处理逻辑</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#rust">Rust 类型把对象寿命写进了接口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id5">接收者跟不上时必须选择数据语义</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id6">统一命名带来能力，也带来实现成本</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id7">后续章节按问题选择，而不是继续背名词</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="architecture-map.html">Zenoh 功能与组件地图：统一数据空间、路由与查询</a><ul>
@@ -1985,7 +1975,7 @@
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../experimental.html">轻量与边缘中间件</a></li>
           <li class="breadcrumb-item"><a href="index.html">Eclipse Zenoh</a></li>
-      <li class="breadcrumb-item active">Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face</li>
+      <li class="breadcrumb-item active">Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/generated/zenoh/foundations.md.txt" rel="nofollow"> 查看页面源码</a>
       </li>
@@ -1995,296 +1985,277 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="zenoh-rust-key-expression-face">
-<h1>Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face<a class="headerlink" href="#zenoh-rust-key-expression-face" title="Link to this heading"></a></h1>
+  <section id="zenoh">
+<h1>Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间<a class="headerlink" href="#zenoh" title="Link to this heading"></a></h1>
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#zenoh-topic" id="id5">Zenoh 不只是 Topic 总线</a></p></li>
-<li><p><a class="reference internal" href="#id1" id="id6">从应用到网络的整体路径</a></p></li>
-<li><p><a class="reference internal" href="#session" id="id7">Session 是公开运行时入口</a></p></li>
-<li><p><a class="reference internal" href="#arc" id="id8">Arc 表示线程安全共享所有权</a></p></li>
-<li><p><a class="reference internal" href="#weak" id="id9">Weak 打破所有权环</a></p></li>
-<li><p><a class="reference internal" href="#rwlock" id="id10">RwLock 区分读者与写者</a></p></li>
-<li><p><a class="reference internal" href="#trait" id="id11">Trait 表示行为接口</a></p></li>
-<li><p><a class="reference internal" href="#builder" id="id12">Builder 分离参数收集与状态提交</a></p></li>
-<li><p><a class="reference internal" href="#async-task" id="id13">async 与 Task</a></p></li>
-<li><p><a class="reference internal" href="#channel" id="id14">Channel 连接异步生产者与消费者</a></p></li>
-<li><p><a class="reference internal" href="#key-expression" id="id15">Key Expression 的三种核心关系</a></p>
+<li><p><a class="reference internal" href="#id1" id="id8">机器人数据首先需要一套稳定的名字</a></p></li>
+<li><p><a class="reference internal" href="#key-expression-key-key" id="id9">Key Expression 既能指向一个 key，也能描述一组 key</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id2" id="id16">相等</a></p></li>
-<li><p><a class="reference internal" href="#intersects" id="id17">Intersects</a></p></li>
-<li><p><a class="reference internal" href="#includes" id="id18">Includes</a></p></li>
+<li><p><a class="reference internal" href="#key" id="id10">相交表示两组 key 至少有一个共同成员</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id11">包含表示一个表达式覆盖另一个表达式的全部范围</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#resource-tree" id="id19">Resource Tree 共享表达式前缀</a></p></li>
-<li><p><a class="reference internal" href="#face" id="id20">Face 表示路由边界的一侧</a></p></li>
-<li><p><a class="reference internal" href="#wireexpr-scope-suffix-key" id="id21">WireExpr 用 Scope 加 Suffix 压缩 Key</a></p></li>
-<li><p><a class="reference internal" href="#mux-demux" id="id22">Mux 与 DeMux 的方向</a></p></li>
-<li><p><a class="reference internal" href="#route-cache" id="id23">Route Cache 避免每条消息重算</a></p></li>
-<li><p><a class="reference internal" href="#query-reply-request-response-socket" id="id24">Query 与 Reply 不等于 Request/Response Socket</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id25">三层背压必须分开</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id26">后续源码阅读的固定问题</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id12">四种常用动作拥有不同的时间语义</a></p></li>
+<li><p><a class="reference internal" href="#session" id="id13">Session 是应用进入数据空间的入口</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id14">第一段发布代码只完成打开、声明和写入</a></p></li>
+<li><p><a class="reference internal" href="#subscriber" id="id15">Subscriber 把后续样本交给处理逻辑</a></p></li>
+<li><p><a class="reference internal" href="#rust" id="id16">Rust 类型把对象寿命写进了接口</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id17">接收者跟不上时必须选择数据语义</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id18">统一命名带来能力，也带来实现成本</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id19">后续章节按问题选择，而不是继续背名词</a></p></li>
 </ul>
 </nav>
-<p>Zenoh 把发布订阅、查询回复、存储和分布式数据空间统一在 key expression 上。源码同时使用 Rust 的 <code class="docutils literal notranslate"><span class="pre">Arc</span></code>、<code class="docutils literal notranslate"><span class="pre">Weak</span></code>、trait、async task、builder 和多层路由结构。如果直接从 <code class="docutils literal notranslate"><span class="pre">route_data()</span></code> 开始，很容易只看见泛型与锁，而看不见数据为何经过这些对象。</p>
-<p>本文固定版本为 <a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/tree/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5"><code class="docutils literal notranslate"><span class="pre">9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5</span></code></a>，先建立后续源码需要的最小概念。</p>
-<section id="zenoh-topic">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">Zenoh 不只是 Topic 总线</a><a class="headerlink" href="#zenoh-topic" title="Link to this heading"></a></h2>
-<p>传统 topic pub/sub 可以理解为：发送者把消息写到一个名字，订阅相同名字的人收到。</p>
-<p>Zenoh 使用 key expression：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/arm/joint/1/state
-robot/arm/joint/*/state
-robot/**/temperature
-</pre></div>
-</div>
-<p>它不只判断字符串是否相等，还判断两个表达式是否相交、一个表达式是否包含另一个。</p>
-<p>同一命名模型用于：</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">put</span></code> / publish 数据；</p></li>
-<li><p>declare subscriber；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">get</span></code> / query；</p></li>
-<li><p>declare queryable；</p></li>
-<li><p>storage 与 liveliness。</p></li>
-</ul>
-<p>因此路由器维护的是“表达式集合之间的关系”，不是简单 <code class="docutils literal notranslate"><span class="pre">unordered_map&lt;string,</span> <span class="pre">subscribers&gt;</span></code>。</p>
-</section>
+<p>假设一台移动机器人每 10 毫秒产生一次位姿，前方相机持续输出图像，诊断工具偶尔询问电池和电机温度，边缘服务器还要保存部分历史数据。它们的时间行为不同：控制器需要持续收到新状态，诊断工具只在需要时发问，存储服务则关心稍后还能不能找到数据。</p>
+<p>这些功能却在描述同一件事：机器人有哪些数据，这些数据叫什么。Zenoh 最值得先理解的地方，就是让发布、订阅、查询、回复以及存储等能力围绕同一套层级名字工作，再由运行时决定数据应留在本机，还是穿过一个或多个网络连接。</p>
+<p>本文固定阅读 Zenoh 提交 <a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/tree/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5"><code class="docutils literal notranslate"><span class="pre">9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5</span></code></a>。这一章只建立第一张可运行的心智模型：Zenoh 解决什么问题、Key Expression 表达什么、四种常用动作怎样区分，以及第一段 Rust API 应该怎样读。路由表、Face、WireExpr、<code class="docutils literal notranslate"><span class="pre">Arc</span></code> 和异步任务会在后续源码链中就地展开。</p>
 <section id="id1">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">从应用到网络的整体路径</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Application
-  -&gt; Session
-  -&gt; Publisher / Subscriber / Queryable entity
-  -&gt; Primitives
-  -&gt; local routing Face
-  -&gt; Gateway + routing Tables
-  -&gt; destination Face(s)
-  -&gt; Mux
-  -&gt; Transport
-  -&gt; remote node
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">机器人数据首先需要一套稳定的名字</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>可以先给数据取一组不依赖机器地址的名字：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/17/pose
+robot/17/battery
+robot/17/camera/front
+robot/17/diagnostics/motor
 </pre></div>
 </div>
-<p>接收方向相反：Transport 把 wire message 交给 DeMux，Face 解析 wire expression，Routing Tables 选择下一跳或本地 Session，最终 callback/handler 获得 Sample。</p>
+<p>这些不是 IP 地址，也不是某个进程里的 C++ 变量名。它们描述数据在机器人系统中的逻辑位置。相机进程从车载计算机迁移到另一台主机后，<code class="docutils literal notranslate"><span class="pre">robot/17/camera/front</span></code> 仍可以保持不变；连接和路由变化由运行时处理。</p>
+<p>朴素系统也可以分别使用 topic 名、RPC 服务名和数据库路径。但随着机器人跨进程、跨设备、跨边缘部署，同一份数据会在三套系统中拥有三种名字，桥接程序还要维护发现、权限和生命周期。Zenoh 的统一命名减少的是这种集成边界，并不自动决定一致性、访问权限或存储策略。</p>
+<p>因此，把 Zenoh 简单等同为“另一个 topic 总线”会遗漏一半设计动机。它确实支持持续发布订阅，但同一命名空间还可以承载临时查询和其他数据访问方式。</p>
+</section>
+<section id="key-expression-key-key">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Key Expression 既能指向一个 key，也能描述一组 key</a><a class="headerlink" href="#key-expression-key-key" title="Link to this heading"></a></h2>
+<p>Zenoh 把这套名字称为 key；能够包含通配规则的表达式叫作 <strong>Key Expression</strong>。第一次阅读时，可以把它翻译成“能够描述一组数据地址的表达式”。</p>
+<p>先看一个具体 key：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/17/joint/1/state
+</pre></div>
+</div>
+<p>它指向 17 号机器人 1 号关节的状态。若监控程序希望观察 17 号机器人的任意一个关节，可以写：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/17/joint/*/state
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">*</span></code> 匹配一个路径片段。若要覆盖更深的层级，可以写：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/**/temperature
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">**</span></code> 可以跨越多个 <code class="docutils literal notranslate"><span class="pre">/</span></code> 分隔的片段，所以它能描述机器人命名空间下不同深度的温度数据。</p>
+<p>这时，表达式就不再只是普通字符串，而是在表示一组可能的具体 key。源码中常见的 <code class="docutils literal notranslate"><span class="pre">intersects</span></code> 和 <code class="docutils literal notranslate"><span class="pre">includes</span></code> 都来自集合关系。</p>
+<section id="key">
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">相交表示两组 key 至少有一个共同成员</a><a class="headerlink" href="#key" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/*/pose
+robot/17/*
+</pre></div>
+</div>
+<p>两个表达式并不相等，却都能匹配 <code class="docutils literal notranslate"><span class="pre">robot/17/pose</span></code>，因此它们相交。发布与订阅、查询与 Queryable 的匹配通常关心这种关系。</p>
+</section>
+<section id="id2">
+<h3><a class="toc-backref" href="#id11" role="doc-backlink">包含表示一个表达式覆盖另一个表达式的全部范围</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/**  includes  robot/17/pose
+</pre></div>
+</div>
+<p>左边覆盖右边表示的具体 key。这个判断不能用普通字符串前缀代替：<code class="docutils literal notranslate"><span class="pre">robot/1</span></code> 虽然是 <code class="docutils literal notranslate"><span class="pre">robot/17</span></code> 的文本前缀，却不是它的路径父级。</p>
+<p>因此，Zenoh 路由不能只做一次 <code class="docutils literal notranslate"><span class="pre">unordered_map&lt;string,</span> <span class="pre">subscribers&gt;</span></code> 精确查表。它还要按照统一的 keyexpr 规则计算表达式关系。后续组件地图会说明 Resource 如何组织这些名字，Publisher 路由章则会追踪匹配结果怎样变成一组目的地。</p>
+</section>
+</section>
+<section id="id3">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">四种常用动作拥有不同的时间语义</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>同一套名字不表示所有操作都变成同一种消息。对初学者而言，先区分四个动作最重要：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>应用意图</p></th>
+<th class="head"><p>Zenoh 动作</p></th>
+<th class="head"><p>时间上的直觉</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>写入一份新数据</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">put</span></code> 或 Publisher</p></td>
+<td><p>现在产生一份值</p></td>
+</tr>
+<tr class="row-odd"><td><p>持续观察后续更新</p></td>
+<td><p>Subscriber</p></td>
+<td><p>从声明以后接收匹配数据</p></td>
+</tr>
+<tr class="row-even"><td><p>临时询问已有答案</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">get</span></code> 或 Querier</p></td>
+<td><p>发出问题，接收零到多条回复</p></td>
+</tr>
+<tr class="row-odd"><td><p>声明自己能够回答</p></td>
+<td><p>Queryable</p></td>
+<td><p>收到匹配问题后产生回复</p></td>
+</tr>
+</tbody>
+</table>
+<p>发布订阅适合持续数据流。例如里程计不断向 <code class="docutils literal notranslate"><span class="pre">robot/17/pose</span></code> 写新位姿，控制器订阅这个 key 以获得后续更新。</p>
+<p>查询更像一次面向数据空间的提问。诊断程序可以查询：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/17/**/temperature
+</pre></div>
+</div>
+<p>电池模块、电机模块和历史存储都可能声明了匹配的 Queryable。一次 <code class="docutils literal notranslate"><span class="pre">get</span></code> 因此可能没有回复，也可能收到来自多个位置的多条回复。它不是默认只对应一个服务端的 request/response socket。</p>
+<p>“零条回复”和“查询超时”也不是同一个概念。前者可能表示匹配分支正常结束但没有数据，后者表示调用者等到期限仍未观察到完整收口。具体怎样记录分支、回复和结束信号，会在 Query 生命周期章中沿源码展开。</p>
 </section>
 <section id="session">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">Session 是公开运行时入口</a><a class="headerlink" href="#session" title="Link to this heading"></a></h2>
-<p>应用通常从：</p>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Session 是应用进入数据空间的入口</a><a class="headerlink" href="#session" title="Link to this heading"></a></h2>
+<p>Zenoh 应用通常从下面这行开始：</p>
 <div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">session</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">zenoh</span><span class="p">::</span><span class="n">open</span><span class="p">(</span><span class="n">config</span><span class="p">).</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
 </pre></div>
 </div>
-<p>开始。Session 提供 declare publisher/subscriber/queryable、put/get 等 API。</p>
-<p>它不等同于一条 TCP connection。一个 Session 背后可能有 Runtime、router、多个 transport 和本地实体表。Clone Session 通常只复制共享指针，不复制整个网络运行时。</p>
-</section>
-<section id="arc">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Arc 表示线程安全共享所有权</a><a class="headerlink" href="#arc" title="Link to this heading"></a></h2>
-<p>Rust 的 <code class="docutils literal notranslate"><span class="pre">Arc&lt;T&gt;</span></code> 类似 C++ <code class="docutils literal notranslate"><span class="pre">std::shared_ptr&lt;T&gt;</span></code>，但为多线程引用计数设计：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">new</span><span class="p">(</span><span class="n">SessionInner</span><span class="p">::</span><span class="n">new</span><span class="p">());</span>
-<span class="kd">let</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Arc</span><span class="p">::</span><span class="n">clone</span><span class="p">(</span><span class="o">&amp;</span><span class="n">a</span><span class="p">);</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">a</span></code> 和 <code class="docutils literal notranslate"><span class="pre">b</span></code> 指向同一对象。最后一个强引用释放时，<code class="docutils literal notranslate"><span class="pre">SessionInner</span></code> 才被析构。</p>
-<p>路由表、Face 和异步任务之间需要共享对象，<code class="docutils literal notranslate"><span class="pre">Arc</span></code> 让对象不会在任务仍使用时提前释放。</p>
-<p>引用计数只解决内存寿命，不自动执行完整业务关闭。Session 仍要撤销实体、停止 task、关闭 transport，因此源码还维护显式 close 状态和逻辑计数。</p>
-</section>
-<section id="weak">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Weak 打破所有权环</a><a class="headerlink" href="#weak" title="Link to this heading"></a></h2>
-<p>若 A 用 Arc 拥有 B，B 又用 Arc 拥有 A：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>A --strong--&gt; B
-^             |
-`---strong----&#39;
-</pre></div>
-</div>
-<p>即使外部不再使用，两者引用计数也不会归零。<code class="docutils literal notranslate"><span class="pre">Weak&lt;T&gt;</span></code> 是不延长寿命的观察引用：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">session</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">weak_session</span><span class="p">.</span><span class="n">upgrade</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">session</span><span class="p">.</span><span class="n">do_work</span><span class="p">();</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>升级失败表示 Session 已关闭/释放。Zenoh 的 primitives、callback 和 task 会使用 Weak 回指 Session/Runtime，避免生命周期环。</p>
-</section>
-<section id="rwlock">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">RwLock 区分读者与写者</a><a class="headerlink" href="#rwlock" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">RwLock&lt;T&gt;</span></code> 允许多个读线程同时访问，但写线程独占：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span><span class="p">.</span><span class="n">state</span><span class="p">.</span><span class="n">read</span><span class="p">();</span><span class="w">   </span><span class="c1">// shared read guard</span>
-<span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span><span class="p">.</span><span class="n">state</span><span class="p">.</span><span class="n">write</span><span class="p">();</span><span class="w"> </span><span class="c1">// exclusive write guard</span>
-</pre></div>
-</div>
-<p>Guard 离开作用域时自动解锁。源码中常见显式：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="nb">drop</span><span class="p">(</span><span class="n">state</span><span class="p">);</span>
-<span class="n">primitives</span><span class="p">.</span><span class="n">send_interest</span><span class="p">(</span><span class="o">..</span><span class="p">.);</span>
-</pre></div>
-</div>
-<p>它不是清理普通变量，而是刻意在网络/回调调用前释放写锁。若持全局状态锁进入可能阻塞或回入 Session 的函数，容易死锁并放大尾延迟。</p>
-</section>
-<section id="trait">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">Trait 表示行为接口</a><a class="headerlink" href="#trait" title="Link to this heading"></a></h2>
-<p>Rust trait 类似 C++ 抽象基类或 interface：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="k">trait</span><span class="w"> </span><span class="n">Primitives</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">send_declare</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">declaration</span><span class="p">:</span><span class="w"> </span><span class="nc">Declare</span><span class="p">);</span>
-<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="nf">send_push</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">message</span><span class="p">:</span><span class="w"> </span><span class="nc">Push</span><span class="p">);</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">Arc&lt;dyn</span> <span class="pre">Primitives&gt;</span></code> 表示运行时多态对象：调用者知道它能发送声明和数据，却不知道背后是本地 Face、网络路由还是测试实现。</p>
-<p>Primitives 是 Session 与路由核心之间的端口。Session 管实体语义，路由核心管 topology 与 Face，双方通过 trait 解耦。</p>
-</section>
-<section id="builder">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">Builder 分离参数收集与状态提交</a><a class="headerlink" href="#builder" title="Link to this heading"></a></h2>
-<p>Zenoh API 常写成：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="n">session</span>
-<span class="w">    </span><span class="p">.</span><span class="n">declare_publisher</span><span class="p">(</span><span class="s">&quot;robot/pose&quot;</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">congestion_control</span><span class="p">(</span><span class="n">CongestionControl</span><span class="p">::</span><span class="nb">Drop</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="n">priority</span><span class="p">(</span><span class="n">Priority</span><span class="p">::</span><span class="n">DataHigh</span><span class="p">)</span>
-<span class="w">    </span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
-</pre></div>
-</div>
-<p>前几步只在 Builder 内收集配置，最后 <code class="docutils literal notranslate"><span class="pre">.await</span></code>/<code class="docutils literal notranslate"><span class="pre">.wait()</span></code> 才修改 SessionState 并向网络声明。</p>
-<p>好处是参数在进入共享状态锁之前已经完整；构建失败也不会留下半声明实体。</p>
-<p>需要注意：Rust 语法上可 await 不一定代表内部真正非阻塞。固定版本的某些 builder <code class="docutils literal notranslate"><span class="pre">IntoFuture</span></code> 会先同步 <code class="docutils literal notranslate"><span class="pre">wait()</span></code>，再返回 ready future。</p>
-</section>
-<section id="async-task">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">async 与 Task</a><a class="headerlink" href="#async-task" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">async</span> <span class="pre">fn</span></code> 调用得到 Future。Future 只有被 executor poll 时才推进：</p>
-<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tokio</span><span class="p">::</span><span class="n">spawn</span><span class="p">(</span><span class="k">async</span><span class="w"> </span><span class="k">move</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">receive_loop</span><span class="p">().</span><span class="k">await</span><span class="p">;</span>
-<span class="p">});</span>
-</pre></div>
-</div>
-<p>异步 task 不是 OS 线程。许多 task 可以共享少量 executor 线程；某个 task 执行阻塞系统调用或长时间不 <code class="docutils literal notranslate"><span class="pre">.await</span></code>，会占住 executor worker。</p>
-<p>Zenoh 的 scouting、reconnect、timeout 和 routing I/O 使用 task controller 管理。关闭时不仅要 drop Arc，还要取消并等待 task。</p>
-</section>
-<section id="channel">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">Channel 连接异步生产者与消费者</a><a class="headerlink" href="#channel" title="Link to this heading"></a></h2>
-<p>Subscriber 默认 handler 可以把 Sample 写入有界 channel：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>routing callback -&gt; FIFO/Ring channel -&gt; application receive
-</pre></div>
-</div>
-<p>FIFO 满时可能阻塞生产路径；Ring 满时通常淘汰旧值。它们位于应用交付边界，与 transport 的 congestion control 不是同一个队列。</p>
-<p>阅读“丢消息”时必须先定位丢在哪一层：网络 reliability、transport queue、routing filter，还是 application handler channel。</p>
-</section>
-<section id="key-expression">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">Key Expression 的三种核心关系</a><a class="headerlink" href="#key-expression" title="Link to this heading"></a></h2>
-<section id="id2">
-<h3><a class="toc-backref" href="#id16" role="doc-backlink">相等</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">robot/a</span></code> 与 <code class="docutils literal notranslate"><span class="pre">robot/a</span></code> 是同一个具体 key。</p>
-</section>
-<section id="intersects">
-<h3><a class="toc-backref" href="#id17" role="doc-backlink">Intersects</a><a class="headerlink" href="#intersects" title="Link to this heading"></a></h3>
-<p>两个表达式至少存在一个共同具体 key：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/*/pose   intersects robot/arm/*
-</pre></div>
-</div>
-<p>因为 <code class="docutils literal notranslate"><span class="pre">robot/arm/pose</span></code> 可同时匹配它们。Publish 与 Subscriber/Queryable 路由主要关心相交。</p>
-</section>
-<section id="includes">
-<h3><a class="toc-backref" href="#id18" role="doc-backlink">Includes</a><a class="headerlink" href="#includes" title="Link to this heading"></a></h3>
-<p>一个表达式覆盖另一个表达式的全部集合：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/** includes robot/arm/pose
-</pre></div>
-</div>
-<p>Includes 可用于聚合声明和 Query target 选择。它不是普通字符串前缀判断，wildcard 规则必须由统一 keyexpr 库实现。</p>
-</section>
-</section>
-<section id="resource-tree">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">Resource Tree 共享表达式前缀</a><a class="headerlink" href="#resource-tree" title="Link to this heading"></a></h2>
-<p>大量 key 具有共同前缀：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>robot/arm/joint/1
-robot/arm/joint/2
-robot/arm/camera
-</pre></div>
-</div>
-<p>路由表按 <code class="docutils literal notranslate"><span class="pre">/</span></code> chunk 建树：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>root
- `-- robot
-      `-- arm
-           +-- joint
-           |    +-- 1
-           |    `-- 2
-           `-- camera
-</pre></div>
-</div>
-<p>节点共享前缀，也能保存与通配 resource 的匹配边、各 Face 映射和 route cache。</p>
-<p>这比单纯字符串 hash 更复杂，但能支持 scope 压缩与表达式相交缓存。</p>
-</section>
-<section id="face">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">Face 表示路由边界的一侧</a><a class="headerlink" href="#face" title="Link to this heading"></a></h2>
-<p>Face 可以先理解为“路由核心眼中的一个邻接端点”：</p>
+<p>可以按执行顺序拆开 Rust 语法：</p>
 <ul class="simple">
-<li><p>本地 Session 也是一只 Face；</p></li>
-<li><p>远端 transport connection 对应一只 Face；</p></li>
-<li><p>Face 保存该邻居知道的 resource scope 与声明状态；</p></li>
-<li><p>路由结果是一组 destination Face。</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">zenoh::open(config)</span></code> 创建一次打开操作，其中 <code class="docutils literal notranslate"><span class="pre">config</span></code> 描述节点模式、监听和连接等配置；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.await</span></code> 等待该操作推进到完成。当前异步任务可以在等待期间让出执行机会，它不等于新建一条操作系统线程；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">?</span></code> 表示失败时立即把错误返回给上层，成功时取出 Session；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">let</span> <span class="pre">session</span> <span class="pre">=</span></code> 给得到的 Session 句柄起一个局部名字。</p></li>
 </ul>
-<p>一条消息从 source Face 进入，路由器解析它的 WireExpr，选择 destination Face，再通过每只 Face 的 primitives/Mux 发送。</p>
-<p>Face 不是单纯 socket。它还带有该连接的路由上下文、过滤器和 pending query state。</p>
-</section>
-<section id="wireexpr-scope-suffix-key">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">WireExpr 用 Scope 加 Suffix 压缩 Key</a><a class="headerlink" href="#wireexpr-scope-suffix-key" title="Link to this heading"></a></h2>
-<p>反复发送完整 <code class="docutils literal notranslate"><span class="pre">robot/arm/joint/1/state</span></code> 会浪费带宽。双方先声明 resource scope id，后续消息可携带：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>scope = 17  -&gt; robot/arm/joint/1
-suffix = /state
+<p>固定版本的 <a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/api/session.rs#L693-L760"><code class="docutils literal notranslate"><span class="pre">Session</span></code> 文档与定义</a> 明确把它描述为 Zenoh 的主要组件：它持有 Zenoh runtime，并允许声明 Publisher、Subscriber、Querier 和 Queryable。</p>
+<p>Session 不是一条 TCP connection。它更像应用进入这片数据空间的一张工作台：应用在上面声明实体，而它背后可以共享一个 Runtime，并维护本地路由和一个或多个 transport。Session 打开成功，也不能单独证明某个特定远端此刻可达。</p>
+<p>最小对象图先保留到这一层即可：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Application
+    |
+    v
+Session
+    +-- Publisher / Subscriber
+    `-- Querier / Queryable
+             |
+             v
+       Zenoh routing
+          /      \
+     local        remote connection(s)
 </pre></div>
 </div>
-<p>接收 Face 用自己的 scope mapping 还原完整 key expression。Scope 是连接局部编号，不是全网通用 topic id；转发到另一 Face 时可能需要改写。</p>
-<p>因此同一消息多目的转发时，每个目的地的 WireExpr 可能不同，不能无条件共享一份可变 wire message。</p>
-</section>
-<section id="mux-demux">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink">Mux 与 DeMux 的方向</a><a class="headerlink" href="#mux-demux" title="Link to this heading"></a></h2>
-<p>可以记成：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Routing core --Mux--&gt; Transport
-Transport --DeMux--&gt; Routing core
-</pre></div>
-</div>
-<p>Mux 把路由层的声明/数据转换为发送给连接的消息；DeMux 把 transport 收到的 wire message 解释成对 Face 的路由调用。</p>
-<p>它们把路由算法与具体 transport pipeline 分开，类似网络协议栈相邻层的适配器。</p>
-</section>
-<section id="route-cache">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink">Route Cache 避免每条消息重算</a><a class="headerlink" href="#route-cache" title="Link to this heading"></a></h2>
-<p>声明和拓扑变化相对 publish 较少。Zenoh 为 resource 保存 route cache：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>source region/node + resource
-  -&gt; Arc&lt;Route&gt;
-  -&gt; destination faces and rewritten expressions
-</pre></div>
-</div>
-<p>拓扑或声明变化时，通过局部清除或递增 routes version 使旧缓存失效。下一次访问再重算。</p>
-<p>这把复杂匹配成本从每条消息移到 cache miss，但也要求所有改变路由结果的状态变化都触发失效。</p>
-</section>
-<section id="query-reply-request-response-socket">
-<h2><a class="toc-backref" href="#id24" role="doc-backlink">Query 与 Reply 不等于 Request/Response Socket</a><a class="headerlink" href="#query-reply-request-response-socket" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">get(keyexpr)</span></code> 可能同时命中本地和远端多个 Queryable，收到零到多条 reply，最后再收到 completion/final。</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>one Query
-  +-&gt; local Queryable A -&gt; replies
-  +-&gt; remote Queryable B -&gt; replies
-  `-&gt; remote Queryable C -&gt; replies
-</pre></div>
-</div>
-<p>请求端不能在第一条 reply 后自动结束。它需要跟踪 local/remote 分支的 final、timeout 和 consolidation 策略。</p>
-</section>
-<section id="id3">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">三层背压必须分开</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Application handler queue
-  FIFO blocks / Ring drops
-
-Transport congestion control
-  Block / Drop
-
-Protocol reliability
-  Reliable / BestEffort
-</pre></div>
-</div>
-<p>Reliable 不保证应用最终处理：本地 Ring 仍可丢旧值。FIFO 不丢本地样本，也不保证网络未丢。Block 可以把等待沿 executor 传播，影响其他 key。</p>
-<p>性能分析必须标明讨论的是哪一层。</p>
+<p>在后面的源码中，Session 会继续展开成内部状态、任务控制器和本地路由入口，但现在只需记住：它管理的是一组实体和运行时关系，不是单个远端 socket。</p>
 </section>
 <section id="id4">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">后续源码阅读的固定问题</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
-<ol class="arabic simple">
-<li><p>当前对象由 <code class="docutils literal notranslate"><span class="pre">Arc</span></code> 强持有、<code class="docutils literal notranslate"><span class="pre">Weak</span></code> 观察，还是局部 guard 借用；</p></li>
-<li><p>当前代码是否持 SessionState/Tables 的读锁或写锁；</p></li>
-<li><p>调用下游前是否显式 drop guard；</p></li>
-<li><p>当前 key 是完整 OwnedKeyExpr，还是某 Face 局部 WireExpr；</p></li>
-<li><p>当前队列属于 API handler、routing 还是 transport；</p></li>
-<li><p>声明变化后哪些 route cache 必须失效。</p></li>
-</ol>
-<p>后续章节将在这张地图上逐层展开 Session 启动、Publisher 声明与数据路由、Query 聚合、Resource Tree、背压和关闭。</p>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">第一段发布代码只完成打开、声明和写入</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>一个持续发布关节状态的最小片段如下：</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">session</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">zenoh</span><span class="p">::</span><span class="n">open</span><span class="p">(</span><span class="n">config</span><span class="p">).</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="kd">let</span><span class="w"> </span><span class="n">publisher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span>
+<span class="w">    </span><span class="p">.</span><span class="n">declare_publisher</span><span class="p">(</span><span class="s">&quot;robot/17/joint/1/state&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="n">publisher</span><span class="p">.</span><span class="n">put</span><span class="p">(</span><span class="n">payload</span><span class="p">).</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>第一行已经解释过。第二段调用 <a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/api/session.rs#L1199-L1228"><code class="docutils literal notranslate"><span class="pre">Session::declare_publisher()</span></code></a>，它先产生一个 Builder。可以暂时把 Builder 理解成“尚未提交的配置单”：key expression、拥塞控制、优先级等选项先在局部对象中收集，最后的 <code class="docutils literal notranslate"><span class="pre">.await?</span></code> 才请求创建 Publisher。</p>
+<p>第三行通过已经声明的 Publisher 写入 payload。对于持续高频数据，这样做的意义是复用已经固定的 key 与发送配置，而不是每次重新描述同一实体。低频或一次性写入也可以直接使用 Session 上的 <code class="docutils literal notranslate"><span class="pre">put</span></code>。</p>
+<p>到这里不要急着把 <code class="docutils literal notranslate"><span class="pre">.await</span></code> 翻译成“后台线程发送”。Rust 的异步操作只有被执行器持续 poll 才会推进；等待期间能否让出、内部是否还有同步步骤，要看具体 Builder 和调用链。语言设计章会把 Future、task、executor 和阻塞边界拆开解释。</p>
+</section>
+<section id="subscriber">
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Subscriber 把后续样本交给处理逻辑</a><a class="headerlink" href="#subscriber" title="Link to this heading"></a></h2>
+<p>订阅端可以声明一组感兴趣的 key：</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">subscriber</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span>
+<span class="w">    </span><span class="p">.</span><span class="n">declare_subscriber</span><span class="p">(</span><span class="s">&quot;robot/*/pose&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span>
+
+<span class="k">while</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">sample</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">subscriber</span><span class="p">.</span><span class="n">recv_async</span><span class="p">().</span><span class="k">await</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">handle_pose</span><span class="p">(</span><span class="n">sample</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">while</span> <span class="pre">let</span> <span class="pre">Ok(sample)</span></code> 的普通中文含义是：只要异步接收继续成功返回 Sample，就执行一次循环；当接收端关闭或返回错误时，模式不再匹配，循环结束。</p>
+<p>Publisher 的表达式和 Subscriber 的表达式相交时，这份数据才有机会到达该订阅者。若双方位于同一本地运行时，路径可以停留在本地路由；若位于不同节点，路由结果还要进入相应 transport。</p>
+<p>一条消息的第一版路径可以压缩为：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>publisher.put(payload)
+  -&gt; Publisher 保存的 key 与策略
+  -&gt; Session 的本地入口
+  -&gt; Zenoh 路由选择本地或远端目的地
+  -&gt; Subscriber handler / receive channel
+</pre></div>
+</div>
+<p>这一页故意不在箭头之间塞入所有内部类。下一章会先给完整组件地图；Publisher 路由章再逐层加入 Face、Resource、WireExpr、Primitives、Mux 和 Transport，并解释每多一层究竟隔离了什么变化。</p>
+</section>
+<section id="rust">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Rust 类型把对象寿命写进了接口</a><a class="headerlink" href="#rust" title="Link to this heading"></a></h2>
+<p>后续源码会大量出现“拥有、借用、共享”。它们不是语言课里的孤立术语，而是在回答 payload、Session 和后台任务能活多久。</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>阅读标签</p></th>
+<th class="head"><p>普通中文直觉</p></th>
+<th class="head"><p>需要警惕的问题</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>拥有</p></td>
+<td><p>当前值负责让对象活着，并最终释放它</p></td>
+<td><p>所有权转移以后，旧变量不能继续当作有效 owner</p></td>
+</tr>
+<tr class="row-odd"><td><p>借用</p></td>
+<td><p>暂时查看或修改，但不负责释放</p></td>
+<td><p>借用不能比被借对象活得更久</p></td>
+</tr>
+<tr class="row-even"><td><p>共享</p></td>
+<td><p>多个实体或任务共同延长同一个对象寿命</p></td>
+<td><p>引用计数安全不等于内部字段自动线程安全</p></td>
+</tr>
+</tbody>
+</table>
+<p>例如，复制一个 Session handle 通常不会复制整套网络运行时；多个 handle 会共享内部 Session 对象。Publisher 离开作用域时，应撤销自己的实体语义，却不能顺便销毁仍被 Subscriber 或其他 Session handle 使用的 Runtime。</p>
+<p>Rust 常用 <code class="docutils literal notranslate"><span class="pre">Arc&lt;T&gt;</span></code> 表达线程安全的共享所有权，用 <code class="docutils literal notranslate"><span class="pre">Weak&lt;T&gt;</span></code> 表达不负责保活的回指，用 <code class="docutils literal notranslate"><span class="pre">RwLock&lt;T&gt;</span></code> 协调共享状态读写。这里先记住设计目的即可：避免仍在使用的对象提前释放，也避免后台任务反过来永久保活整个 Session。它们的语法、锁 guard、<code class="docutils literal notranslate"><span class="pre">Send/Sync</span></code> 以及 C++ <code class="docutils literal notranslate"><span class="pre">shared_ptr/weak_ptr</span></code> 对照，集中放在 Rust/C++ 设计章中。</p>
+</section>
+<section id="id5">
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">接收者跟不上时必须选择数据语义</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>假设相机以 60 Hz 产生图像，而视觉算法只能处理 20 Hz。系统无法同时满足“每帧都处理”“内存有上限”“延迟永不增长”三个目标，必须选择策略：</p>
+<ul class="simple">
+<li><p>让生产路径等待，压力可能向上游传播；</p></li>
+<li><p>使用有界 FIFO，容量用完后拒绝或丢弃新工作；</p></li>
+<li><p>使用 Ring，让新帧覆盖旧帧，优先保证新鲜度；</p></li>
+<li><p>为关键命令使用不同的可靠与确认设计，而不是照搬相机策略。</p></li>
+</ul>
+<p>Zenoh 中需要分清三个独立决策面：应用 handler 的交付队列、transport transmission pipeline 的拥塞控制，以及消息携带的 Reliability 标记。它们不是同一只队列，也不能相互替代。</p>
+<p>在本文固定提交中，<a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/blob/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5/zenoh/src/api/builders/publisher.rs#L146-L165"><code class="docutils literal notranslate"><span class="pre">PublicationBuilder::reliability</span></code></a> 的文档明确说明：设置 <code class="docutils literal notranslate"><span class="pre">Reliable</span></code> 本身不会触发 wire retransmission；该值会作为消息标记，并可帮助运行时选择更合适的传输链路，例如 TCP 或 UDP。因此，代码里出现 <code class="docutils literal notranslate"><span class="pre">Reliable</span></code> 不能直接推出端到端不丢、不重或不乱，更不能证明应用处理了每条 Sample。</p>
+<p>对机器人状态流，过长积压可能比丢弃更危险，因为控制器真正关心的是最新状态；对命令、事件和审计数据，静默覆盖又可能不可接受。队列与交付策略必须跟随数据语义，而不是由一个全局默认决定。</p>
+</section>
+<section id="id6">
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">统一命名带来能力，也带来实现成本</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<p>Zenoh 的优势可以沿同一条主线理解：Key Expression 让一条声明覆盖一组数据；发布订阅与查询共享名字，减少跨系统桥接；本地和远端路径可以进入同一路由模型；连接上还可以压缩反复出现的长 key。</p>
+<p>这些能力也带来明确代价：</p>
+<ul class="simple">
+<li><p>通配表达式匹配比精确 topic 查表更复杂；</p></li>
+<li><p>声明或拓扑变化后，缓存的路由答案必须正确失效；</p></li>
+<li><p>一次 Query 可能扇出到多个回答者，需要明确的完成与超时语义；</p></li>
+<li><p>应用队列、transport 拥塞和链路行为会共同影响最终交付；</p></li>
+<li><p>Session、实体、异步任务和 transport 共享运行时，关闭不只是释放一个局部变量；</p></li>
+<li><p>Rust 核心与 C/C++ 应用之间还要维护 FFI、所有权和错误边界。</p></li>
+</ul>
+<p>Zenoh 因此并不天然适合每一个系统。若需求只是单机、固定拓扑和少量精确 topic，更小的总线可能更容易部署和验证；若需要跨边缘路由、统一查询、动态数据空间和多种链路，Zenoh 的额外结构才更有价值。</p>
+<p>它也不是硬实时调度器。异步任务、路由匹配、缓存失效、内存分配和操作系统网络栈都会影响尾延迟。用于控制闭环时，应测量数据年龄、最坏延迟、队列水位和丢弃位置，而不只看平均吞吐量。</p>
+</section>
+<section id="id7">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">后续章节按问题选择，而不是继续背名词</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<p>第一次读到这里，只需保留四个认识：Zenoh 围绕 Key Expression 组织数据；发布订阅与查询共享名字但时间语义不同；Session 是一组实体进入运行时的入口而非单连接；过载行为取决于多个独立层次。</p>
+<p>接下来可以按问题进入对应章节：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>当前想解决的问题</p></th>
+<th class="head"><p>后续页面</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>完整系统有哪些组件，它们怎样分层</p></td>
+<td><p>《功能与组件地图》</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">zenoh::open()</span></code> 创建了哪些对象，关闭时怎样收口</p></td>
+<td><p>《Session 启动与运行时装配》</p></td>
+</tr>
+<tr class="row-even"><td><p>一次 <code class="docutils literal notranslate"><span class="pre">put</span></code> 怎样匹配目的地并进入 transport</p></td>
+<td><p>《Publisher 声明与数据路由》</p></td>
+</tr>
+<tr class="row-odd"><td><p>Resource、Face、WireExpr 与 route cache 怎样配合</p></td>
+<td><p>《Resource Tree 与路由缓存》</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">get</span></code> 为什么可能多回复，什么时候真正完成</p></td>
+<td><p>《Query、Reply 与 Final 生命周期》</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Arc</span></code>、<code class="docutils literal notranslate"><span class="pre">Weak</span></code>、Builder、RAII 与 C++ FFI 怎样对应</p></td>
+<td><p>《Rust/C++ 设计映射》</p></td>
+</tr>
+<tr class="row-even"><td><p>rmw_zenoh 怎样把 ROS 2 语义映射到 Zenoh</p></td>
+<td><p>《真实项目案例：rmw_zenoh》</p></td>
+</tr>
+</tbody>
+</table>
+<p>进入任何一条源码链时，都先问三个问题：数据现在在哪里，谁让相关对象继续活着，下一步由谁执行。Face、锁、队列和异步任务会逐步加入这张图，但读者始终可以回到这三个问题，不必一次记住整个 Zenoh 内部世界。</p>
 </section>
 </section>
 

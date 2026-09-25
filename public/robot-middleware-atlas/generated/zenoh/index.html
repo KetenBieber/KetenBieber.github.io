@@ -24,7 +24,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../genindex.html" />
     <link rel="search" title="搜索" href="../../search.html" />
-    <link rel="next" title="Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face" href="foundations.html" />
+    <link rel="next" title="Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间" href="foundations.html" />
     <link rel="prev" title="轻量与边缘中间件" href="../../experimental.html" /> 
 </head>
 
@@ -1280,31 +1280,21 @@
 <li class="toctree-l2 current"><a class="current reference internal" href="#">Eclipse Zenoh</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#id1">统一学习路径</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#id2">源码解读</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="foundations.html">Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#zenoh-topic">Zenoh 不只是 Topic 总线</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">从应用到网络的整体路径</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#session">Session 是公开运行时入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#arc">Arc 表示线程安全共享所有权</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#weak">Weak 打破所有权环</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#rwlock">RwLock 区分读者与写者</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#trait">Trait 表示行为接口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#builder">Builder 分离参数收集与状态提交</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#async-task">async 与 Task</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#channel">Channel 连接异步生产者与消费者</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#key-expression">Key Expression 的三种核心关系</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="foundations.html#id2">相等</a></li>
-<li class="toctree-l6"><a class="reference internal" href="foundations.html#intersects">Intersects</a></li>
-<li class="toctree-l6"><a class="reference internal" href="foundations.html#includes">Includes</a></li>
+<li class="toctree-l4"><a class="reference internal" href="foundations.html">Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">机器人数据首先需要一套稳定的名字</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#key-expression-key-key">Key Expression 既能指向一个 key，也能描述一组 key</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#key">相交表示两组 key 至少有一个共同成员</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#id2">包含表示一个表达式覆盖另一个表达式的全部范围</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#resource-tree">Resource Tree 共享表达式前缀</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#face">Face 表示路由边界的一侧</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#wireexpr-scope-suffix-key">WireExpr 用 Scope 加 Suffix 压缩 Key</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#mux-demux">Mux 与 DeMux 的方向</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#route-cache">Route Cache 避免每条消息重算</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#query-reply-request-response-socket">Query 与 Reply 不等于 Request/Response Socket</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id3">三层背压必须分开</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">后续源码阅读的固定问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id3">四种常用动作拥有不同的时间语义</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#session">Session 是应用进入数据空间的入口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">第一段发布代码只完成打开、声明和写入</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#subscriber">Subscriber 把后续样本交给处理逻辑</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#rust">Rust 类型把对象寿命写进了接口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id5">接收者跟不上时必须选择数据语义</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id6">统一命名带来能力，也带来实现成本</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id7">后续章节按问题选择，而不是继续背名词</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="architecture-map.html">Zenoh 功能与组件地图：统一数据空间、路由与查询</a><ul>
@@ -2017,26 +2007,17 @@
 <h2>源码解读<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="foundations.html">Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#zenoh-topic">Zenoh 不只是 Topic 总线</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#id1">从应用到网络的整体路径</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#session">Session 是公开运行时入口</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#arc">Arc 表示线程安全共享所有权</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#weak">Weak 打破所有权环</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#rwlock">RwLock 区分读者与写者</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#trait">Trait 表示行为接口</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#builder">Builder 分离参数收集与状态提交</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#async-task">async 与 Task</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#channel">Channel 连接异步生产者与消费者</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#key-expression">Key Expression 的三种核心关系</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#resource-tree">Resource Tree 共享表达式前缀</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#face">Face 表示路由边界的一侧</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#wireexpr-scope-suffix-key">WireExpr 用 Scope 加 Suffix 压缩 Key</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#mux-demux">Mux 与 DeMux 的方向</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#route-cache">Route Cache 避免每条消息重算</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#query-reply-request-response-socket">Query 与 Reply 不等于 Request/Response Socket</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#id3">三层背压必须分开</a></li>
-<li class="toctree-l2"><a class="reference internal" href="foundations.html#id4">后续源码阅读的固定问题</a></li>
+<li class="toctree-l1"><a class="reference internal" href="foundations.html">Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id1">机器人数据首先需要一套稳定的名字</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#key-expression-key-key">Key Expression 既能指向一个 key，也能描述一组 key</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id3">四种常用动作拥有不同的时间语义</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#session">Session 是应用进入数据空间的入口</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id4">第一段发布代码只完成打开、声明和写入</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#subscriber">Subscriber 把后续样本交给处理逻辑</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#rust">Rust 类型把对象寿命写进了接口</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id5">接收者跟不上时必须选择数据语义</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id6">统一命名带来能力，也带来实现成本</a></li>
+<li class="toctree-l2"><a class="reference internal" href="foundations.html#id7">后续章节按问题选择，而不是继续背名词</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="architecture-map.html">Zenoh 功能与组件地图：统一数据空间、路由与查询</a><ul>
@@ -2254,7 +2235,7 @@
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
         <a href="../../experimental.html" class="btn btn-neutral float-left" title="轻量与边缘中间件" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="foundations.html" class="btn btn-neutral float-right" title="Zenoh 阅读基础：Rust 所有权、Key Expression 与路由 Face" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="foundations.html" class="btn btn-neutral float-right" title="Zenoh 阅读基础：发布、订阅与查询共享同一片数据空间" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
