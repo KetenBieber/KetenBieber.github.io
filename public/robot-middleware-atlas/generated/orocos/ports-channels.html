@@ -505,13 +505,17 @@
 <li class="toctree-l5"><a class="reference internal" href="#port">类型化 Port 建立静态边界</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#connpolicy">ConnPolicy 描述语义而不是实现类名</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#push-pull">PUSH 与 PULL 改变谁承担复制</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id1">扇出在调用者线程中逐连接执行</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#data">DATA 是单值状态对象</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#buffer-circular-buffer">BUFFER 与 CIRCULAR_BUFFER 的丢弃方向</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#readnewest-drain"><code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 通过 drain 获得最新值</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#lock-free-dataobject">Lock-free DataObject 使用多槽避免读写同一对象</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id1">样本类型决定隐藏成本</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id2">样本类型决定隐藏成本</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#channelelement">ChannelElement 链的故障传播</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id2">数据路径性能表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id3">连接关闭必须等待在途读写离开</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id4">数据路径性能表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id5">设计取舍与适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#storage">最小复刻从两种 storage 开始</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="realtime-lifecycle.html">实时性能与关闭：从调度参数到可证明的资源回收</a><ul>
@@ -2007,22 +2011,36 @@
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#port" id="id3">类型化 Port 建立静态边界</a></p></li>
-<li><p><a class="reference internal" href="#connpolicy" id="id4">ConnPolicy 描述语义而不是实现类名</a></p></li>
-<li><p><a class="reference internal" href="#push-pull" id="id5">PUSH 与 PULL 改变谁承担复制</a></p></li>
-<li><p><a class="reference internal" href="#data" id="id6">DATA 是单值状态对象</a></p></li>
-<li><p><a class="reference internal" href="#buffer-circular-buffer" id="id7">BUFFER 与 CIRCULAR_BUFFER 的丢弃方向</a></p></li>
-<li><p><a class="reference internal" href="#readnewest-drain" id="id8"><code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 通过 drain 获得最新值</a></p></li>
-<li><p><a class="reference internal" href="#lock-free-dataobject" id="id9">Lock-free DataObject 使用多槽避免读写同一对象</a></p></li>
-<li><p><a class="reference internal" href="#id1" id="id10">样本类型决定隐藏成本</a></p></li>
-<li><p><a class="reference internal" href="#channelelement" id="id11">ChannelElement 链的故障传播</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id12">数据路径性能表</a></p></li>
+<li><p><a class="reference internal" href="#port" id="id6">类型化 Port 建立静态边界</a></p></li>
+<li><p><a class="reference internal" href="#connpolicy" id="id7">ConnPolicy 描述语义而不是实现类名</a></p></li>
+<li><p><a class="reference internal" href="#push-pull" id="id8">PUSH 与 PULL 改变谁承担复制</a></p></li>
+<li><p><a class="reference internal" href="#id1" id="id9">扇出在调用者线程中逐连接执行</a></p></li>
+<li><p><a class="reference internal" href="#data" id="id10">DATA 是单值状态对象</a></p></li>
+<li><p><a class="reference internal" href="#buffer-circular-buffer" id="id11">BUFFER 与 CIRCULAR_BUFFER 的丢弃方向</a></p></li>
+<li><p><a class="reference internal" href="#readnewest-drain" id="id12"><code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 通过 drain 获得最新值</a></p></li>
+<li><p><a class="reference internal" href="#lock-free-dataobject" id="id13">Lock-free DataObject 使用多槽避免读写同一对象</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id14">样本类型决定隐藏成本</a></p></li>
+<li><p><a class="reference internal" href="#channelelement" id="id15">ChannelElement 链的故障传播</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id16">连接关闭必须等待在途读写离开</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id17">数据路径性能表</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id18">设计取舍与适用边界</a></p></li>
+<li><p><a class="reference internal" href="#storage" id="id19">最小复刻从两种 storage 开始</a></p></li>
 </ul>
 </nav>
 <p>RTT 的 Port 负责类型与连接入口，真正的读写行为由 ChannelElement 链和 ConnPolicy 组合。理解这一层，才能回答 <code class="docutils literal notranslate"><span class="pre">write()</span></code> 是否复制、<code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 为什么可能线性耗时，以及 buffer 满时丢哪一条。</p>
 <p>源码入口：<a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/InputPort.hpp"><code class="docutils literal notranslate"><span class="pre">InputPort.hpp</span></code></a>、<a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/OutputPort.hpp"><code class="docutils literal notranslate"><span class="pre">OutputPort.hpp</span></code></a> 与 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/ConnPolicy.hpp"><code class="docutils literal notranslate"><span class="pre">ConnPolicy.hpp</span></code></a>。</p>
+<p>可以先放进一个控制场景。关节估计器每 1 ms 写出 <code class="docutils literal notranslate"><span class="pre">JointState</span></code>，控制组件只需要最新状态；轨迹规划器偶尔写入一段必须按顺序执行的 <code class="docutils literal notranslate"><span class="pre">TrajectoryPoint</span></code>。两者都能使用 Port，但不应该使用相同连接策略：前者积压历史会增加数据年龄，后者覆盖旧项会改变轨迹含义。</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>OutputPort&lt;T&gt;::write(sample)
+  -&gt; output endpoint
+  -&gt; one or more ChannelElement&lt;T&gt;
+       -&gt; DATA object / BUFFER storage / transport element
+  -&gt; input endpoint
+  -&gt; InputPort&lt;T&gt;::read(sample)
+</pre></div>
+</div>
+<p>Port 是端点，不是队列本身。连接建立时，factory 才依据 <code class="docutils literal notranslate"><span class="pre">ConnPolicy</span></code> 选择单值 DataObject、FIFO Buffer、同步方法以及本地或远程 ChannelElement。本文固定阅读 RTT 提交 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/tree/600102e8be9c81905b20930e32d43b28244ab173"><code class="docutils literal notranslate"><span class="pre">600102e8be9c81905b20930e32d43b28244ab173</span></code></a>。</p>
 <section id="port">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">类型化 Port 建立静态边界</a><a class="headerlink" href="#port" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">类型化 Port 建立静态边界</a><a class="headerlink" href="#port" title="Link to this heading"></a></h2>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">RTT</span><span class="o">::</span><span class="n">OutputPort</span><span class="o">&lt;</span><span class="n">JointState</span><span class="o">&gt;</span><span class="w"> </span><span class="n">out</span><span class="p">(</span><span class="s">&quot;state&quot;</span><span class="p">);</span>
 <span class="n">RTT</span><span class="o">::</span><span class="n">InputPort</span><span class="o">&lt;</span><span class="n">JointState</span><span class="o">&gt;</span><span class="w"> </span><span class="n">in</span><span class="p">(</span><span class="s">&quot;state&quot;</span><span class="p">);</span>
 
@@ -2031,10 +2049,31 @@
 </pre></div>
 </div>
 <p>模板参数 <code class="docutils literal notranslate"><span class="pre">JointState</span></code> 让同进程连接在编译期确定数据类型。类型擦除接口用于部署和反射，实际读写最终回到类型化 data source/channel endpoint。</p>
-<p>一个 OutputPort 可以连接多个输入，因此一次 write 可能扇出到多条 channel。各连接可以有不同 ConnPolicy；慢连接不应在没有明确策略时拖住全部目的地。</p>
+<p>一个 OutputPort 可以连接多个输入，因此一次 write 可能扇出到多条 channel。各连接可以有不同 ConnPolicy；慢连接是否会占用发布者线程，必须继续查看 fan-out 循环和具体下游 element，不能仅从 Port API 推断。</p>
+<p>真实的 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/OutputPort.hpp#L243-L263"><code class="docutils literal notranslate"><span class="pre">OutputPort&lt;T&gt;::write()</span></code></a> 很短：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">WriteStatus</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">sample</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">keeps_last_written_value</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">keeps_next_written_value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">keeps_next_written_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">        </span><span class="n">has_initial_sample</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">        </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">sample</span><span class="o">-&gt;</span><span class="n">Set</span><span class="p">(</span><span class="n">sample</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">has_last_written_value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">keeps_last_written_value</span><span class="p">;</span>
+
+<span class="w">    </span><span class="n">WriteStatus</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">NotConnected</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">connected</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">traceWrite</span><span class="p">();</span>
+<span class="w">        </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">getEndpoint</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">getWriteEndpoint</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">(</span><span class="n">sample</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>先看 C++ 语法。<code class="docutils literal notranslate"><span class="pre">const</span> <span class="pre">T&amp;</span></code> 表示函数借用调用方的样本，不能通过这只引用修改原对象，也不会仅因为传参就复制一次 <code class="docutils literal notranslate"><span class="pre">T</span></code>。真正的复制可能发生在 <code class="docutils literal notranslate"><span class="pre">sample-&gt;Set(sample)</span></code>、DATA storage、BUFFER slot 或 transport serialization 中。</p>
+<p><code class="docutils literal notranslate"><span class="pre">this-&gt;sample</span></code> 不是当前参数，而是 OutputPort 可选保存的“最后写入样本”。只有启用 <code class="docutils literal notranslate"><span class="pre">keepLastWrittenValue()</span></code> 或下一次保留标志时才更新它；<code class="docutils literal notranslate"><span class="pre">ConnPolicy::init</span></code> 也只有在 writer 确实保留了最后值时，才可能用该值初始化新连接。随后代码取得 write endpoint，将类型化调用交给 ChannelElement 链。</p>
 </section>
 <section id="connpolicy">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">ConnPolicy 描述语义而不是实现类名</a><a class="headerlink" href="#connpolicy" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">ConnPolicy 描述语义而不是实现类名</a><a class="headerlink" href="#connpolicy" title="Link to this heading"></a></h2>
 <p>关键字段包括：</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">type</span></code>：DATA 或 BUFFER；</p></li>
@@ -2046,9 +2085,35 @@
 <li><p>transport/name/data_size 等远程连接信息。</p></li>
 </ul>
 <p>Policy 是配置值对象，channel factory 根据它建立具体元素链。这样公开 Port 不依赖 <code class="docutils literal notranslate"><span class="pre">BufferLockFree&lt;T&gt;</span></code> 等实现类型。</p>
+<p>这个“值对象变成运行时对象”的位置在 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/internal/ConnFactory.hpp#L160-L209"><code class="docutils literal notranslate"><span class="pre">ConnFactory::buildDataStorage&lt;T&gt;()</span></code></a>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">policy</span><span class="p">.</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ConnPolicy</span><span class="o">::</span><span class="n">DATA</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">DataObjectInterface</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;::</span><span class="n">shared_ptr</span><span class="w"> </span><span class="n">data_object</span><span class="p">;</span>
+<span class="w">    </span><span class="k">switch</span><span class="w"> </span><span class="p">(</span><span class="n">policy</span><span class="p">.</span><span class="n">lock_policy</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="no">ConnPolicy</span><span class="o">::</span><span class="no">LOCK_FREE</span><span class="p">:</span>
+<span class="w">        </span><span class="n">data_object</span><span class="p">.</span><span class="n">reset</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">DataObjectLockFree</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">initial_value</span><span class="p">,</span><span class="w"> </span><span class="n">policy</span><span class="p">));</span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span>
+<span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="no">ConnPolicy</span><span class="o">::</span><span class="no">LOCKED</span><span class="p">:</span>
+<span class="w">        </span><span class="n">data_object</span><span class="p">.</span><span class="n">reset</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">DataObjectLocked</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">initial_value</span><span class="p">));</span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span>
+<span class="w">      </span><span class="k">case</span><span class="w"> </span><span class="no">ConnPolicy</span><span class="o">::</span><span class="no">UNSYNC</span><span class="p">:</span>
+<span class="w">        </span><span class="n">data_object</span><span class="p">.</span><span class="n">reset</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">DataObjectUnSync</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">initial_value</span><span class="p">));</span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ChannelDataElement</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">data_object</span><span class="p">,</span><span class="w"> </span><span class="n">policy</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">policy</span><span class="p">.</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ConnPolicy</span><span class="o">::</span><span class="n">BUFFER</span><span class="w"> </span><span class="o">||</span>
+<span class="w">    </span><span class="n">policy</span><span class="p">.</span><span class="n">type</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ConnPolicy</span><span class="o">::</span><span class="n">CIRCULAR_BUFFER</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// 同样根据 lock_policy 选择 BufferLockFree / Locked / UnSync</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">ChannelBufferElement</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">(</span><span class="n">buffer_object</span><span class="p">,</span><span class="w"> </span><span class="n">policy</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>这里同时展示了模板、运行时分支和多态的分工。模板参数 <code class="docutils literal notranslate"><span class="pre">T</span></code> 让 factory 能构造正确的 <code class="docutils literal notranslate"><span class="pre">DataObjectLockFree&lt;T&gt;</span></code>；<code class="docutils literal notranslate"><span class="pre">policy.type</span></code> 和 <code class="docutils literal notranslate"><span class="pre">lock_policy</span></code> 则允许运行时配置选择实现；返回的基类 ChannelElement 让后续链路不需要知道具体 storage 类名。</p>
+<p><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 在这个版本中是 RTT/Boost 风格的共享句柄。它表示 ChannelElement 与其他连接对象可以共同延长 storage 寿命，但引用计数只管理销毁，不会自动让 <code class="docutils literal notranslate"><span class="pre">T</span></code> 的复制变成实时安全。若 <code class="docutils literal notranslate"><span class="pre">T</span></code> 内部包含会扩容的 <code class="docutils literal notranslate"><span class="pre">std::vector</span></code>，lock-free 外壳仍可能在赋值时进入分配器。</p>
 </section>
 <section id="push-pull">
-<h2><a class="toc-backref" href="#id5" role="doc-backlink">PUSH 与 PULL 改变谁承担复制</a><a class="headerlink" href="#push-pull" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">PUSH 与 PULL 改变谁承担复制</a><a class="headerlink" href="#push-pull" title="Link to this heading"></a></h2>
 <p>PUSH 连接由 writer 主动把样本送入下游存储：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>OutputPort::write(sample)
   -&gt; channel.write(sample)
@@ -2062,10 +2127,41 @@
 </pre></div>
 </div>
 <p>PUSH 的发布延迟包含所有下游写入，读取便宜；PULL 写入便宜，读取时承担上游访问，并可能跨越不合适的线程边界。控制回路通常偏好明确的 PUSH 与本地有界存储。</p>
+<p>固定版本的 <code class="docutils literal notranslate"><span class="pre">ConnPolicy</span></code> 文档把 <code class="docutils literal notranslate"><span class="pre">pull</span></code> 的主要效果限定在多进程通信。本地连接怎样布置 buffer 还会受到 <code class="docutils literal notranslate"><span class="pre">buffer_policy</span></code> 影响，因此不能仅凭 <code class="docutils literal notranslate"><span class="pre">pull=true</span></code> 推导整条进程内对象图。能够确定的是：无论 PUSH 还是 PULL，reader 侧都通过 ChannelElement 的 <code class="docutils literal notranslate"><span class="pre">signal()</span></code> 获知新数据可用。</p>
+</section>
+<section id="id1">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">扇出在调用者线程中逐连接执行</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>一个 OutputPort 连接多个输入时，真实的 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/base/ChannelElement.hpp#L297-L325"><code class="docutils literal notranslate"><span class="pre">MultipleOutputsChannelElement&lt;T&gt;::write()</span></code></a> 会遍历全部输出：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">WriteStatus</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">WriteSuccess</span><span class="p">;</span>
+<span class="n">RTT</span><span class="o">::</span><span class="n">os</span><span class="o">::</span><span class="n">SharedMutexLock</span><span class="w"> </span><span class="nf">lock</span><span class="p">(</span><span class="n">outputs_lock</span><span class="p">);</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">outputs</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">NotConnected</span><span class="p">;</span>
+
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Outputs</span><span class="o">::</span><span class="n">iterator</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">outputs</span><span class="p">.</span><span class="n">begin</span><span class="p">();</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">outputs</span><span class="p">.</span><span class="n">end</span><span class="p">();</span><span class="w"> </span><span class="o">++</span><span class="n">it</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ChannelElement</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;::</span><span class="n">shared_ptr</span><span class="w"> </span><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">it</span><span class="o">-&gt;</span><span class="n">channel</span><span class="o">-&gt;</span><span class="n">narrow</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">();</span>
+<span class="w">    </span><span class="n">WriteStatus</span><span class="w"> </span><span class="n">fs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">output</span><span class="o">-&gt;</span><span class="n">write</span><span class="p">(</span><span class="n">sample</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="o">-&gt;</span><span class="n">mandatory</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="n">result</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">fs</span><span class="p">))</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fs</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">fs</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NotConnected</span><span class="p">)</span><span class="w"> </span><span class="n">it</span><span class="o">-&gt;</span><span class="n">disconnected</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>这段代码没有建立后台广播任务。调用 <code class="docutils literal notranslate"><span class="pre">OutputPort::write()</span></code> 的线程持有共享读锁，按连接顺序调用每个下游。于是写入成本至少随连接数线性增长；某个 transport 或同步 storage 的慢路径也会占用当前调用线程。循环结束后，实现再清除被标记为断开的输出。</p>
+<p><code class="docutils literal notranslate"><span class="pre">mandatory</span></code> 决定下游失败是否升级为整个 write 的返回失败。非 mandatory 连接可以失败而不把每次局部状态都暴露成顶层失败；这有利于可选监控端脱落时保持控制链运行，却意味着应用若需要逐连接诊断，还必须读取连接状态和统计，而不能只看一个 <code class="docutils literal notranslate"><span class="pre">WriteStatus</span></code>。</p>
 </section>
 <section id="data">
-<h2><a class="toc-backref" href="#id6" role="doc-backlink">DATA 是单值状态对象</a><a class="headerlink" href="#data" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">DATA 是单值状态对象</a><a class="headerlink" href="#data" title="Link to this heading"></a></h2>
 <p>DATA connection 保存当前值和新旧状态。连续写入 A、B、C 而读者只读一次时，通常观察 C；中间历史不是该策略的契约。</p>
+<p><a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/internal/ChannelDataElement.hpp#L56-L91"><code class="docutils literal notranslate"><span class="pre">ChannelDataElement&lt;T&gt;</span></code></a> 只是把操作委托给选中的 DataObject：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">WriteStatus</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">param_t</span><span class="w"> </span><span class="n">sample</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">data</span><span class="o">-&gt;</span><span class="n">Set</span><span class="p">(</span><span class="n">sample</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">WriteFailure</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">signal</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">WriteSuccess</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NotConnected</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="n">FlowStatus</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="n">reference_t</span><span class="w"> </span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">copy_old_data</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">data</span><span class="o">-&gt;</span><span class="n">Get</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="n">copy_old_data</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">param_t</span></code> 与 <code class="docutils literal notranslate"><span class="pre">reference_t</span></code> 是 <code class="docutils literal notranslate"><span class="pre">ChannelElement&lt;T&gt;</span></code> 根据类型特征定义的参数形式，可把它们理解为“适合传入 <code class="docutils literal notranslate"><span class="pre">T</span></code> 的只读形式”和“能够被 read 写入的形式”。这种 typedef 能为小标量和大对象选择不同传参方式，但不会改变连接的值语义：storage 仍要在 writer 返回后独立保存可读样本。</p>
 <p>读接口的 <code class="docutils literal notranslate"><span class="pre">copy_old</span></code> 参数决定没有新值时是否复制旧值：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">FlowStatus</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">read</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="nb">true</span><span class="p">);</span>
 </pre></div>
@@ -2073,7 +2169,7 @@
 <p>若返回 <code class="docutils literal notranslate"><span class="pre">OldData</span></code>，<code class="docutils literal notranslate"><span class="pre">sample</span></code> 可被填为上次值；若 <code class="docutils literal notranslate"><span class="pre">copy_old=false</span></code>，调用方不能假设输出对象已更新。</p>
 </section>
 <section id="buffer-circular-buffer">
-<h2><a class="toc-backref" href="#id7" role="doc-backlink">BUFFER 与 CIRCULAR_BUFFER 的丢弃方向</a><a class="headerlink" href="#buffer-circular-buffer" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">BUFFER 与 CIRCULAR_BUFFER 的丢弃方向</a><a class="headerlink" href="#buffer-circular-buffer" title="Link to this heading"></a></h2>
 <p>有界队列容量为 3：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>BUFFER 满载 [A B C] + D -&gt; 保留 [A B C]，D 失败/被丢弃
 CIRCULAR     [A B C] + D -&gt; 保留 [B C D]，A 被覆盖
@@ -2081,24 +2177,53 @@ CIRCULAR     [A B C] + D -&gt; 保留 [B C D]，A 被覆盖
 </div>
 <p>普通 BUFFER 保护已经接收的历史，适合命令与事件；CIRCULAR 保护新鲜度，适合状态流。两者空间都是 <code class="docutils literal notranslate"><span class="pre">O(capacity</span> <span class="pre">×</span> <span class="pre">sizeof(T))</span></code>，push/pop 目标为 <code class="docutils literal notranslate"><span class="pre">O(1)</span></code>。</p>
 <p>系统必须暴露 dropped counter。没有计数时，消费者只看到数据继续到来，无法判断是否跨过了若干关键状态。</p>
-</section>
-<section id="readnewest-drain">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 通过 drain 获得最新值</a><a class="headerlink" href="#readnewest-drain" title="Link to this heading"></a></h2>
-<p>其语义可写为：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">FlowStatus</span><span class="w"> </span><span class="nf">readNewest</span><span class="p">(</span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">sample</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">FlowStatus</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="nb">true</span><span class="p">);</span>
-<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">read</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">NewData</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">NewData</span><span class="p">;</span>
+<p>RTT 的 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/internal/ChannelBufferElement.hpp#L58-L153"><code class="docutils literal notranslate"><span class="pre">ChannelBufferElement&lt;T&gt;</span></code></a> 确实公开 <code class="docutils literal notranslate"><span class="pre">capacity()</span></code>、当前 <code class="docutils literal notranslate"><span class="pre">size()</span></code> 和 <code class="docutils literal notranslate"><span class="pre">dropped()</span></code>，写入与读取主干如下：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">WriteStatus</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">param_t</span><span class="w"> </span><span class="n">sample</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">buffer</span><span class="o">-&gt;</span><span class="n">Push</span><span class="p">(</span><span class="n">sample</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">WriteFailure</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">signal</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">WriteSuccess</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">NotConnected</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="n">FlowStatus</span><span class="w"> </span><span class="nf">read</span><span class="p">(</span><span class="n">reference_t</span><span class="w"> </span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">copy_old_data</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">value_t</span><span class="o">*</span><span class="w"> </span><span class="n">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">buffer</span><span class="o">-&gt;</span><span class="n">PopWithoutRelease</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">next</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">last_sample_p</span><span class="p">)</span><span class="w"> </span><span class="n">buffer</span><span class="o">-&gt;</span><span class="n">Release</span><span class="p">(</span><span class="n">last_sample_p</span><span class="p">);</span>
+<span class="w">        </span><span class="n">sample</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">policy</span><span class="p">.</span><span class="n">buffer_policy</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">PerOutputPort</span><span class="w"> </span><span class="o">&amp;&amp;</span>
+<span class="w">            </span><span class="n">policy</span><span class="p">.</span><span class="n">buffer_policy</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">Shared</span><span class="p">)</span>
+<span class="w">            </span><span class="n">last_sample_p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">next</span><span class="p">;</span>
+<span class="w">        </span><span class="k">else</span>
+<span class="w">            </span><span class="n">buffer</span><span class="o">-&gt;</span><span class="n">Release</span><span class="p">(</span><span class="n">next</span><span class="p">);</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">NewData</span><span class="p">;</span>
 <span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">last_sample_p</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">copy_old_data</span><span class="p">)</span><span class="w"> </span><span class="n">sample</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">last_sample_p</span><span class="p">;</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">OldData</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">NoData</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>真实代码细节可能不同，但核心是反复消费 backlog。队列中有 <code class="docutils literal notranslate"><span class="pre">N</span></code> 条时，它是 <code class="docutils literal notranslate"><span class="pre">O(N)</span></code>，不是对尾元素的 <code class="docutils literal notranslate"><span class="pre">O(1)</span></code> peek。若生产速度持续超过 drain 速度，单周期读成本会失去上界。</p>
+<p>这里最容易忽略的是 <code class="docutils literal notranslate"><span class="pre">PopWithoutRelease()</span></code>。buffer 先把 slot 的指针交给 ChannelElement，后者完成 <code class="docutils literal notranslate"><span class="pre">sample</span> <span class="pre">=</span> <span class="pre">*next</span></code> 后，仍可能保留该 slot 作为 <code class="docutils literal notranslate"><span class="pre">OldData</span></code> 来源；下一次读到新值或析构时才 <code class="docutils literal notranslate"><span class="pre">Release</span></code>。因此“从 FIFO pop”不一定意味着槽位当场回到 producer。</p>
+<p>源码还会根据 <code class="docutils literal notranslate"><span class="pre">buffer_policy</span></code> 决定是否保存 <code class="docutils literal notranslate"><span class="pre">last_sample_p</span></code>。多个 reader 共享 buffer 时，永久扣住同一 slot 会改变其他 reader 的可见性，所以某些策略会在复制后立即释放，并且不再承诺返回 <code class="docutils literal notranslate"><span class="pre">OldData</span></code>。这说明 FlowStatus 不只由 BUFFER/DATA 决定，还与连接共享方式有关。</p>
+</section>
+<section id="readnewest-drain">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 通过 drain 获得最新值</a><a class="headerlink" href="#readnewest-drain" title="Link to this heading"></a></h2>
+<p>真实的 <a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/InputPort.hpp#L158-L166"><code class="docutils literal notranslate"><span class="pre">InputPort&lt;T&gt;::readNewest()</span></code></a> 是：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">FlowStatus</span><span class="w"> </span><span class="nf">readNewest</span><span class="p">(</span><span class="n">reference_t</span><span class="w"> </span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">copy_old_data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">FlowStatus</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">read</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="n">copy_old_data</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">result</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">RTT</span><span class="o">::</span><span class="n">NewData</span><span class="p">)</span>
+<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="n">result</span><span class="p">;</span>
+
+<span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">read</span><span class="p">(</span><span class="n">sample</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">RTT</span><span class="o">::</span><span class="n">NewData</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">RTT</span><span class="o">::</span><span class="n">NewData</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>它会反复消费 backlog。队列中有 <code class="docutils literal notranslate"><span class="pre">N</span></code> 条时，它是 <code class="docutils literal notranslate"><span class="pre">O(N)</span></code>，不是对尾元素的 <code class="docutils literal notranslate"><span class="pre">O(1)</span></code> peek。第二次开始传入 <code class="docutils literal notranslate"><span class="pre">copy_old_data=false</span></code>，因为循环只想继续取新项，不需要在队列已经清空后再复制一次旧样本。若生产速度持续超过 drain 速度，单周期读成本会失去上界。</p>
 <p>需要恒定时间最新值时应选择 DATA，或设计能原子替换最新快照的结构，而不是用大 BUFFER 加 <code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 模拟。</p>
 </section>
 <section id="lock-free-dataobject">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Lock-free DataObject 使用多槽避免读写同一对象</a><a class="headerlink" href="#lock-free-dataobject" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Lock-free DataObject 使用多槽避免读写同一对象</a><a class="headerlink" href="#lock-free-dataobject" title="Link to this heading"></a></h2>
 <p>概念上，writer 寻找未被 reader 占用的槽位，写完后发布新的 current index；reader 增加槽位读计数，复制完成后减少：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>slots: [0][1][2]
 current = 1
@@ -2108,8 +2233,8 @@ writer: choose slot != current and readers==0 -&gt; assign -&gt; publish index
 </div>
 <p>多个槽位避免 writer 原地修改 reader 正在复制的 <code class="docutils literal notranslate"><span class="pre">T</span></code>。但 writer 可能需要扫描槽位；读者长期持有也会减少可用槽。lock-free 保证系统中总有线程推进，不保证每次调用固定步骤完成。</p>
 </section>
-<section id="id1">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">样本类型决定隐藏成本</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<section id="id2">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">样本类型决定隐藏成本</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <p>对 <code class="docutils literal notranslate"><span class="pre">std::vector&lt;double&gt;</span></code>，赋值可能重新分配。改进方法包括：</p>
 <ul class="simple">
 <li><p>configure 阶段 reserve 固定上限；</p></li>
@@ -2120,12 +2245,27 @@ writer: choose slot != current and readers==0 -&gt; assign -&gt; publish index
 <p>零拷贝句柄会增加生命周期复杂度：producer 不能在最后一个 consumer 释放前复用内存，慢 consumer 会耗尽 buffer pool。因此必须设定 pool 数和耗尽策略。</p>
 </section>
 <section id="channelelement">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">ChannelElement 链的故障传播</a><a class="headerlink" href="#channelelement" title="Link to this heading"></a></h2>
-<p>链上任一 element 可能拒绝写入、断开或报告 transport 错误。上游 write 需要聚合多个连接的结果：全部成功、部分成功或全部失败。复刻时不应只返回单个 bool 而丢失哪个连接失败。</p>
-<p>断开连接必须同时从 OutputPort 和 InputPort 的连接表移除，并保证正在遍历连接快照的 write 安全结束。常见实现是锁内复制 connection handles，锁外逐一写入；删除只移除 registry 所有权，活动 write 通过共享 handle 延长 channel 生命周期。</p>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">ChannelElement 链的故障传播</a><a class="headerlink" href="#channelelement" title="Link to this heading"></a></h2>
+<p><a class="reference external" href="https://github.com/orocos-toolchain/rtt/blob/600102e8be9c81905b20930e32d43b28244ab173/rtt/FlowStatus.hpp#L56-L66"><code class="docutils literal notranslate"><span class="pre">WriteStatus</span></code></a> 只有三个公开状态：<code class="docutils literal notranslate"><span class="pre">WriteSuccess</span></code>、<code class="docutils literal notranslate"><span class="pre">WriteFailure</span></code> 和 <code class="docutils literal notranslate"><span class="pre">NotConnected</span></code>。它表达当前调用是否成功进入连接，而不是远端业务是否已经处理样本。ChannelElement 基类文档也明确说明，写成功不能推出另一端已经收到。</p>
+<p>链上 storage 满载会返回 <code class="docutils literal notranslate"><span class="pre">WriteFailure</span></code>，下游失效会返回 <code class="docutils literal notranslate"><span class="pre">NotConnected</span></code>。扇出层只把 mandatory 连接的失败合并到顶层状态，同时标记断开的 channel，循环结束后调用 <code class="docutils literal notranslate"><span class="pre">removeDisconnectedOutputs()</span></code>。因此一个状态值不能还原每条连接发生了什么；工程诊断仍需连接级 dropped、fill level、断开和 transport 统计。</p>
+<p>固定版本并不是“锁内复制连接快照、锁外逐一发送”，而是在 <code class="docutils literal notranslate"><span class="pre">outputs_lock</span></code> 的共享锁域内遍历并调用下游。共享锁允许并发 writer 读取同一连接表，却会阻塞需要修改连接集合的独占操作。若下游 write 很慢，断开或重连也可能更晚取得写锁。这是 fan-out 简单直接的代价。</p>
 </section>
-<section id="id2">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">数据路径性能表</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<section id="id3">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">连接关闭必须等待在途读写离开</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>Port、endpoint、ChannelElement 和 storage 形成跨对象链。若一端在另一线程仍执行 <code class="docutils literal notranslate"><span class="pre">write()</span></code> 或 <code class="docutils literal notranslate"><span class="pre">read()</span></code> 时直接释放中间 element，就会产生悬空指针；如果为了避免悬空而让双方永久共享，又可能形成不能回收的环。</p>
+<p>RTT 使用 intrusive/shared handle 延长在途 ChannelElement 的寿命，并让连接管理器负责从两端关系中拆除链路。应用层仍应遵循更大的关闭顺序：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>停止产生新的 updateHook / write
+  -&gt; 唤醒并停止 Activity
+  -&gt; 等待执行线程退出
+  -&gt; 断开 Port connections
+  -&gt; 释放 ChannelElement 与 storage
+  -&gt; 析构 TaskContext 的 Port 成员
+</pre></div>
+</div>
+<p>若先断开 Port，再等待组件线程停止，正在运行的 <code class="docutils literal notranslate"><span class="pre">updateHook()</span></code> 可能恰好访问已经拆除的 endpoint。若只停线程却不解除远程 transport，后台接收又可能继续 signal 输入端。安全关闭需要同时封住新的生产、等待在途执行，并按依赖逆序销毁。</p>
+</section>
+<section id="id4">
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">数据路径性能表</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>操作</p></th>
@@ -2157,6 +2297,38 @@ writer: choose slot != current and readers==0 -&gt; assign -&gt; publish index
 </tbody>
 </table>
 <p>端口性能报告必须说明 payload 类型、连接数、policy、是否同进程、是否预分配以及 drop 行为；只有消息/秒没有可比性。</p>
+</section>
+<section id="id5">
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">设计取舍与适用边界</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>Port 与 storage 分离，使同一个 <code class="docutils literal notranslate"><span class="pre">InputPort&lt;T&gt;</span></code> 可以在部署时选择 DATA、BUFFER、同步算法和 transport；模板又把类型错误尽量提前到编译期。这种组合能力非常适合组件化机器人系统，因为算法类不必为“本地最新值”和“跨进程事件队列”各写一套接口。</p>
+<p>代价是运行语义不能只从 C++ 成员类型看出来。两个完全相同的 <code class="docutils literal notranslate"><span class="pre">InputPort&lt;JointState&gt;</span></code>，可能拥有不同容量、丢弃方向、复制成本和线程影响。部署配置成为程序行为的一部分，必须与源码一起版本化和评审。</p>
+<p>LOCK_FREE 也不是实时性的同义词：容器可能具有系统级进展保证，<code class="docutils literal notranslate"><span class="pre">T</span></code> 的复制却仍会分配；<code class="docutils literal notranslate"><span class="pre">readNewest()</span></code> 可以使用 lock-free buffer，却仍随 backlog 线性增长；远程 ChannelElement 还会引入序列化、内核队列和网络故障。只有把类型、连接数、policy、Activity 优先级和最坏执行时间合在一起，才能判断控制周期是否可行。</p>
+</section>
+<section id="storage">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">最小复刻从两种 storage 开始</a><a class="headerlink" href="#storage" title="Link to this heading"></a></h2>
+<p>若要自行实现这一层，不要先做反射和远程 transport。第一版只需要：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">FlowStatus</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">NoData</span><span class="p">,</span><span class="w"> </span><span class="n">OldData</span><span class="p">,</span><span class="w"> </span><span class="n">NewData</span><span class="w"> </span><span class="p">};</span>
+<span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">WriteStatus</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Success</span><span class="p">,</span><span class="w"> </span><span class="n">Full</span><span class="p">,</span><span class="w"> </span><span class="n">Disconnected</span><span class="w"> </span><span class="p">};</span>
+
+<span class="k">template</span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Storage</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="n">WriteStatus</span><span class="w"> </span><span class="n">Write</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="n">FlowStatus</span><span class="w"> </span><span class="nf">Read</span><span class="p">(</span><span class="n">T</span><span class="o">&amp;</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">copy_old</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="o">~</span><span class="n">Storage</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">default</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>按以下顺序扩展：</p>
+<ol class="arabic simple">
+<li><p>实现 <code class="docutils literal notranslate"><span class="pre">LatestValue&lt;T&gt;</span></code>，证明连续写入后只读取最新值，并区分 <code class="docutils literal notranslate"><span class="pre">NewData/OldData/NoData</span></code>；</p></li>
+<li><p>实现固定容量 <code class="docutils literal notranslate"><span class="pre">Fifo&lt;T&gt;</span></code>，分别测试满载丢新和循环覆盖旧值；</p></li>
+<li><p>给 Output endpoint 加连接数组，定义 mandatory 失败聚合和断开清理；</p></li>
+<li><p>给每条连接加入 fill、drop、write-failure 和最大写耗时统计；</p></li>
+<li><p>加入通知回调，但保证用户逻辑不在连接表独占锁内执行；</p></li>
+<li><p>最后才加入 type erasure、动态 factory 和远程 transport。</p></li>
+</ol>
+<p>完成标准不只是 A 能把数字传给 B。至少要证明：满载方向固定；旧值复制契约明确；扇出中一个可选连接失败不会伪装成全部失败；断开与并发 write 不产生 use-after-free；停止后不再 signal 已销毁的 InputPort；固定容量类型在稳定态不分配。</p>
 </section>
 </section>
 
