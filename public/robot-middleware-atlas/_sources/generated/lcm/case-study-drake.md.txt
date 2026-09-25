@@ -207,7 +207,63 @@ bytes <-> SerializerInterface <-> AbstractValue(LcmMessage)
 
 业务 driver 按 bus name 查找接口，而不是自行构造 URL。这样部署配置决定 transport，系统拓扑仍能在构建期集中检查。测试可强制注入内存实现；禁用 LCM 时也能使用 null/memq-null 配置，不需要在每个组件散落 `if (use_lcm)`。
 
-## 如何增加自己的 LCM 输入输出
+## 日志回放也进入仿真时钟
+
+Drake 还提供 `DrakeLcmLog` 与 `LcmLogPlaybackSystem`。后者根据 Context 中的仿真时间推进日志游标，而不是让一个独立 wall-clock player 随机向仿真灌数据。官方 message-passing 命名空间把它与 Publisher/Subscriber 放在同一组抽象中。[Drake message passing](https://drake.mit.edu/doxygen_cxx/group__message__passing.html)
+
+```text
+log timestamp
+  -> playback system 计算下一个日志事件的 simulation time
+  -> Simulator 截断积分步到该时间
+  -> log interface 交付消息
+  -> Subscriber unrestricted update
+```
+
+这样同一日志在尽快仿真、慢速调试或批量回归中仍保持相同的仿真时间顺序。日志只保存曾被记录的 wire payload；Drake 二进制、schema、Diagram 配置和随机种子仍要另行归档。
+
+## 数据结构与性能边界
+
+最新消息槽的空间为 `O(message_size)`，读取成本主要来自 `O(message_size)` 的解码或复制；队列方案的空间则是 `O(capacity × message_size)`。Publisher 的编码成本随字段和数组长度近似线性增长。
+
+多个 LCM System 共享 `LcmInterfaceSystem`，避免每个 Diagram node 建立独立底层实例。代价是接收 pump 和 channel dispatch 共享资源；高流量 channel 是否拖慢其他订阅，需要用消息计数、事件执行时间和墙上运行速度实际测量。
+
+端到端延迟可以拆成：
+
+```text
+L = network arrival
+  + wait until interface pump
+  + wait until Subscriber update event
+  + adapter validation/conversion
+  + controller/plant computation
+  + wait until Publisher trigger
+  + encode + provider send
+```
+
+仿真时间延迟和墙上时间延迟必须分开报告。Simulator 可以比实时更快或更慢；消息在 2 ms 仿真时间内传播，不代表墙上只经过 2 ms。只有与真实硬件闭环时，pacing 和 wall clock 才成为控制契约的一部分。
+
+## 优秀设计与工程取舍
+
+Drake 没有让网络 callback 直接修改动力学状态，而是把外部消息提交为 Simulator 能够排序的事件。这增加了 Interface System、Subscriber state 和适配器，却换来同一仿真时刻内的一致输出、可重复推进和明确的采样边界。
+
+最新消息缓存适合关节目标和状态设定值，因为控制器通常更关心新鲜值；代价是周期内的中间消息会被跳过。若每条事件都重要，就需要有界队列、序列号和消费确认，而不能继续把 latest-value slot 当作通用输入模型。
+
+模板化 Publisher/Subscriber 提供生成类型和强类型端口，但 schema 演进需要重新生成并重新构建。对稳定机器人接口这是合理取舍；对动态消息浏览器，则需要额外的反射或原始字节工具。
+
+## 缺点与不适用条件
+
+把通信建模为 Drake System 并不会消除底层 LCM 的限制。默认 UDPM 仍不能保证可靠交付、安全认证或拥塞控制；Interface pump 也不会自动给业务消息建立端到端 deadline。
+
+这种集成还引入了特有代价：频繁 unrestricted update 会降低仿真速度；阻塞的 Publish 会拖慢 Simulator 的墙上推进；多个 channel 共享 interface 时可能互相影响；错误的初始化等待策略会让缺失发布者的程序长期停住。
+
+如果应用只需要一个独立进程把数据转发到文件，完整 Diagram 适配可能过重。如果需求是每条命令必达、严格确认或跨公网安全通信，单靠 Drake 的 System 封装也不够，仍需改变 transport 或在其上增加协议。
+
+## 可迁移的架构方法
+
+在自己的机器人框架中，可以把中间件限制在 ingress/egress adapter：接收器把异步消息转成时间戳快照或有界事件队列，核心计算图只消费类型化端口，发布器按系统时钟采样。
+
+这条方法的重点不是“所有东西都做成 Drake System”，而是建立一个明确提交点：网络侧可以异步变化，控制状态只在调度器认可的时刻更新。这样测试可以分别验证 transport 接收、状态提交和输出发布，中间件故障也不会立刻与动力学模型错误混在一起。
+
+## 最小复刻：增加自己的 LCM 输入输出
 
 开发一个新设备适配通常分四层：
 
@@ -345,49 +401,3 @@ builder.Connect(receiver->get_output_port(), controller->get_input_port());
 ```
 
 这个测试明确区分 transport 接收、Context 提交和周期发布三个事件。若三者用 wall-clock sleep 混在一起，失败时无法判断是网络未到、Simulator 未推进还是发布事件尚未发生。
-
-## 日志回放进入仿真时钟
-
-Drake 还提供 `DrakeLcmLog` 与 `LcmLogPlaybackSystem`。后者根据 Context 中的仿真时间推进日志游标，而不是让一个独立 wall-clock player 随机向仿真灌数据。官方 message-passing 命名空间把它与 Publisher/Subscriber 放在同一组抽象中。[Drake message passing](https://drake.mit.edu/doxygen_cxx/group__message__passing.html)
-
-```text
-log timestamp
-  -> playback system 计算下一个日志事件的 simulation time
-  -> Simulator 截断积分步到该时间
-  -> log interface 交付消息
-  -> Subscriber unrestricted update
-```
-
-这样同一日志在尽快仿真、慢速调试或批量回归中仍保持相同的仿真时间顺序。日志只保存曾被记录的 wire payload；Drake 二进制、schema、Diagram 配置和随机种子仍要另行归档。
-
-## 数据结构与性能
-
-最新消息槽的空间为 `O(message_size)`，读取为 `O(message_size)` 解码/复制；队列方案的空间为 `O(capacity × message_size)`。Publisher 的编码成本与字段和数组长度近似线性相关。总体端到端延迟由网络到达、下一次采样等待、系统计算和下一次发布等待共同组成。
-
-多个 LCM 系统共享 `LcmInterfaceSystem`，避免每个 Diagram node 建立独立底层实例。代价是接收处理和 channel dispatch 共享资源；高流量 channel 需要测量是否拖慢其他订阅。
-
-更完整的延迟分解为：
-
-```text
-L = network arrival
-  + wait until interface pump
-  + wait until Subscriber update event
-  + adapter validation/conversion
-  + controller/plant computation
-  + wait until Publisher trigger
-  + encode + provider send
-```
-
-仿真时间延迟和墙上时间延迟要分开报告。Simulator 可以比实时更快或更慢；消息在 2 ms 仿真时间内传播，并不保证墙上只经过 2 ms。与真实硬件闭环时才需要 pacing，把仿真时间和 wall clock 关系纳入控制。
-
-## 设计取舍
-
-把通信变成 System 增加了适配类和 Context 状态，却换来仿真/硬件一致接口、可测试性和明确采样时刻。最新消息缓存适合控制设定值，但会跳过中间命令；若每条事件都重要，需要队列型系统和明确容量。
-
-另一个取舍是类型绑定：模板化 Publisher/Subscriber 提供强类型和生成代码便利，但 schema 演进需要重新构建。对稳定机器人接口这是可接受的；对动态消息浏览器，则需要额外的反射或原始字节工具。
-
-## 可复用架构
-
-在自己的机器人框架中，可将中间件限制在 ingress/egress adapter：接收器把异步消息转成时间戳快照或有界事件队列，核心计算图只消费类型化端口，发布器按系统时钟采样。这比在算法类内部创建 LCM 实例更容易测试和替换 transport。
-
-最小复刻可以先实现三个 System：`LatestMessageSubscriber<T>`、`MessageToVector<T>` 和 `PeriodicPublisher<T>`。当它们能在虚拟时间测试中证明采样时刻、初始值、超时和关闭语义，再接入真实 LCM provider。这样中间件故障与动力学模型错误不会在第一天就混为一体。

@@ -1840,9 +1840,9 @@
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/c-abi-cpp-design-lab.html#id14">最小复刻的完成标准</a></li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="generated/lcm/design-recap.html">LCM 设计复盘：从零实现一条可运行的消息总线</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/lcm/design-recap.html">LCM 设计复盘：先理解边界，再从零实现消息总线</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id1">一条消息的完整路径</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id2">七个最小模块</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id2">七个最小模块形成一条闭环</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#bytecodec">ByteCodec</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#buscore">BusCore</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#provider">Provider</a></li>
@@ -1852,19 +1852,23 @@
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#eventlog">EventLog</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id3">第一阶段：单线程内存总线</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id4">第二阶段：有界队列与过载策略</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id5">第三阶段：Provider 接口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#udp">第四阶段：UDP 短消息</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#fd">第五阶段：接收线程与通知 fd</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id6">第六阶段：分片重组</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id7">第七阶段：生成式类型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id8">第八阶段：日志与回放</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id9">关键不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id10">性能账本</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id11">LCM 的工程优势</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id12">LCM 的工程限制</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id13">可迁移的设计能力</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id3">优秀设计来自明确的变化边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id4">数据结构与性能账本</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id5">工程优势与适用范围</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id6">缺点与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id7">可迁移的设计能力</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id8">最小复刻从单线程语义开始</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id9">第一阶段：单线程内存总线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id10">第二阶段：显式过载策略</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id11">第三阶段：Provider 接口</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#udp">第四阶段：UDP 短消息</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id12">第五阶段：接收线程与通知句柄</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id13">第六阶段：分片重组</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id14">第七阶段：生成式类型</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/design-recap.html#id15">第八阶段：日志与回放</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/design-recap.html#id16">完成标准由不变量决定</a></li>
 </ul>
 </li>
 </ul>
@@ -1942,22 +1946,23 @@
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id5">多总线配置与依赖注入</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#lcm">如何增加自己的 LCM 输入输出</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id6">日志回放也进入仿真时钟</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id7">数据结构与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id8">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id9">缺点与不适用条件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id10">可迁移的架构方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#lcm">最小复刻：增加自己的 LCM 输入输出</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#receiver">从消息端口写出最小 Receiver</a></li>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id6">将有效性和超时建模为状态，而非临时判断</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id11">将有效性和超时建模为状态，而非临时判断</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#encoder-publisher">Encoder 与 Publisher 保持两段式</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#diagrambuilder">在 DiagramBuilder 中完成所有权与连线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id7">从空目录到可运行设备桥的实现顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id12">从空目录到可运行设备桥的实现顺序</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id8">测试边界</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id9">一条可重复测试</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id13">测试边界</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id14">一条可重复测试</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id10">日志回放进入仿真时钟</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id11">数据结构与性能</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id12">设计取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id13">可复用架构</a></li>
 </ul>
 </li>
 </ul>
