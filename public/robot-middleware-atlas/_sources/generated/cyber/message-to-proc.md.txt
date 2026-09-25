@@ -6,11 +6,29 @@
 ```
 
 
-前面的章节已经分别建立了对象装配、有界 ring、Dispatcher/Notifier 与 CRoutine/Scheduler。现在把这些局部机制放回同一条时间线，跟随一枚消息从 transport callback 一直走到 `Component::Proc()`。
+设想 Apollo 的前视相机刚产生第 42 帧图像。传输层已经把字节收进进程，但规划或感知组件的 `Proc()` 还没有开始运行。中间件接下来必须解决四件不同的事：把消息保存到不会无限增长的地方，找到所有订阅者，唤醒负责业务计算的执行体，并让操作系统线程真正运行它。
+
+本章跟随这一帧数据从 transport callback 一直走到 `Component::Proc()`。即使没有阅读前面的专题，也可以把本文当作一条完整入口；ring、Dispatcher、Notifier、协程和 Scheduler 都会在它们真正出现的位置解释。
 
 如果只看 Cyber RT 暴露给业务层的接口，很容易形成一个过于简单的印象：Reader 收到消息，框架调用 `Component::Proc()`，链路到此结束。本章不再把中间类当成第一次出现的名词，而是检查它们组装后是否形成一条闭合的数据、线程和生命周期路径。
 
 真正决定运行时行为的问题却藏在这句话中间：消息由哪个线程收进来，为什么不会直接在接收线程里执行 `Proc()`，数据存在哪里，谁把协程变成可运行状态，调度器又在什么时候选中它？这些问题会直接决定一次感知—规划—控制链路的排队延迟、抖动和数据年龄。
+
+## 朴素的直接回调为何不够
+
+初学者很容易把接收器写成下面这样。它是用于说明问题的**错误示例**，不是 Cyber RT 源码：
+
+```cpp
+void CameraReceiver::OnMessage(std::shared_ptr<Image> image) {
+  perception_component_->Proc(image);  // 收到就直接做完整感知
+}
+```
+
+单看功能，这段代码完全合理：消息到了，就调用业务函数。问题出现在运行环境。假设 `OnMessage()` 运行在 RTPS 接收线程，而一次视觉推理耗时 30 ms，那么这 30 ms 内同一线程不能继续接收其他消息；底层 socket 缓冲继续积压，其他 channel 也可能被拖慢。如果 `Proc()` 又等待磁盘、服务调用或互斥锁，网络线程甚至会无限期阻塞。
+
+再开一个线程也不能自动解决：每条消息创建线程会产生线程栈、内核对象和调度开销；固定线程池则必须回答队列是否有界、满了丢谁、哪个任务优先、关闭时怎样等待在途任务。这些问题正是中间件运行时存在的理由。
+
+Cyber RT 选择把链路拆成两部分：接收线程只完成解析、缓存和通知；长期存在的 Processor 线程从调度器选择已经就绪的协程，再运行 `Proc()`。这样慢业务不会直接占住 transport listener，但代价是多出排队、唤醒和调度延迟。后文看到的每个对象，都在完成这次拆分中的一个具体责任。
 
 后面会出现不少类名，可以先把它们压缩成三个角色。假设 `/camera/front` 刚收到第 42 帧图像：
 
@@ -105,6 +123,53 @@ return scheduler::Instance()->CreateTask(factory, node_->Name());
 ```
 
 `func` 捕获的是 `weak_ptr<Component<M0>>`。如果捕获强引用，调度器持有协程、协程持有闭包、闭包再持有组件，就可能形成让组件无法析构的所有权环。弱引用把关系改成“调度任务可以尝试访问组件，但不拥有组件”。
+
+### C++ 所有权：`shared_ptr`、`weak_ptr` 与 lambda 捕获
+
+这里不能只把 `weak_ptr` 记成“防止循环引用”。先看一个**教学最小例子**：
+
+```cpp
+struct Component;
+
+struct Task {
+  std::function<void()> callback;
+};
+
+struct Component : std::enable_shared_from_this<Component> {
+  std::shared_ptr<Task> task;
+
+  void StartWrong() {
+    task = std::make_shared<Task>();
+    task->callback = [self = shared_from_this()] {
+      self->Run();
+    };
+  }
+
+  void Run() {}
+};
+```
+
+外部创建 `shared_ptr<Component>` 时，C++ 同时建立一块控制块，其中保存强引用计数和弱引用计数。`Component::task` 增加强计数持有 `Task`；lambda 的 `self` 又增加强计数持有 `Component`。即使外部指针已经释放，两边仍互相拥有，两个析构函数都不会执行。
+
+改成弱引用后，闭包不再增加 Component 的强计数：
+
+```cpp
+void StartSafe() {
+  task = std::make_shared<Task>();
+  std::weak_ptr<Component> weak = shared_from_this();
+  task->callback = [weak] {
+    if (auto self = weak.lock()) {
+      self->Run();
+    }
+  };
+}
+```
+
+`[weak]` 表示 lambda 按值保存一份 `weak_ptr`，并不是保存局部变量的悬空引用。`lock()` 原子地尝试增加强引用计数：对象仍存在就返回非空 `shared_ptr`，对象已经销毁就返回空指针。在 `if` 代码块结束前，局部 `self` 又暂时保证对象不会被另一线程析构。
+
+真实源码还调用了 `shared_from_this()`。这要求当前对象原本已经由 `shared_ptr` 管理；若对栈对象或普通 `new` 后的裸指针直接调用，无法找到有效控制块。`dynamic_pointer_cast<Component<M0>>` 则在运行期检查基类共享指针实际指向的对象类型，转换失败得到空指针，不转移或复制组件对象本身。
+
+到这里，`weak_ptr` 解决的是组件寿命，不是线程安全。两个线程同时访问 Component 的普通字段仍然需要锁、原子变量或单线程所有权；智能指针只保证对象在使用期间还活着，不保证对象内部状态不会发生 data race。
 
 更容易被忽略的是第 ③ 到第 ⑤ 步。在 reality mode 下，组件创建 Reader 时没有把业务回调传进去，随后却另外创建了组件专用的 `DataVisitor` 和 task。Reader 并未因此变成空壳；它自己的 `Init()` 还会建立另一套 `DataVisitor + CRoutine`。
 
@@ -237,7 +302,7 @@ bool Dispatch(const uint64_t channel_id,
 
 这里的锁粒度有意放在单只 buffer，而不是整个 channel。这样不同缓存的消费者互不共享读取锁；但 producer 仍串行访问它们，一个慢锁会推迟后续所有 buffer 的写入和通知。对拥有许多 observer 的高频 channel，这一扇出点比 hash lookup 本身更值得关注。
 
-`AtomicHashMap` 使用固定 bucket，避免每次查找都获取全局 map mutex；value 却是可变 `vector`。`AddBuffer()` 在 `buffers_map_mutex_` 下追加，`Dispatch()` 遍历时没有拿同一把锁。这套实现更适合“启动阶段完成注册、稳定阶段只读”的使用方式。若要把它改成支持运行时高频热插拔的 registry，需要 copy-on-write snapshot、读写锁或 RCU 一类明确的并发策略。
+`AtomicHashMap` 使用固定 bucket，避免每次查找都获取全局 map mutex；value 却是可变 `vector`。`AddBuffer()` 在 `buffers_map_mutex_` 下执行 `emplace_back()`，`Dispatch()` 遍历同一只 vector 时却没有拿这把锁。若两者并发，问题不只是“可能暂时看不到新订阅者”：扩容会搬迁 vector 的整段元素，遍历线程仍在使用旧地址，按照 C++ 内存模型构成 data race，行为未定义。这里的正确性因此依赖外部生命周期约束——注册集中发生在启动阶段，稳定运行阶段只读。若要支持运行时热插拔，必须给读写双方同一把锁，或把 value 改成不可变 snapshot，再用 copy-on-write/RCU 发布新版本。
 
 另一个长期运行问题是过期弱引用没有在这条路径中被移除。它不会造成对象泄漏，却会让反复创建和销毁 Reader 的进程不断积累空槽，增加每次 `Dispatch()` 的扫描成本。工业实现若允许动态组件重载，应让注册返回可注销 token，或定期压缩列表。
 
@@ -287,6 +352,8 @@ m = buffer_->at(*index);                  // 复制一份 shared_ptr
 ```
 
 游标是 visitor 私有状态，不是 ring 的共享读指针。第一次读取从当前 `tail_` 开始；正常情况下 `TryFetch()` 每成功一次就把它加一；如果游标已经小于 `head_`，说明对应历史已被覆盖，下一次读取直接推进到 `tail_`。这不是逐条补齐尚未处理的缓存历史（backlog），而是牺牲连续性、尽快追上新数据。
+
+这里还有一个容易被“单调递增”四个字掩盖的边界。`head_`、`tail_` 和 visitor 游标都是 `uint64_t`；`tail_ - head_` 的无符号减法在回绕时仍按模 $2^{64}$ 计算，只要两者的真实距离始终远小于计数空间，`Size()` 和 `Full()` 仍能工作。但 `index < Head()` 这种普通大小比较并不是回绕安全比较，`tail_ + 1` 也会在最大值处变成 0。现实消息速率下走满 64 位计数器几乎不可达，但从零复刻时仍应把“计数器在进程寿命内不回绕、queue size 远小于计数空间”写成不变量，或采用显式 epoch / 回绕安全的序号比较。传入的 `size` 还必须小于 `UINT64_MAX`，否则构造函数中的 `size + 1` 本身就会溢出。
 
 因此它更接近机器人状态流常见的 freshness 语义：内存有界，消费者过慢时丢旧样本。对于里程计、姿态或当前障碍物集合，这通常比处理几十毫秒前的完整队列更合理；对于审计日志、计费或必须逐事件处理的状态机则不合适。
 
@@ -388,11 +455,70 @@ if (!updated_.test_and_set(std::memory_order_release)) {
 }
 ```
 
+`atomic_flag` 可以把它理解成只保存“真/假”的最小原子量。这里的命名方向有些反直觉：`SetUpdateFlag()` 实际执行 `updated_.clear(std::memory_order_release)`，把 flag 清成 `false`，表示“有一次更新尚未被调度器消费”；`test_and_set()` 则原子地返回旧值并把它重新设成 `true`。旧值为 `false` 时，调度器才把等待中的 routine 改成 `READY`。多次 `clear()` 可以合并，因此它是事件闩锁，不是消息计数器。
+
+还要准确区分“原子”与“内存可见性”。固定源码给 `test_and_set()` 使用的是 `memory_order_release`，它没有 acquire 语义，不能据此声称 scheduler 通过这个 flag 看见了 producer 之前写入的 payload。消息内容的发布与读取由 `CacheBuffer::Mutex()` 的解锁/加锁配对建立同步；`updated_` 在这条链中只负责不把等待边界上的事件弄丢。若把 ring 改成无锁结构，就必须重新设计一套带 acquire/release 配对的数据发布协议，不能照搬这个 flag 的内存序。
+
 完整握手由三方完成：consumer 先设 `DATA_WAIT`、再检查 buffer 并 yield；producer 写入 buffer 后调用 `SetUpdateFlag()` 并唤醒 context；scheduler 的 `NextRoutine()` 再调用 `UpdateState()`，把观察到更新的 `DATA_WAIT/IO_WAIT` routine 转为 `READY`。若通知恰好发生在“检查为空”和“真正休眠”之间，flag 仍留下期间发生过更新的信息。
 
 它不是一条消息对应一个计数的 semaphore，而是可合并事件：buffer 的 `head/tail` 保存“有几条数据”，事件闩锁只保证“非空 buffer 最终会被再次检查”。成功处理一条消息后，协程用 `Yield(READY)` 保持可运行，因此即使没有下一次通知，也能继续清理 backlog。
 
 自己实现类似机制时，可以用 event flag，也可以用递增 sequence counter。关键不是选哪个原语，而是维持同一个不变量：只要 buffer 从空变为非空，消费者最终一定会再次检查它；即使多次唤醒被合并，也不能让已有数据永久睡在队列里。
+
+### 从通知到 CPU 执行还隔着操作系统调度
+
+“唤醒 worker”很容易被误解成“worker 立刻执行”。以普通条件变量为例，等待循环通常写成下面的**教学最小例子**：
+
+```cpp
+std::mutex mutex;
+std::condition_variable cv;
+bool has_work = false;
+
+void Worker() {
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [] { return has_work; });
+  has_work = false;
+  lock.unlock();
+  RunTask();
+}
+
+void Notify() {
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    has_work = true;
+  }
+  cv.notify_one();
+}
+```
+
+`wait()` 不是一边持锁一边睡眠。它以原子语义释放 mutex 并把当前内核线程放进等待；收到通知后，线程先变为 runnable，还要等 OS 调度器分配 CPU，并重新取得 mutex，`wait()` 才返回。Linux 上常见实现会在无竞争时使用用户态原子操作，真正需要睡眠和唤醒时借助 futex 一类内核机制。
+
+这不只是类比。固定提交中的 [`ClassicContext::Wait()/Notify()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/classic_context.cc#L75-L98) 正是用 condition variable 把空闲 Processor 停下来：
+
+```cpp
+// 固定提交源码摘录：cyber/scheduler/policy/classic_context.cc
+void ClassicContext::Wait() {
+  std::unique_lock<std::mutex> lk(mtx_wrapper_->Mutex());
+  cw_->Cv().wait_for(lk, std::chrono::milliseconds(1000),
+                     [&]() { return notify_grp_[current_grp] > 0; });
+  if (notify_grp_[current_grp] > 0) {
+    notify_grp_[current_grp]--;
+  }
+}
+
+void ClassicContext::Notify(const std::string& group_name) {
+  (&mtx_wq_[group_name])->Mutex().lock();
+  notify_grp_[group_name]++;
+  (&mtx_wq_[group_name])->Mutex().unlock();
+  cv_wq_[group_name].Cv().notify_one();
+}
+```
+
+`notify_grp_` 是由同一把 mutex 保护的等待谓词：通知先把计数加一再唤醒，worker 即使晚一点进入 `wait_for()`，也会先看到谓词为真而不睡下。1000 ms 超时则提供一次兜底重查，并不表示正常消息需要等待一秒。Choreography 的专用 context 使用同样的“计数 + condition variable”结构，只是通知目标是绑定的 Processor，而不是 Classic group 中任意一个空闲 worker。
+
+条件变量允许虚假唤醒，所以 `wait(lock, predicate)` 会反复检查 `has_work`。这个布尔状态与 Cyber 的消息 ring / update flag 扮演相似角色：通知可以合并或偶然发生，正确性最终依赖一个可重新检查的状态条件，不能依赖“每次 notify 必须精确对应一次执行”。
+
+优先级也不会自动沿通知传播。接收线程可以是高优先级，等待中的 Processor 却可能使用普通 `SCHED_OTHER`；`notify_one()` 只改变可运行性，不会继承发送者优先级。如果 Processor 醒来后还要等待低优先级线程持有的 mutex，就会形成优先级反转。分析 Cyber task priority 时必须继续检查 Processor 的 OS 调度类、CPU affinity 和锁持有者，而不能停在 `NotifyProcessor()` 的函数名上。
 
 ## `Processor` 才是 `Proc()` 所在的 OS 线程
 
@@ -423,6 +549,23 @@ bool Component<M0, NullType, NullType, NullType>::Process(
 ```
 
 至此才能准确回答最初的问题：`Proc()` 通常运行在 Cyber scheduler 创建的 `Processor` OS 线程中，不在 SHM dispatcher、RTPS listener 或 INTRA publisher 的调用栈上。前者负责执行，后者负责生产数据和事件。
+
+### 协程和线程不是同一种调度对象
+
+`Processor` 是操作系统能够看见的内核线程，拥有内核调度实体、线程栈和 OS 优先级。`CRoutine` 是 Cyber 在用户态管理的协程：它保存自己的栈、寄存器现场和运行状态，却必须借用某个 Processor 才能执行。
+
+可以把关系理解为：
+
+```text
+一个进程
+  ├─ RTPS / SHM 接收线程
+  └─ 多个 Processor 内核线程
+       └─ 每个线程轮流 Resume 多个 CRoutine
+```
+
+从协程 A 切到协程 B，通常只需在用户态保存和恢复寄存器、栈指针，不必让内核完成一次完整线程调度，所以成本可以较低。但这不意味着协程可以安全调用任意阻塞函数。如果 A 在某个 Processor 上执行阻塞式 socket read，内核阻塞的是整个 Processor 线程；挂在同一线程上的 B、C 协程也无法运行。合作式调度要求业务代码尽快返回或在框架认可的位置 yield。
+
+`CRoutine::Resume()` 也不是新建线程。它把当前 Processor 的执行流切换到协程保存的栈；`Yield()` 再保存当前位置并返回调度循环。因此 `Proc()` 中的普通局部变量位于协程栈上，yield 后仍需保留；组件成员则位于进程堆对象中，可能被其他线程访问，需要另外分析同步关系。
 
 这也是 transport 与 scheduler 分层的核心价值。网络接收线程不需要承担不可预测的业务 WCET；组件可以使用统一的 task priority、group、CPU affinity 和调度策略；同一套 `DataVisitor` 还能接入 INTRA、SHM、RTPS 三种上游。
 
@@ -530,6 +673,73 @@ Lstart = Ltransport_decode
 有了数据面，再实现“设为 WAIT → 检查 buffer → yield”的 consumer loop和防丢唤醒 event latch。`ProcessorContext` 只负责选择 ready routine，`Processor` 只负责 OS 线程上的 select/resume/wait；这种分层让 Classic、绑定式或 deadline-aware 策略能够替换，而业务对象不知道具体 scheduler。
 
 最后再接 Component wrapper 和不同 transport。每接一种 transport，都标清 payload 第一次分配、复制或解析的位置，以及 listener 所在线程。到这一步，系统才真正拥有可解释的端到端延迟链。
+
+下面是一个可单独编译的**教学最小复刻**。它不实现协程、registry 和优先级，只保留发布线程不直接执行业务、缓存有界、等待条件可重查这三个性质。
+
+```cpp
+// 教学最小例子：g++ -std=c++17 -pthread -c mini_runtime.cc
+#include <condition_variable>
+#include <cstddef>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
+
+template <class T>
+class LatestWorker {
+ public:
+  using Message = std::shared_ptr<const T>;
+  LatestWorker(std::size_t cap, std::function<void(Message)> proc)
+      : cap_(cap), proc_(std::move(proc)) {
+    if (cap_ == 0) throw std::invalid_argument(std::string{});
+    worker_ = std::thread(&LatestWorker::Run, this);
+  }
+  ~LatestWorker() {
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      stop_ = true;
+    }
+    cv_.notify_one();
+    worker_.join();
+  }
+  void Publish(Message msg) {
+    {
+      std::lock_guard<std::mutex> lock(mu_);
+      if (queue_.size() == cap_) queue_.pop_front();
+      queue_.push_back(std::move(msg));
+    }
+    cv_.notify_one();
+  }
+
+ private:
+  void Run() {
+    for (;;) {
+      Message msg;
+      {
+        std::unique_lock<std::mutex> lock(mu_);
+        cv_.wait(lock, [&] { return stop_ || !queue_.empty(); });
+        if (stop_ && queue_.empty()) return;
+        msg = std::move(queue_.back());
+        queue_.clear();  // 过载后直接追到最新样本
+      }
+      proc_(std::move(msg));  // 锁外执行
+    }
+  }
+  const std::size_t cap_;
+  std::function<void(Message)> proc_;
+  std::mutex mu_;
+  std::condition_variable cv_;
+  std::deque<Message> queue_;
+  bool stop_ = false;
+  std::thread worker_;
+};
+```
+
+这个缩小版只有一只 OS worker，所以不是 Cyber 源码的改写。继续演进时，可以给每位消费者建立独立实例，让 Dispatcher 只保存弱引用，再把 OS thread 拆成共享 Processor 与可挂起 routine。无论加多少层，都要守住同一边界：registry 不能与遍历无同步并发，payload 可见性由队列同步保证，通知只承诺“再检查一次”，关闭时先阻止新任务，再等待在途业务返回。
 
 Cyber RT 这套设计最值得借鉴的地方，是把“消息是否存在”与“任务何时运行”拆成两个可独立演化的子系统：有界缓存保存事实，可合并事件推动调度。它带来了 transport 隔离、统一调度和新鲜度优先的过载行为；同时也留下弱引用表膨胀、共享 vector 的动态注册边界、持久 run queue 的公平性以及多输入时间一致性等工程代价。
 

@@ -238,8 +238,12 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="generated/cyber/message-to-proc.html">完整消息链：从 Receiver 到 <code class="docutils literal notranslate"><span class="pre">Component::Proc()</span></code></a><ul>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id1">先把整条链放进脑中</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id2">初始化阶段已经把两条消费支路装好了</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id1">朴素的直接回调为何不够</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id2">先把整条链放进脑中</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id3">初始化阶段已经把两条消费支路装好了</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/cyber/message-to-proc.html#c-shared-ptrweak-ptr-lambda">C++ 所有权：<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code>、<code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 与 lambda 捕获</a></li>
+</ul>
+</li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#transport-receiver">Transport Receiver 不是最终回调执行者</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/cyber/message-to-proc.html#intra">INTRA：发送调用栈上的同步扇出</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/cyber/message-to-proc.html#shm-dispatcher">SHM：共享内存接收线程先解析，再进入 Dispatcher</a></li>
@@ -249,12 +253,18 @@
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#datadispatcher-channel"><code class="docutils literal notranslate"><span class="pre">DataDispatcher</span></code>：按 channel 把一个对象扇出到多只缓存</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#cachebuffer"><code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>：有界、覆盖最旧项，而且落后时跳到最新项</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#datanotifier"><code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 传的是事件，不是消息</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id3">防止在“检查为空”和“进入休眠”之间丢通知</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#processor-proc-os"><code class="docutils literal notranslate"><span class="pre">Processor</span></code> 才是 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 所在的 OS 线程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id4">防止在“检查为空”和“进入休眠”之间丢通知</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/cyber/message-to-proc.html#cpu">从通知到 CPU 执行还隔着操作系统调度</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#processor-proc-os"><code class="docutils literal notranslate"><span class="pre">Processor</span></code> 才是 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 所在的 OS 线程</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/cyber/message-to-proc.html#id5">协程和线程不是同一种调度对象</a></li>
+</ul>
+</li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#classic-scheduler-priority">Classic scheduler 的 priority 不是抢占式实时调度</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id4">有界内存下的过载与丢数据语义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id5">关闭时，先阻止新业务，再拆接收与任务</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id6">从完整消息链提取运行时设计</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id6">有界内存下的过载与丢数据语义</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id7">关闭时，先阻止新业务，再拆接收与任务</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/message-to-proc.html#id8">从完整消息链提取运行时设计</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="generated/cyber/cpp-type-runtime.html">Cyber RT 的 C++ 类型系统：静态消息类型与动态组件运行时</a><ul>
