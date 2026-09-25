@@ -947,8 +947,10 @@
 <li class="toctree-l5"><a class="reference internal" href="#id10">部署与启动顺序</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#id11">数据结构与性能边界</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#id12">设计取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id13">扩展一个新导航算法</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id14">可复用模块骨架</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id13">缺点与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id14">可迁移的设计方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id15">可复用模块骨架</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id16">最小复刻：从纯控制核心组装导航闭环</a></li>
 </ul>
 </li>
 </ul>
@@ -2012,44 +2014,59 @@
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id15">功能拆分</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id16">从官方示例还原完整模块图</a></p></li>
-<li><p><a class="reference internal" href="#inavigation2d-port" id="id17">客户端通过 INavigation2D 而不是手写 Port</a></p>
+<li><p><a class="reference internal" href="#id1" id="id17">功能拆分</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id18">从官方示例还原完整模块图</a></p></li>
+<li><p><a class="reference internal" href="#inavigation2d-port" id="id19">客户端通过 INavigation2D 而不是手写 Port</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id3" id="id18">官方客户端示例的适用范围</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id20">官方客户端示例的适用范围</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id4" id="id19">当前实现的三层生命周期</a></p>
+<li><p><a class="reference internal" href="#id4" id="id21">当前实现的三层生命周期</a></p>
 <ul>
-<li><p><a class="reference internal" href="#devicedriver-open" id="id20"><code class="docutils literal notranslate"><span class="pre">DeviceDriver::open</span></code> 是资源事务</a></p></li>
-<li><p><a class="reference internal" href="#periodicthread" id="id21"><code class="docutils literal notranslate"><span class="pre">PeriodicThread</span></code> 把初始化、周期和析构分开</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id22">关闭必须先停止控制线程</a></p></li>
+<li><p><a class="reference internal" href="#devicedriver-open" id="id22"><code class="docutils literal notranslate"><span class="pre">DeviceDriver::open</span></code> 是资源事务</a></p></li>
+<li><p><a class="reference internal" href="#periodicthread" id="id23"><code class="docutils literal notranslate"><span class="pre">PeriodicThread</span></code> 把初始化、周期和析构分开</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id24">关闭必须先停止控制线程</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#resourcefinder" id="id23"><code class="docutils literal notranslate"><span class="pre">ResourceFinder</span></code> 与可部署配置</a></p></li>
-<li><p><a class="reference internal" href="#streaming-port" id="id24">传感器读取、Streaming Port 与缓冲策略</a></p></li>
-<li><p><a class="reference internal" href="#rpc" id="id25">RPC 作为管理面</a></p>
+<li><p><a class="reference internal" href="#resourcefinder" id="id25"><code class="docutils literal notranslate"><span class="pre">ResourceFinder</span></code> 与可部署配置</a></p></li>
+<li><p><a class="reference internal" href="#streaming-port" id="id26">传感器读取、Streaming Port 与缓冲策略</a></p></li>
+<li><p><a class="reference internal" href="#rpc" id="id27">RPC 作为管理面</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id6" id="id26">当前接口调用暴露出的共享状态边界</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id28">当前接口调用暴露出的共享状态边界</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id7" id="id27">控制周期从输入到速度输出</a></p>
+<li><p><a class="reference internal" href="#id7" id="id29">控制周期从输入到速度输出</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id8" id="id28">坐标和角度计算</a></p></li>
-<li><p><a class="reference internal" href="#id9" id="id29">状态机决定完成条件</a></p></li>
-<li><p><a class="reference internal" href="#clamp" id="id30">速度限幅不是简单 clamp</a></p></li>
-<li><p><a class="reference internal" href="#wire" id="id31">Wire 输出和安全边界</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id30">坐标和角度计算</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id31">状态机决定完成条件</a></p></li>
+<li><p><a class="reference internal" href="#clamp" id="id32">速度限幅不是简单 clamp</a></p></li>
+<li><p><a class="reference internal" href="#wire" id="id33">Wire 输出和安全边界</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#device" id="id32">Device 抽象</a></p></li>
-<li><p><a class="reference internal" href="#id10" id="id33">部署与启动顺序</a></p></li>
-<li><p><a class="reference internal" href="#id11" id="id34">数据结构与性能边界</a></p></li>
-<li><p><a class="reference internal" href="#id12" id="id35">设计取舍</a></p></li>
-<li><p><a class="reference internal" href="#id13" id="id36">扩展一个新导航算法</a></p></li>
-<li><p><a class="reference internal" href="#id14" id="id37">可复用模块骨架</a></p></li>
+<li><p><a class="reference internal" href="#device" id="id34">Device 抽象</a></p></li>
+<li><p><a class="reference internal" href="#id10" id="id35">部署与启动顺序</a></p></li>
+<li><p><a class="reference internal" href="#id11" id="id36">数据结构与性能边界</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id37">设计取舍</a></p></li>
+<li><p><a class="reference internal" href="#id13" id="id38">缺点与不适用边界</a></p></li>
+<li><p><a class="reference internal" href="#id14" id="id39">可迁移的设计方法</a></p></li>
+<li><p><a class="reference internal" href="#id15" id="id40">可复用模块骨架</a></p></li>
+<li><p><a class="reference internal" href="#id16" id="id41">最小复刻：从纯控制核心组装导航闭环</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://github.com/robotology/navigation"><code class="docutils literal notranslate"><span class="pre">robotology/navigation</span></code></a> 提供基于 YARP 的自主导航模块和设备，并依赖 <code class="docutils literal notranslate"><span class="pre">icub-main</span></code>。它体现了 Robotology 生态常见结构：算法被包装成 YARP module/device，通过 Port、RPC 和配置文件与整套 iCub 软件连接。</p>
+<p>先把本文研究的对象说清楚。这里不是试图用一篇文章讲完 iCub 的视觉、机械臂、语音和全身控制，也不是把整个 Navigation 仓库逐文件翻译一遍。本文选择其中最小但完整的 <code class="docutils literal notranslate"><span class="pre">robotGoto</span></code> 闭环：上层给出“移动到地图中的某个位置”，模块读取机器人位姿和激光数据，持续计算底盘速度，直到到达、暂停或失败。把这条闭环看懂以后，再加入全局路径规划器、真实激光雷达或真实底盘，只是在相同接口上替换模块。</p>
+<p>可以先用一句话记住各层职责：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>客户端说“去哪里” → robotGoto 决定“这一周期怎么走” → baseControl 决定“轮子怎么动”
+</pre></div>
+</div>
+<p>文章会沿着一次导航任务真正发生的顺序向下阅读，而不是按文件名罗列类：</p>
+<ol class="arabic simple">
+<li><p>先认清系统解决的问题，以及哪些能力不属于 <code class="docutils literal notranslate"><span class="pre">robotGoto</span></code>；</p></li>
+<li><p>再看官方 XML 怎样把定位、激光、控制和客户端组装成运行图；</p></li>
+<li><p>从客户端的一次 <code class="docutils literal notranslate"><span class="pre">gotoTarget...()</span></code> 调用一路追到控制线程；</p></li>
+<li><p>拆开 C++ 对象的所有权、线程生命周期、状态共享和关闭顺序；</p></li>
+<li><p>最后评估性能与缺点，并抽出一套可以自己实现的最小架构。</p></li>
+</ol>
 <p>本文源码坐标固定到提交 <a class="reference external" href="https://github.com/robotology/navigation/tree/496e04a9997e6d57d32209858237a8b3f69dfa67"><code class="docutils literal notranslate"><span class="pre">496e04a9</span></code></a>。这个坐标很重要：仓库从早期独立 <code class="docutils literal notranslate"><span class="pre">RFModule</span></code> 逐步演化为可由 <code class="docutils literal notranslate"><span class="pre">yarpdev</span></code> 装载的 device/plugin，若把旧教程的进程结构直接套到当前源码，会看错对象所有权和关闭路径。</p>
 <table class="docutils align-default">
 <thead>
@@ -2082,8 +2099,40 @@
 </tbody>
 </table>
 <section id="id1">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">功能拆分</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">功能拆分</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>导航系统通常包含定位、地图、规划、控制与人机命令。连续状态用 streaming Port，低频控制和配置用 RPC，硬件访问通过 YARP device/<code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 抽象。</p>
+<p>对初次接触机器人导航的读者，可以把这几个词翻译成更日常的分工：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>模块</p></th>
+<th class="head"><p>它回答的问题</p></th>
+<th class="head"><p>在本文闭环中的输入与输出</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>定位</p></td>
+<td><p>“机器人现在在哪里、朝向哪里？”</p></td>
+<td><p>传入地图坐标中的 <code class="docutils literal notranslate"><span class="pre">x/y/theta</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>激光测距</p></td>
+<td><p>“周围哪里有障碍？”</p></td>
+<td><p>传入一圈距离测量</p></td>
+</tr>
+<tr class="row-even"><td><p>目标跟踪</p></td>
+<td><p>“为了靠近目标，这一刻应该往哪走？”</p></td>
+<td><p>输出线速度、平移方向和角速度</p></td>
+</tr>
+<tr class="row-odd"><td><p>底盘控制</p></td>
+<td><p>“如何把期望速度变成轮子或执行器动作？”</p></td>
+<td><p>接收速度，输出电机控制与里程计</p></td>
+</tr>
+<tr class="row-even"><td><p>客户端</p></td>
+<td><p>“任务要去哪里，当前完成了吗？”</p></td>
+<td><p>发送目标、暂停、恢复、停止并读取状态</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">robotGoto</span></code> 主要承担第三项。它不是完整的地图构建系统，也不负责直接驱动某一种电机；它把外部目标、当前位姿和障碍数据变成底盘速度。这个边界解释了为什么源码中既能看到导航状态机，又看不到具体电机厂商的 CAN 指令。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>localization stream -&gt; navigation module -&gt; velocity command stream
 map/service RPC ----^         |
 operator RPC -----------------+
@@ -2091,9 +2140,73 @@ operator RPC -----------------+
 </pre></div>
 </div>
 <p>这种接口分类比“全部用 Bottle”更重要：流数据强调新鲜度，命令强调一次请求的结果，设备接口强调可替换驱动。</p>
+<p>这里的 <strong>streaming Port</strong> 可以理解为持续流动的数据管道，例如定位每隔几十毫秒产生一帧新位姿；旧数据通常很快失去价值。<strong>RPC</strong> 则更像一次有返回值的函数调用，例如“接受这个目标了吗”。<strong>device 接口</strong> 是 C++ 抽象层，让同一套导航代码既能面对模拟底盘，也能面对真实硬件。三者不是三种写法偏好，而是分别服务于三种不同的数据寿命。</p>
 </section>
 <section id="id2">
-<h2><a class="toc-backref" href="#id16" role="doc-backlink">从官方示例还原完整模块图</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">从官方示例还原完整模块图</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>先让一条任务完整跑一遍：操作者要求机器人前往 <code class="docutils literal notranslate"><span class="pre">office_map</span></code> 中的 <code class="docutils literal notranslate"><span class="pre">(1.0,</span> <span class="pre">0.0)</span></code>；<code class="docutils literal notranslate"><span class="pre">navigation2DClient</span></code> 把目标发给服务端；<code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code> 保存目标；它的控制线程每 10 ms 询问一次当前位置和激光扫描，根据状态机计算速度；<code class="docutils literal notranslate"><span class="pre">baseControl</span></code> 把笛卡尔速度换成轮速；模拟底盘运动后又产生新里程计。下一周期读取到新的位置，这个闭环继续运行，直到状态变为 <code class="docutils literal notranslate"><span class="pre">goal_reached</span></code>。</p>
+<p>项目的组件名虽然多，但每个名字都能放回这条故事：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>组件</p></th>
+<th class="head"><p>角色</p></th>
+<th class="head"><p>主要输入</p></th>
+<th class="head"><p>主要输出</p></th>
+<th class="head"><p>暂时去掉会怎样</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">navigation2DClient</span></code></p></td>
+<td><p>应用侧代理，把远程服务伪装成本地 C++ 接口</p></td>
+<td><p>应用的目标与状态查询</p></td>
+<td><p>发往 server 的请求</p></td>
+<td><p>应用必须自己理解 Port 和远程协议</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">navigation2DServer</span></code></p></td>
+<td><p>网络包装层，把远程请求转成 device 接口调用</p></td>
+<td><p>client 请求</p></td>
+<td><p>对 <code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code> 的虚函数调用</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code> 只能在同一进程内被直接调用</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code></p></td>
+<td><p>局部导航 device，保存任务并拥有控制线程</p></td>
+<td><p>目标、定位、激光</p></td>
+<td><p>底盘笛卡尔速度与导航状态</p></td>
+<td><p>系统没有“朝目标走”的决策者</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">baseControl</span></code></p></td>
+<td><p>底盘运动学层，把机体速度变成具体轮速</p></td>
+<td><p>线速度、方向、角速度</p></td>
+<td><p>电机命令与里程计</p></td>
+<td><p>导航算法必须知道轮子数量和安装方式</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fakeMotionControl</span></code></p></td>
+<td><p>模拟的控制板 device</p></td>
+<td><p>轮速命令</p></td>
+<td><p>模拟执行器状态</p></td>
+<td><p>示例需要真实硬件才能运行</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">localization2DServer</span></code> + <code class="docutils literal notranslate"><span class="pre">odomLocalizer</span></code></p></td>
+<td><p>把里程计整理成统一定位接口</p></td>
+<td><p>底盘里程计</p></td>
+<td><p>地图/机器人位姿</p></td>
+<td><p>robotGoto 不知道自己在哪里</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Rangefinder2DWrapper</span></code> + <code class="docutils literal notranslate"><span class="pre">fakeLaser</span></code></p></td>
+<td><p>把模拟激光包装成统一测距接口</p></td>
+<td><p>仿真世界与机器人位姿</p></td>
+<td><p>激光距离数组</p></td>
+<td><p>仍可朝目标走，但无法感知局部障碍</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">map2DServer</span></code> + <code class="docutils literal notranslate"><span class="pre">transformServer</span></code></p></td>
+<td><p>提供地图对象与坐标系关系</p></td>
+<td><p>地图文件、坐标变换</p></td>
+<td><p>地图与 frame 查询</p></td>
+<td><p>多地图、多坐标系的语义无法统一</p></td>
+</tr>
+</tbody>
+</table>
+<p>这里的 <strong>device</strong> 是实现某种能力的 C++ 对象，例如定位器或激光；<strong>wrapper</strong> 是协议翻译层，把进程内 device 接口暴露为网络服务，通常不负责导航决策；<strong>client</strong> 是反向代理，把网络服务重新呈现为本地接口。<code class="docutils literal notranslate"><span class="pre">yarpdev</span></code> 则是能够根据配置装载这些 device 插件的通用进程，因此无需为每个设备都重写一个 <code class="docutils literal notranslate"><span class="pre">main()</span></code>。</p>
 <p>项目的 <code class="docutils literal notranslate"><span class="pre">robotGotoExample1</span></code> 不只启动一个导航进程，而是组合多个可替换模块。当前提交中的真实 XML 使用 <code class="docutils literal notranslate"><span class="pre">fakeMotionControl</span> <span class="pre">+</span> <span class="pre">baseControl</span></code> 模拟底盘，而不是把整个底盘模型藏在 robotGoto 内部：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>fakeMotionControl &lt;-------------------- baseControl
                                              ^
@@ -2116,10 +2229,11 @@ navigation2DClient -&gt; navigation2DServer -&gt; robotGotoDev
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">fakeMotionControl</span></code> 暴露控制板 device，<code class="docutils literal notranslate"><span class="pre">baseControl</span></code> 仍执行底盘运动学和里程计；因此替换真实硬件时，导航控制器不需要改写目标接口。<code class="docutils literal notranslate"><span class="pre">localization2DServer</span></code> 把 <code class="docutils literal notranslate"><span class="pre">odomLocalizer</span></code> 包成定位服务，Rangefinder wrapper 把 fakeLaser 包成测距 device。模块不是按进程数量随意拆分，而是沿设备契约拆分。</p>
 <p>部署图还揭示了两种组合方式。<code class="docutils literal notranslate"><span class="pre">navigation2DServer</span> <span class="pre">--subdevice</span> <span class="pre">robotGotoDev</span></code> 是进程内装饰：server wrapper 和算法 device 在同一 <code class="docutils literal notranslate"><span class="pre">yarpdev</span></code> 进程中，通过 C++ 接口调用；<code class="docutils literal notranslate"><span class="pre">/robotGoto/control:o</span> <span class="pre">-&gt;</span> <span class="pre">/baseControl/control:i</span></code> 是进程间 Port 连接，通过 UDP carrier 传输。前者避免手写远程协议，后者保留可重连的模块边界。</p>
+<p>Carrier 是 YARP 对具体传输方式的称呼，例如 TCP 或 UDP。Port 名描述“逻辑上连接谁”，Carrier 决定“字节具体怎样传”。把两者分开后，同一组模块可以不改业务代码，只在部署时选择更可靠或更低延迟的传输方式。</p>
 <p><code class="docutils literal notranslate"><span class="pre">robotPathPlanner</span></code> 再叠加一层全局规划：它产生 waypoint 序列，由 robotGoto 负责局部跟踪和避障。全局路径与局部速度控制分离后，两者可独立替换，也能分别设置较慢与较快的更新周期。当前案例首先聚焦最小 <code class="docutils literal notranslate"><span class="pre">robotGoto</span></code> 闭环，避免在尚未理解 device/server 边界前同时引入路径规划。</p>
 </section>
 <section id="inavigation2d-port">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink">客户端通过 INavigation2D 而不是手写 Port</a><a class="headerlink" href="#inavigation2d-port" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">客户端通过 INavigation2D 而不是手写 Port</a><a class="headerlink" href="#inavigation2d-port" title="Link to this heading"></a></h2>
 <p>官方 README 推荐应用创建 <code class="docutils literal notranslate"><span class="pre">navigation2DClient</span></code>，再 view 为 <code class="docutils literal notranslate"><span class="pre">yarp::dev::INavigation2D</span></code>。典型 C++ 结构如下：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">yarp</span><span class="o">::</span><span class="n">os</span><span class="o">::</span><span class="n">Property</span><span class="w"> </span><span class="n">options</span><span class="p">;</span>
 <span class="n">options</span><span class="p">.</span><span class="n">put</span><span class="p">(</span><span class="s">&quot;device&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;navigation2DClient&quot;</span><span class="p">);</span>
@@ -2143,10 +2257,19 @@ navigation2DClient -&gt; navigation2DServer -&gt; robotGotoDev
 <span class="p">}</span>
 </pre></div>
 </div>
+<p>这段代码值得按执行顺序读，而不是只记 API 名称：</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">Property</span></code> 是一张字符串配置表，先说明要创建哪一种 device，以及本地客户端和远端服务的名字；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PolyDriver</span> <span class="pre">driver(options)</span></code> 根据 <code class="docutils literal notranslate"><span class="pre">device=navigation2DClient</span></code> 在运行时寻找并创建对应插件；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">driver.view(navigation)</span></code> 不会再创建一个导航对象，只是向已经打开的 driver 请求一个 <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code> 接口视图；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Map2DLocation</span></code> 把地图名、位置和朝向绑在同一个值对象里，避免只传两个坐标却忘记它们属于哪张地图；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">gotoTargetByAbsoluteLocation()</span></code> 把目标交给服务端。返回 <code class="docutils literal notranslate"><span class="pre">true</span></code> 只说明请求在接口语义上被接受，不代表机器人已经走到目标。</p></li>
+</ol>
 <p>配置 key 会随具体设备版本变化，部署应以对应版本文档为准；这里展示的是设计结构。<code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 是 owner，<code class="docutils literal notranslate"><span class="pre">navigation</span></code> 是从 driver 借出的接口指针，不能比 driver 活得更久。<code class="docutils literal notranslate"><span class="pre">view()</span></code> 成功不转移所有权，关闭时只需要 <code class="docutils literal notranslate"><span class="pre">driver.close()</span></code>，不能 delete 接口指针。</p>
+<p>“owner”和“借用指针”是后文所有生命周期分析的基础。owner 负责创建和销毁资源；借用指针只是临时获得使用权。可以把 <code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 想成图书馆，<code class="docutils literal notranslate"><span class="pre">INavigation2D*</span></code> 想成借书证：借书证能让你访问馆藏，却不能在图书馆关闭后继续使用，更不能由借书证去拆掉图书馆。</p>
 <p>应用依赖 <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code>，不依赖 robotGoto 的 RPC VOCAB，也不依赖具体移动底盘。client device 内部负责连接多个服务器 Port，把分布式模块组合成一个本地 C++ 接口。</p>
 <section id="id3">
-<h3><a class="toc-backref" href="#id18" role="doc-backlink">官方客户端示例的适用范围</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id20" role="doc-backlink">官方客户端示例的适用范围</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
 <p>真实 <code class="docutils literal notranslate"><span class="pre">robotGotoExample/main.cpp</span></code> 的 <code class="docutils literal notranslate"><span class="pre">gotoLoc()</span></code> 先循环等待 <code class="docutils literal notranslate"><span class="pre">navigation_status_idle</span></code>，发送目标后又每秒轮询状态、当前位置和当前目标，直到 reached、aborted 或 failing。这很好地展示了接口，却还不是生产任务执行器：两个 <code class="docutils literal notranslate"><span class="pre">do</span> <span class="pre">...</span> <span class="pre">while</span> <span class="pre">(1)</span></code> 都没有总体 deadline，网络调用失败的返回值也没有逐次进入状态机，主线程在 <code class="docutils literal notranslate"><span class="pre">Time::delay()</span></code> 期间不能处理取消。</p>
 <p>把它升级为工程任务客户端时，应明确区分四种结果：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>transport failure   : 本次 RPC 没有可靠完成，不能推断服务端是否执行
@@ -2155,7 +2278,7 @@ command accepted    : 目标已进入导航状态机，并不代表到达
 terminal navigation : goal_reached / aborted / failing / client timeout
 </pre></div>
 </div>
-<p>可把 <code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 和接口借用封装成一个不可复制 owner：</p>
+<p>可把 <code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 和接口借用封装成一个不可复制 owner。下面是根据接口关系整理的<strong>推荐封装</strong>，不是仓库逐字源码：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">NavigationClient</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
 <span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">NavigationClient</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">Property</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -2177,11 +2300,13 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 <span class="p">};</span>
 </pre></div>
 </div>
-<p>成员按声明逆序析构：<code class="docutils literal notranslate"><span class="pre">api_</span></code> 只是标量无需释放，随后 <code class="docutils literal notranslate"><span class="pre">driver_</span></code> 析构底层 client。显式 <code class="docutils literal notranslate"><span class="pre">close()</span></code> 便于记录关闭错误，但仍应让析构在提前 return 或异常时兜底。若应用需要异步取消，则由单独任务状态机定时轮询，不应让后台线程长期保存一个可能先于 driver 失效的裸接口指针。</p>
+<p>这个封装使用了 RAII：对象构造成功就表示资源可用，对象离开作用域便自动清理资源。两行 <code class="docutils literal notranslate"><span class="pre">=</span> <span class="pre">delete</span></code> 明确禁止复制，因为两个 <code class="docutils literal notranslate"><span class="pre">NavigationClient</span></code> 若误以为自己都拥有同一个底层连接，就可能重复关闭资源。</p>
+<p>成员按声明的逆序析构：先处理后声明的 <code class="docutils literal notranslate"><span class="pre">api_</span></code>，再销毁先声明的 <code class="docutils literal notranslate"><span class="pre">driver_</span></code>。这里 <code class="docutils literal notranslate"><span class="pre">api_</span></code> 只是一个不拥有资源的地址，不需要 <code class="docutils literal notranslate"><span class="pre">delete</span></code>；真正的底层 client 由 <code class="docutils literal notranslate"><span class="pre">driver_</span></code> 关闭。显式 <code class="docutils literal notranslate"><span class="pre">close()</span></code> 便于记录关闭错误，但析构仍要在提前 <code class="docutils literal notranslate"><span class="pre">return</span></code> 或异常时兜底。若应用需要异步取消，则由单独任务状态机定时轮询，不应让后台线程长期保存一个可能先于 driver 失效的裸接口指针。</p>
 </section>
 </section>
 <section id="id4">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">当前实现的三层生命周期</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">当前实现的三层生命周期</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>上一节站在应用开发者的位置，只看见一个本地接口。现在沿着这次调用进入服务端，才能解释为什么仓库里同时出现 server、device 和 thread 三类对象。</p>
 <p>当前源码不是一个 <code class="docutils literal notranslate"><span class="pre">RFModule::updateModule()</span></code> 包办所有工作，而是三层对象：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>yarpdev process
   -&gt; navigation2DServer wrapper
@@ -2208,9 +2333,9 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 </pre></div>
 </div>
 <section id="devicedriver-open">
-<h3><a class="toc-backref" href="#id20" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">DeviceDriver::open</span></code> 是资源事务</a><a class="headerlink" href="#devicedriver-open" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">DeviceDriver::open</span></code> 是资源事务</a><a class="headerlink" href="#devicedriver-open" title="Link to this heading"></a></h3>
 <p>源码中的 <code class="docutils literal notranslate"><span class="pre">robotGotoDev::open(Searchable&amp;)</span></code> 先复制并解析配置，然后 <code class="docutils literal notranslate"><span class="pre">new</span> <span class="pre">GotoThread(0.010,</span> <span class="pre">p)</span></code>、<code class="docutils literal notranslate"><span class="pre">start()</span></code>，最后打开 RPC Port 并注册 reader。<code class="docutils literal notranslate"><span class="pre">PeriodicThread::start()</span></code> 会调用 <code class="docutils literal notranslate"><span class="pre">threadInit()</span></code>；真正的定位 client、激光 client 和输出 Ports 都在那里创建。因此一次看似简单的 <code class="docutils literal notranslate"><span class="pre">open</span></code> 跨越两个对象和一个新线程。</p>
-<p>可以把理想的不变量写成：只有当控制线程初始化成功、RPC Port 打开、reader 安装完成时，device 才对外可见；任一步失败都必须逆序释放已经提交的资源。结构等价的现代 C++ 写法是：</p>
+<p>可以把理想的不变量写成：只有当控制线程初始化成功、RPC Port 打开、reader 安装完成时，device 才对外可见；任一步失败都必须逆序释放已经提交的资源。下面是突出事务边界的<strong>教学等价代码</strong>，不是固定提交中的原文：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">RobotGotoDevice::open</span><span class="p">(</span><span class="n">Searchable</span><span class="o">&amp;</span><span class="w"> </span><span class="n">config</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="kr">thread</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">GotoThread</span><span class="o">&gt;</span><span class="p">(</span><span class="mi">10</span><span class="n">ms</span><span class="p">,</span><span class="w"> </span><span class="n">config</span><span class="p">);</span>
 <span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="kr">thread</span><span class="o">-&gt;</span><span class="n">start</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span><span class="w">          </span><span class="c1">// threadInit 失败也不提交</span>
@@ -2230,9 +2355,10 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 </pre></div>
 </div>
 <p>这是教学上的安全形状，不是仓库逐字代码。固定提交仍使用裸 <code class="docutils literal notranslate"><span class="pre">GotoThread*</span></code>，而且线程启动后若 RPC Port 打开失败，<code class="docutils literal notranslate"><span class="pre">open()</span></code> 直接返回；这一失败分支没有在局部显式停止线程。它说明“主路径能运行”不等于构造事务已经完备，也是复刻时应优先修正的缺点。</p>
+<p>所谓“资源事务”，就是把启动过程看成数据库事务：中途任何一步失败，都要撤销前面已经完成的步骤；只有所有步骤成功，才把临时对象提交给成员。<code class="docutils literal notranslate"><span class="pre">std::unique_ptr</span></code> 在这里不仅是为了少写一次 <code class="docutils literal notranslate"><span class="pre">delete</span></code>，更重要的是它把“尚未提交的线程由局部变量负责清理”写进了类型系统。</p>
 </section>
 <section id="periodicthread">
-<h3><a class="toc-backref" href="#id21" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">PeriodicThread</span></code> 把初始化、周期和析构分开</a><a class="headerlink" href="#periodicthread" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">PeriodicThread</span></code> 把初始化、周期和析构分开</a><a class="headerlink" href="#periodicthread" title="Link to this heading"></a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">GotoThread</span></code> 继承 <code class="docutils literal notranslate"><span class="pre">yarp::os::PeriodicThread</span></code>，三个覆写函数分别承担不同责任：</p>
 <table class="docutils align-default">
 <thead>
@@ -2259,7 +2385,7 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 <p>这与 <code class="docutils literal notranslate"><span class="pre">RFModule</span></code> 的进程级周期不同：<code class="docutils literal notranslate"><span class="pre">yarpdev</span></code> 可以装载多个 device，而每个内部 device 自己拥有 worker。<code class="docutils literal notranslate"><span class="pre">run()</span></code> 的 10 ms 是期望周期，不是硬实时保证；定位 RPC、激光读取、日志和 Port 写入都会占用这段预算。</p>
 </section>
 <section id="id5">
-<h3><a class="toc-backref" href="#id22" role="doc-backlink">关闭必须先停止控制线程</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id24" role="doc-backlink">关闭必须先停止控制线程</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
 <p>当前 <code class="docutils literal notranslate"><span class="pre">robotGotoDev::close()</span></code> 先 interrupt/close RPC Port，再调用 <code class="docutils literal notranslate"><span class="pre">gotoThread-&gt;stop()</span></code>，随后 delete。<code class="docutils literal notranslate"><span class="pre">stop()</span></code> 的关键作用是等待 <code class="docutils literal notranslate"><span class="pre">run()</span></code> 离开，之后 <code class="docutils literal notranslate"><span class="pre">threadRelease()</span></code> 才能安全销毁它使用的 Port 和 driver。依赖顺序可以写成：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>拒绝新 RPC
   -&gt; 等待正在执行的 reader 返回
@@ -2273,7 +2399,8 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 </section>
 </section>
 <section id="resourcefinder">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">ResourceFinder</span></code> 与可部署配置</a><a class="headerlink" href="#resourcefinder" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">ResourceFinder</span></code> 与可部署配置</a><a class="headerlink" href="#resourcefinder" title="Link to this heading"></a></h2>
+<p>生命周期解决了“对象何时存在”，下一步要解决“这些对象连接到谁”。YARP 没有把所有名字编译进程序，而是让配置文件和命令行共同描述对象图，因此相同二进制可以进入模拟环境或真实机器人部署。</p>
 <p>模块不把 Port 名、机器人名、地图路径和周期写死，而是从 context/INI/命令行合并配置。最终解析值应在启动时打印；两个模块的 Port 名约定由部署脚本或 <code class="docutils literal notranslate"><span class="pre">yarp</span> <span class="pre">connect</span> <span class="pre">--persist</span></code> 建立。</p>
 <p>配置驱动提高复用，但字符串错误会推迟到运行时。生产部署应在连接前验证必需 key、范围和文件存在性。</p>
 <p>当前 <code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code> 接收的是 <code class="docutils literal notranslate"><span class="pre">Searchable&amp;</span></code>，随后用 <code class="docutils literal notranslate"><span class="pre">Property::fromString(config.toString())</span></code> 复制成自己的属性树。配置组直接决定源码分支：</p>
@@ -2318,7 +2445,8 @@ terminal navigation : goal_reached / aborted / failing / client timeout
 <p>配置不是“若干调参数字”，而是构造对象图的输入。比如缺少 <code class="docutils literal notranslate"><span class="pre">LASER</span></code> 会让 <code class="docutils literal notranslate"><span class="pre">threadInit()</span></code> 失败；错误的 laser pose 不会使 Port 连接失败，却会让避障几何整体偏移。工程上应把配置分成 schema 校验、设备连通性校验和运行时健康校验三层，而不是用一个 <code class="docutils literal notranslate"><span class="pre">bool</span> <span class="pre">open()</span></code> 混合所有错误。</p>
 </section>
 <section id="streaming-port">
-<h2><a class="toc-backref" href="#id24" role="doc-backlink">传感器读取、Streaming Port 与缓冲策略</a><a class="headerlink" href="#streaming-port" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">传感器读取、Streaming Port 与缓冲策略</a><a class="headerlink" href="#streaming-port" title="Link to this heading"></a></h2>
+<p>系统已经启动并完成连接后，控制线程开始重复同一件事：取得最新传感器快照、计算动作、发布结果。这里最容易被忽略的不是控制公式，而是数据是否足够新，以及一次计算究竟混用了哪些时刻的数据。</p>
 <p>当前 <code class="docutils literal notranslate"><span class="pre">GotoThread::run()</span></code> 并不直接从定位和激光 <code class="docutils literal notranslate"><span class="pre">BufferedPort</span></code> 读取，而是在每个周期调用：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ILocalization2D::getCurrentPosition -&gt; m_localization_data
 IRangefinder2D::getLaserMeasurement -&gt; m_laser_data
@@ -2339,7 +2467,7 @@ IRangefinder2D::getLaserMeasurement -&gt; m_laser_data
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">read(false)</span></code> 是非阻塞读取，返回的指针属于 BufferedPort 内部缓冲；必须在下一次 read 或 Port 关闭前复制需要的数据。把该指针保存到成员并跨周期使用会依赖未保证的缓冲寿命。</p>
-<p>固定提交采用失败次数 <code class="docutils literal notranslate"><span class="pre">m_loc_timeout_counter</span></code> 和 <code class="docutils literal notranslate"><span class="pre">m_las_timeout_counter</span></code>，成功时清零、失败时递增到 <code class="docutils literal notranslate"><span class="pre">TIMEOUT_MAX</span></code>。这种设计成本低，却把实际时间隐式绑定到调度周期：阈值 300 在稳定 10 ms 周期下约为 3 秒，周期超限或动态改频后就不再代表 3 秒。更清晰的状态应保存最后成功的单调时钟时间：</p>
+<p>固定提交采用失败次数 <code class="docutils literal notranslate"><span class="pre">m_loc_timeout_counter</span></code> 和 <code class="docutils literal notranslate"><span class="pre">m_las_timeout_counter</span></code>，成功时清零、失败时递增到 <code class="docutils literal notranslate"><span class="pre">TIMEOUT_MAX</span></code>。这种设计成本低，却把实际时间隐式绑定到调度周期：阈值 300 在稳定 10 ms 周期下约为 3 秒，周期超限或动态改频后就不再代表 3 秒。更清晰的状态应保存最后成功的单调时钟时间。下面的 <code class="docutils literal notranslate"><span class="pre">SensorSnapshot</span></code> 是<strong>推荐数据结构</strong>，固定提交并没有这个类型：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">SensorSnapshot</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">Map2DLocation</span><span class="w"> </span><span class="n">pose</span><span class="p">;</span>
 <span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">LaserMeasurementData</span><span class="o">&gt;</span><span class="w"> </span><span class="n">scan</span><span class="p">;</span>
@@ -2354,9 +2482,11 @@ IRangefinder2D::getLaserMeasurement -&gt; m_laser_data
 <p>速度命令应带独立 watchdog。即使导航模块崩溃，baseControl 也应在命令超时后输出零速度，不能把“最后一条前进命令”永久保持。</p>
 </section>
 <section id="rpc">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">RPC 作为管理面</a><a class="headerlink" href="#rpc" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">RPC 作为管理面</a><a class="headerlink" href="#rpc" title="Link to this heading"></a></h2>
+<p>传感器和速度属于高频数据面；设置目标、暂停和查询状态属于低频管理面。把两者分开，可以避免一个耗时的管理请求阻塞连续数据，也让“最新一帧可以覆盖旧帧”和“命令不可随便丢弃”拥有不同策略。</p>
 <p>启动导航、设置目标、暂停和查询状态适合 RPC。Handler 应快速验证请求，把长任务转成内部状态机，并立即返回接受/拒绝；不要在 InputUnit 线程同步等待整段导航完成。</p>
 <p>类型化 Thrift 接口比自由格式 Bottle 更适合稳定命令协议，因为生成代码固定方法和参数类型。Bottle 适合交互调试与兼容命令。</p>
+<p>Bottle 是 YARP 的动态值容器，可以像列表一样混装字符串、整数和浮点数，调试时很方便，但字段含义主要靠双方约定。Thrift 则先写接口定义，再生成类型化代码；编译器能够更早发现参数数量或类型不匹配。这里的 InputUnit 是读取并分发输入请求的执行单元，可以把它理解为 RPC 请求进入模块后的处理线程。</p>
 <p>项目示例允许向 <code class="docutils literal notranslate"><span class="pre">/robotGoto/rpc</span></code> 发送 <code class="docutils literal notranslate"><span class="pre">gotoAbs</span> <span class="pre">1.0</span> <span class="pre">0.0</span></code>。RPC handler 应把命令解析成内部事件：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>RPC thread: validate map/x/y/theta -&gt; enqueue SetGoal -&gt; reply accepted
 GotoThread cycle: consume SetGoal -&gt; local controller state transition
@@ -2364,7 +2494,7 @@ GotoThread cycle: consume SetGoal -&gt; local controller state transition
 </div>
 <p>这样状态机只有一个写线程，避免 RPC callback 与 <code class="docutils literal notranslate"><span class="pre">run()</span></code> 同时改 path、goal 和 controller state。事件队列必须有界；重复 SetGoal 可以覆盖旧目标，而 Stop/Emergency 事件需要保留更高优先级。</p>
 <section id="id6">
-<h3><a class="toc-backref" href="#id26" role="doc-backlink">当前接口调用暴露出的共享状态边界</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id28" role="doc-backlink">当前接口调用暴露出的共享状态边界</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
 <p>固定提交中的 <code class="docutils literal notranslate"><span class="pre">robotGotoDev</span></code> 把 <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code> 方法直接转发给 <code class="docutils literal notranslate"><span class="pre">GotoThread</span></code>。例如目标被装成 <code class="docutils literal notranslate"><span class="pre">yarp::sig::Vector</span></code> 后，<code class="docutils literal notranslate"><span class="pre">setNewAbsTarget()</span></code> 立即改写 <code class="docutils literal notranslate"><span class="pre">m_target_data</span></code>、<code class="docutils literal notranslate"><span class="pre">m_status</span></code> 和 retreat 字段；与此同时 <code class="docutils literal notranslate"><span class="pre">GotoThread::run()</span></code> 正在读取这些字段。源码中的 <code class="docutils literal notranslate"><span class="pre">m_mutex</span></code> 只在 <code class="docutils literal notranslate"><span class="pre">run()</span></code> 开头 <code class="docutils literal notranslate"><span class="pre">wait()</span></code>、末尾 <code class="docutils literal notranslate"><span class="pre">post()</span></code>，这些 setter/getter 并未取得同一信号量。</p>
 <p>在 C++ 内存模型中，“写入几个 double 和 enum 很快”不能消除 data race；未同步读写本身就是未定义行为。最小修正有两种：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>方案 A：所有 setter/getter 取得同一 mutex
@@ -2381,7 +2511,8 @@ GotoThread cycle: consume SetGoal -&gt; local controller state transition
 </section>
 </section>
 <section id="id7">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">控制周期从输入到速度输出</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">控制周期从输入到速度输出</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<p>到这里，配置、对象和输入都已经就位，才轮到控制算法。<code class="docutils literal notranslate"><span class="pre">run()</span></code> 每次只完成一个很短的闭环步：读当前世界、决定当前动作、发布这一次动作。机器人是否最终到达目标，是许多个周期共同推进状态机的结果。</p>
 <p><code class="docutils literal notranslate"><span class="pre">GotoThread::run()</span></code> 的逻辑顺序比单个控制公式更重要：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>读取定位与激光
   -&gt; 控制输出先清零
@@ -2394,7 +2525,7 @@ GotoThread cycle: consume SetGoal -&gt; local controller state transition
 </div>
 <p>这条顺序建立了一个安全基线：每周期先 <code class="docutils literal notranslate"><span class="pre">m_control_out.zero()</span></code>，只有明确状态分支才产生非零速度。它比“沿用上一周期输出再局部修改”更不容易在遗漏分支时继续运动。</p>
 <section id="id8">
-<h3><a class="toc-backref" href="#id28" role="doc-backlink">坐标和角度计算</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id30" role="doc-backlink">坐标和角度计算</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
 <p>当前位姿为 <code class="docutils literal notranslate"><span class="pre">(x_r,</span> <span class="pre">y_r,</span> <span class="pre">θ_r)</span></code>，目标为 <code class="docutils literal notranslate"><span class="pre">(x_g,</span> <span class="pre">y_g,</span> <span class="pre">θ_g)</span></code>。源码先计算：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>distance   = sqrt((x_g - x_r)^2 + (y_g - y_r)^2)
 beta_world = atan2(y_g - y_r, x_g - x_r)
@@ -2403,10 +2534,12 @@ gamma      = normalize(θ_g - θ_r)
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">beta_robot</span></code> 决定机器人朝向目标的偏差，<code class="docutils literal notranslate"><span class="pre">gamma</span></code> 只在位置已经进入容差后用于终点朝向。非完整约束底盘在 <code class="docutils literal notranslate"><span class="pre">|beta_robot|</span></code> 过大时先原地旋转；全向底盘则可以把 <code class="docutils literal notranslate"><span class="pre">beta_robot</span></code> 作为平移方向。距离、角度和目标姿态不是同一个误差，混成一个 PID 会掩盖底盘运动学约束。</p>
+<p>所谓非完整约束底盘，最直观的例子是汽车：它能向前后行驶和转向，却不能保持车头不变直接横移。麦克纳姆轮等全向底盘可以横移，因此相同目标误差会对应不同控制策略。源码中的分支不是算法风格差异，而是在服从底盘真实的运动能力。</p>
+<p><code class="docutils literal notranslate"><span class="pre">atan2(dy,</span> <span class="pre">dx)</span></code> 的作用是根据目标相对位置求出世界坐标系中的方向，而且能正确区分四个象限。随后减去机器人自身朝向，才得到“目标在机器人左边还是右边”。<code class="docutils literal notranslate"><span class="pre">normalize</span></code> 再把角度折回约定范围，例如 <code class="docutils literal notranslate"><span class="pre">[-180°,</span> <span class="pre">180°)</span></code>；否则机器人从 <code class="docutils literal notranslate"><span class="pre">179°</span></code> 转到 <code class="docutils literal notranslate"><span class="pre">-179°</span></code> 时，算法可能误判为还要旋转接近一整圈。</p>
 <p>源码角度使用 degree，三角函数输入则必须转换成 radian。<code class="docutils literal notranslate"><span class="pre">setNewRelTarget()</span></code> 明确用 <code class="docutils literal notranslate"><span class="pre">DEG2RAD</span></code> 构造二维旋转，而控制输出中的 <code class="docutils literal notranslate"><span class="pre">angular_vel</span></code> 又以 degree/s 发给 baseControl。这种单位契约没有被 C++ 类型系统编码，复刻时可以引入 <code class="docutils literal notranslate"><span class="pre">Radians</span></code>、<code class="docutils literal notranslate"><span class="pre">Degrees</span></code>、<code class="docutils literal notranslate"><span class="pre">MetersPerSecond</span></code> 的强类型，至少也要让变量名携带 <code class="docutils literal notranslate"><span class="pre">_deg</span></code>、<code class="docutils literal notranslate"><span class="pre">_rad</span></code>。</p>
 </section>
 <section id="id9">
-<h3><a class="toc-backref" href="#id29" role="doc-backlink">状态机决定完成条件</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id31" role="doc-backlink">状态机决定完成条件</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
 <p>主要状态及动作如下：</p>
 <table class="docutils align-default">
 <thead>
@@ -2457,7 +2590,7 @@ gamma      = normalize(θ_g - θ_r)
 <p><code class="docutils literal notranslate"><span class="pre">weak_angle</span></code> 表示目标没有显式终点朝向；到达位置后可直接完成。这个布尔值实际改变状态机完成条件，因此它不是普通 UI 标记，而应与目标一起在同一次命令提交中原子更新。</p>
 </section>
 <section id="clamp">
-<h3><a class="toc-backref" href="#id30" role="doc-backlink">速度限幅不是简单 clamp</a><a class="headerlink" href="#clamp" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id32" role="doc-backlink">速度限幅不是简单 clamp</a><a class="headerlink" href="#clamp" title="Link to this heading"></a></h3>
 <p>源码只有速度非零时才施加最小速度：正值限制到 <code class="docutils literal notranslate"><span class="pre">[min,</span> <span class="pre">max]</span></code>，负值限制到 <code class="docutils literal notranslate"><span class="pre">[-max,</span> <span class="pre">-min]</span></code>，零值保持零。这样可以克服电机静摩擦，又不会把“停车”提升成最小运动速度。对应结构是：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">double</span><span class="w"> </span><span class="nf">SaturateSigned</span><span class="p">(</span><span class="kt">double</span><span class="w"> </span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">min_abs</span><span class="p">,</span><span class="w"> </span><span class="kt">double</span><span class="w"> </span><span class="n">max_abs</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">value</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">clamp</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="n">min_abs</span><span class="p">,</span><span class="w"> </span><span class="n">max_abs</span><span class="p">);</span>
@@ -2469,26 +2602,27 @@ gamma      = normalize(θ_g - θ_r)
 <p>但 <code class="docutils literal notranslate"><span class="pre">min_abs</span> <span class="pre">&gt;</span> <span class="pre">max_abs</span></code>、NaN 或单位错误仍需在配置阶段拒绝。每周期发现负参数再 <code class="docutils literal notranslate"><span class="pre">fabs</span></code> 虽能继续运行，却会把配置故障变成悄悄修正，降低可诊断性。</p>
 </section>
 <section id="wire">
-<h3><a class="toc-backref" href="#id31" role="doc-backlink">Wire 输出和安全边界</a><a class="headerlink" href="#wire" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id33" role="doc-backlink">Wire 输出和安全边界</a><a class="headerlink" href="#wire" title="Link to this heading"></a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">sendOutput()</span></code> 构造的控制 Bottle 顺序是：模式 <code class="docutils literal notranslate"><span class="pre">2</span></code>、平移方向、线速度、角速度、最后一个常量字段，并附加 <code class="docutils literal notranslate"><span class="pre">Stamp</span></code> envelope。这个隐式字段顺序是 robotGoto 与 baseControl 之间的协议；没有 schema 时，双方必须同步维护索引、类型与单位。</p>
 <p>更关键的是，固定提交只在 <code class="docutils literal notranslate"><span class="pre">m_status</span> <span class="pre">==</span> <span class="pre">navigation_status_moving</span></code> 时写控制 Port。若当前周期从 moving 转为 <code class="docutils literal notranslate"><span class="pre">goal_reached</span></code> 或 <code class="docutils literal notranslate"><span class="pre">waiting_obstacle</span></code>，本周期算出的零速度不会从该分支发出。系统安全因此依赖 baseControl 对旧速度命令设有 watchdog，或者需要修改为在状态转换时显式发送一次零命令。中间件连接正常不等于运动安全；“最后命令保持多久”必须是端到端契约。</p>
 </section>
 </section>
 <section id="device">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">Device 抽象</a><a class="headerlink" href="#device" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id34" role="doc-backlink">Device 抽象</a><a class="headerlink" href="#device" title="Link to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 根据配置创建具体设备实现，导航模块依赖移动底盘接口而非厂商类。这是运行时 Abstract Factory：同一算法可连接仿真设备或真实底盘。</p>
 <p>代价是设备名、接口查询和插件 ABI 都在运行时验证。获取接口失败时 configure 必须回滚已经打开的 Ports 和 driver。</p>
 <p>官方模块还展示了 server/client device 组合：server 侧实现 <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code> 的方法并连接定位、地图和底盘；client device 自动建立远端连接，把 RPC/streaming 协议隐藏在接口后。这是 Proxy + Abstract Factory：调用看似本地虚函数，实际可能跨进程。</p>
 <p>虚函数返回成功只表示远端接受或完成了接口定义的动作。长时间导航通常需要继续轮询 navigation status 或订阅状态，而不是把一次 <code class="docutils literal notranslate"><span class="pre">gotoTarget...()</span></code> 的 bool 理解为已经到达。</p>
 </section>
 <section id="id10">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">部署与启动顺序</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id35" role="doc-backlink">部署与启动顺序</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
 <p>官方示例建议通过 yarpmanager 运行 XML 应用，并逐个启动模块，最后连接 Ports；<code class="docutils literal notranslate"><span class="pre">yarpviz</span></code> 可检查实际拓扑。这个建议反映了动态系统的现实：Name Server 注册、设备初始化和依赖连接不是同一时刻完成。</p>
 <p>生产部署不应只靠固定 sleep。更可靠的启动器应等待指定 Port/设备接口可用，执行健康检查，再建立连接；失败时指出缺失依赖而不是让模块进入空转。连接恢复后还要重新验证时间戳，不能立刻使用断线前的旧定位。</p>
 </section>
 <section id="id11">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">数据结构与性能边界</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id36" role="doc-backlink">数据结构与性能边界</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
 <p>当前 robotGoto 是反应式目标跟踪与 APF 风格避障，不是采样 <code class="docutils literal notranslate"><span class="pre">K</span></code> 条候选轨迹的局部规划器。姿态与目标控制为 <code class="docutils literal notranslate"><span class="pre">O(1)</span></code>；激光向量有 <code class="docutils literal notranslate"><span class="pre">L</span></code> 个测量时，障碍检测和势场聚合通常为 <code class="docutils literal notranslate"><span class="pre">O(L)</span></code>，并保存 <code class="docutils literal notranslate"><span class="pre">O(L)</span></code> 的 <code class="docutils literal notranslate"><span class="pre">LaserMeasurementData</span></code>。若接入更复杂的 trajectory rollout，复杂度才可能上升为 <code class="docutils literal notranslate"><span class="pre">O(L</span> <span class="pre">×</span> <span class="pre">K)</span></code>，不能把这一成本错误归到当前实现。</p>
+<p>APF 是人工势场：可以把目标想成吸引机器人、障碍物想成排斥机器人的“虚拟力”。它计算快，但可能陷入局部极小值。trajectory rollout 则一次模拟多条短期候选运动轨迹并评分，通常获得更丰富的运动选择，也会多出与候选数量 <code class="docutils literal notranslate"><span class="pre">K</span></code> 成比例的计算量。<code class="docutils literal notranslate"><span class="pre">O(1)</span></code> 表示工作量不随激光束数增长，<code class="docutils literal notranslate"><span class="pre">O(L)</span></code> 表示激光束翻倍时，这部分工作大致也翻倍。</p>
 <p>单周期墙上预算可以写成：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Tcycle = Tlocalization_get + Tlaser_get + O(L) obstacle work
        + O(1) state/control + Tport_write + Tlogging
@@ -2498,25 +2632,72 @@ gamma      = normalize(θ_g - θ_r)
 <p>多模块设计增加序列化、调度和跨进程复制，却提供故障隔离和可替换性。将定位、全局规划、局部控制全部塞进一个进程可降低通信开销，但会放大崩溃影响，并使仿真替换和独立调试更困难。</p>
 </section>
 <section id="id12">
-<h2><a class="toc-backref" href="#id35" role="doc-backlink">设计取舍</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id37" role="doc-backlink">设计取舍</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
 <p>YARP 的动态名字和 Carrier 让实验室模块可灵活重连，但拓扑正确性依赖 Name Server 与配置；Bottle 快速迭代却缺少强 schema；每连接执行单元简化隔离却增加线程和 fan-out 成本。</p>
 <p>Robotology Navigation 仓库同时包含稳定主模块和标为开发/测试阶段的模块。选择组件时必须区分成熟路径与实验模块，并核对依赖版本；能在 yarpmanager 中启动不等于已经满足真实底盘的安全、实时和故障恢复要求。</p>
+<p>这些取舍背后有一条一致思路：Robotology 更看重研究系统中模块可替换、可观察、可在不同进程重新连接，而不是把每一次函数调用都压到最低延迟。对需要频繁替换定位器、传感器和控制算法的实验平台，这种选择很有价值；对资源极小、拓扑固定的嵌入式控制器，它的动态性和序列化成本可能反而多余。</p>
 </section>
 <section id="id13">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">扩展一个新导航算法</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
-<p>新算法最好保留 <code class="docutils literal notranslate"><span class="pre">INavigation2DTargetActions</span></code> 与 <code class="docutils literal notranslate"><span class="pre">INavigation2DControlActions</span></code> 契约，只替换内部 planner/controller。当前最小模拟闭环是 <code class="docutils literal notranslate"><span class="pre">fakeMotionControl</span> <span class="pre">→</span> <span class="pre">baseControl</span> <span class="pre">→</span> <span class="pre">odomLocalizer/fakeLaser</span> <span class="pre">→</span> <span class="pre">robotGotoDev</span></code>，而不是旧版文档里的单一 fakeMobileBaseTest。</p>
-<p>从空类开始可按下面的依赖顺序实现：</p>
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">缺点与不适用边界</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<p>理解一个项目不能只总结“设计得好”的部分。固定提交中的 <code class="docutils literal notranslate"><span class="pre">robotGoto</span></code> 有清晰的模块边界，但也有几项在复刻时必须正面处理的限制：</p>
 <ol class="arabic simple">
-<li><p>先写纯 <code class="docutils literal notranslate"><span class="pre">ControllerCore</span></code>：输入 pose、scan snapshot、goal 和 config，输出 <code class="docutils literal notranslate"><span class="pre">ControlOutput</span> <span class="pre">+</span> <span class="pre">next</span> <span class="pre">state</span></code>，不包含 Port 或 <code class="docutils literal notranslate"><span class="pre">Time::now()</span></code>。</p></li>
-<li><p>写 <code class="docutils literal notranslate"><span class="pre">GotoWorker</span> <span class="pre">:</span> <span class="pre">PeriodicThread</span></code>，只负责采集接口快照、消费命令 mailbox、调用 core、发布带时间戳的输出。</p></li>
-<li><p>写 <code class="docutils literal notranslate"><span class="pre">NavigationDevice</span> <span class="pre">:</span> <span class="pre">DeviceDriver</span> <span class="pre">+</span> <span class="pre">INavigation2D*Actions</span></code>，把 API 请求验证后变成事件，不直接修改 core 状态。</p></li>
-<li><p>用 <code class="docutils literal notranslate"><span class="pre">yarp_prepare_plugin</span></code> 注册 device，让 <code class="docutils literal notranslate"><span class="pre">navigation2DServer</span> <span class="pre">--subdevice</span></code> 装载；此时 server/client wire 协议由 YARP wrapper 提供。</p></li>
-<li><p>在 XML 中部署 fakeMotionControl、baseControl、定位和激光 wrapper，显式连接速度与里程计 Port。</p></li>
-<li><p>最后替换真实 controlboard、localizer 与 rangefinder 配置，算法和客户端代码保持不变。</p></li>
+<li><p><strong>它是局部目标跟踪器，不是完整自主导航栈。</strong> 模块能够朝目标运动并做反应式避障，却不等于拥有复杂地图上的全局最优路径、动态重规划和交通规则。需要绕过大范围障碍时，应在上层加入 <code class="docutils literal notranslate"><span class="pre">robotPathPlanner</span></code> 或其他规划器。</p></li>
+<li><p><strong>共享状态的同步边界不够严格。</strong> RPC setter 与控制线程可能同时读写目标和状态。实验环境中“多数时候能跑”不能消除 C++ data race；更稳妥的实现应使用单写者状态机和命令 mailbox。</p></li>
+<li><p><strong>运动安全依赖下游。</strong> 非 moving 状态并不总能保证当前周期显式发送零速度，因此 baseControl 的命令超时保护是系统级必需条件，而不是可选优化。</p></li>
+<li><p><strong>周期线程不是硬实时线程。</strong> 远端 getter、日志、内存分配和网络抖动都可能让 10 ms 周期超限。需要硬实时保证的最内层电机控制不应直接依赖这条普通网络路径。</p></li>
+<li><p><strong>字符串配置和 Bottle 协议把部分错误推迟到运行时。</strong> 拼错 Port 名、交换字段顺序或混用角度单位，都可能通过编译。部署前需要 schema、连通性和单位检查。</p></li>
+<li><p><strong>动态分布式结构有固定成本。</strong> 多进程隔离带来序列化、复制、线程调度和运维复杂度。若系统只有一个传感器、一个固定底盘且从不替换算法，更小的静态进程内结构可能更合适。</p></li>
 </ol>
-<p>核心数据可先定义为值类型：</p>
+<p>因此，<code class="docutils literal notranslate"><span class="pre">robotGoto</span></code> 适合教学、研究验证、实验室移动机器人以及需要替换设备实现的原型系统。若直接用于高速平台、人员密集环境或具备认证要求的工业车辆，还需要独立安全控制器、确定性通信、冗余状态估计和经过验证的停车链路。</p>
+</section>
+<section id="id14">
+<h2><a class="toc-backref" href="#id39" role="doc-backlink">可迁移的设计方法</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<p>离开 YARP 的具体类名后，这个案例仍留下七条可以带到其他机器人中间件中的方法：</p>
+<ol class="arabic simple">
+<li><p><strong>先画数据寿命，再选通信形式。</strong> 高频状态允许覆盖旧值，任务命令需要确认，硬件能力适合稳定接口；不要因为同一个中间件能传所有数据，就把所有数据做成同一种消息。</p></li>
+<li><p><strong>让业务算法依赖能力接口，而不是厂商驱动。</strong> <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code>、<code class="docutils literal notranslate"><span class="pre">ILocalization2D</span></code> 和 <code class="docutils literal notranslate"><span class="pre">IRangefinder2D</span></code> 把“能做什么”放在“由谁实现”之前，使模拟器与真实设备能够替换。</p></li>
+<li><p><strong>把启动写成可回滚事务。</strong> 所有局部资源成功后再提交给长期成员，失败时按逆序撤销，避免半启动对象继续对外可见。</p></li>
+<li><p><strong>让周期线程成为状态的唯一写者。</strong> 其他线程只提交不可变命令；这样比给每个字段零散加锁更容易推导状态机。</p></li>
+<li><p><strong>把时间写进数据契约。</strong> 保存采样时间、接收时间和序号，用实际 age 判断超时，而不是只靠“连续失败多少个周期”。</p></li>
+<li><p><strong>把零速度视为消息，而不是没有消息。</strong> 停车必须显式、可确认，并由下游 watchdog 在发布者失联时兜底。</p></li>
+<li><p><strong>先纯计算，后接中间件。</strong> 控制核心输入快照并返回动作，不直接打开 Port；adapter 才负责 I/O、线程和时间。这样核心行为更容易阅读，也更容易迁移到 ROS 2、Cyber RT 或自研总线。</p></li>
+</ol>
+</section>
+<section id="id15">
+<h2><a class="toc-backref" href="#id40" role="doc-backlink">可复用模块骨架</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
+<p>把上面的原则落到 C++ 对象，可以先得到下面这组边界：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>NavigationDevice            对外实现 INavigation2D，拥有全部资源
+  ├─ CommandMailbox         接收 SetGoal / Stop / Pause / Resume
+  ├─ SensorAdapter          从 YARP device 接口生成带时间的快照
+  ├─ GotoWorker             唯一周期线程，推进状态机
+  ├─ ControllerCore         纯计算：snapshot + goal -&gt; control output
+  └─ VelocityPublisher      发布速度和强制零速
+</pre></div>
+</div>
+<p>它们的所有权可以直接写进类型：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">NavigationDevice</span><span class="w"> </span><span class="k">final</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">DeviceDriver</span><span class="p">,</span>
+<span class="w">                               </span><span class="k">public</span><span class="w"> </span><span class="n">INavigation2DTargetActions</span><span class="p">,</span>
+<span class="w">                               </span><span class="k">public</span><span class="w"> </span><span class="n">INavigation2DControlActions</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">open</span><span class="p">(</span><span class="n">Searchable</span><span class="o">&amp;</span><span class="w"> </span><span class="n">config</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="nf">close</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">GotoWorker</span><span class="o">&gt;</span><span class="w"> </span><span class="n">worker_</span><span class="p">;</span><span class="w">  </span><span class="c1">// 独占并负责 stop/join</span>
+<span class="w">  </span><span class="n">PolyDriver</span><span class="w"> </span><span class="n">localization_driver_</span><span class="p">;</span><span class="w">      </span><span class="c1">// 拥有定位 client</span>
+<span class="w">  </span><span class="n">ILocalization2D</span><span class="o">*</span><span class="w"> </span><span class="n">localization_</span><span class="p">{};</span><span class="w">      </span><span class="c1">// 借用，不 delete</span>
+<span class="w">  </span><span class="n">PolyDriver</span><span class="w"> </span><span class="n">laser_driver_</span><span class="p">;</span><span class="w">             </span><span class="c1">// 拥有激光 client</span>
+<span class="w">  </span><span class="n">IRangefinder2D</span><span class="o">*</span><span class="w"> </span><span class="n">laser_</span><span class="p">{};</span><span class="w">              </span><span class="c1">// 借用，不 delete</span>
+<span class="w">  </span><span class="n">CommandMailbox</span><span class="w"> </span><span class="n">commands_</span><span class="p">;</span><span class="w">             </span><span class="c1">// device 与 worker 的同步边界</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">std::unique_ptr&lt;GotoWorker&gt;</span></code> 表达“恰好一个 device 拥有 worker”；两个 <code class="docutils literal notranslate"><span class="pre">I*</span></code> 裸指针在这里有意表达非拥有关系。裸指针本身不危险，危险的是没有写清谁保证它的寿命。成员顺序也不是排版问题：关闭时应先停止使用借用接口的 <code class="docutils literal notranslate"><span class="pre">worker_</span></code>，再关闭拥有实现对象的两个 <code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code>。</p>
+<p>最小数据模型也应把命令、传感器和输出分开：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">SetGoal</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Map2DLocation</span><span class="w"> </span><span class="n">goal</span><span class="p">;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">command_id</span><span class="p">;</span><span class="w"> </span><span class="p">};</span>
 <span class="k">struct</span><span class="w"> </span><span class="nc">Stop</span><span class="w"> </span><span class="p">{};</span>
+<span class="k">struct</span><span class="w"> </span><span class="nc">Pause</span><span class="w"> </span><span class="p">{};</span>
+<span class="k">struct</span><span class="w"> </span><span class="nc">Resume</span><span class="w"> </span><span class="p">{};</span>
 <span class="k">using</span><span class="w"> </span><span class="n">Command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">variant</span><span class="o">&lt;</span><span class="n">SetGoal</span><span class="p">,</span><span class="w"> </span><span class="n">Stop</span><span class="p">,</span><span class="w"> </span><span class="n">Pause</span><span class="p">,</span><span class="w"> </span><span class="n">Resume</span><span class="o">&gt;</span><span class="p">;</span>
 
 <span class="k">struct</span><span class="w"> </span><span class="nc">ControlInput</span><span class="w"> </span><span class="p">{</span>
@@ -2534,20 +2715,56 @@ gamma      = normalize(θ_g - θ_r)
 <span class="p">};</span>
 </pre></div>
 </div>
-<p>纯 core 不持有 <code class="docutils literal notranslate"><span class="pre">PolyDriver*</span></code>、<code class="docutils literal notranslate"><span class="pre">Port*</span></code> 或借用接口，因此可独立推导状态转换；middleware adapter 才管理线程、时间和 I/O。这个边界也是从 Robotology 项目中可以提取、但应比现有实现做得更严格的设计能力。</p>
-<p>验证至少覆盖定位超时、激光断流、目标被替换、Stop 抢占、Port 重连、地图坐标系不一致和 close 期间仍有 RPC。完成标准是算法可在 fake 与真实 device 间只换配置，外部 client 不修改代码。</p>
+<p><code class="docutils literal notranslate"><span class="pre">std::variant</span></code> 表示命令在任一时刻只可能是列出的某一种类型，访问时必须显式处理各分支；它比一个包含许多可选字段的“大命令结构体”更难形成非法组合。<code class="docutils literal notranslate"><span class="pre">std::optional&lt;Command&gt;</span></code> 表示这一周期可以没有新命令，不需要再约定某个魔法整数代表“无事件”。字段名携带单位，则是在没有强单位类型时最低成本的防错措施。</p>
 </section>
-<section id="id14">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">可复用模块骨架</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<section id="id16">
+<h2><a class="toc-backref" href="#id41" role="doc-backlink">最小复刻：从纯控制核心组装导航闭环</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
+<p>新算法最好保留 <code class="docutils literal notranslate"><span class="pre">INavigation2DTargetActions</span></code> 与 <code class="docutils literal notranslate"><span class="pre">INavigation2DControlActions</span></code> 契约，只替换内部 planner/controller。当前最小模拟闭环是 <code class="docutils literal notranslate"><span class="pre">fakeMotionControl</span> <span class="pre">→</span> <span class="pre">baseControl</span> <span class="pre">→</span> <span class="pre">odomLocalizer/fakeLaser</span> <span class="pre">→</span> <span class="pre">robotGotoDev</span></code>，而不是旧版文档里的单一 fakeMobileBaseTest。</p>
+<p>从空类开始可按下面的依赖顺序实现：</p>
 <ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">Searchable/ResourceFinder</span></code> 解析配置并一次性校验单位、范围和必需组；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">DeviceDriver::open</span></code> 以局部 RAII 对象建立 worker、sensor clients 与 Ports，全部成功后再提交成员；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">view()</span></code> 取得的 <code class="docutils literal notranslate"><span class="pre">I*</span></code> 是借用指针，owner <code class="docutils literal notranslate"><span class="pre">PolyDriver</span></code> 必须覆盖其完整使用期；</p></li>
-<li><p>RPC/类型化接口只向有界 mailbox 提交命令，周期线程独占导航状态机；</p></li>
-<li><p>周期函数消费同一份带年龄的 sensor snapshot，计算后无条件处理零速安全输出；</p></li>
-<li><p>server/client wrapper 负责远程代理，业务客户端只依赖 <code class="docutils literal notranslate"><span class="pre">INavigation2D</span></code>；</p></li>
-<li><p>close 先拒绝新调用，再 stop/join worker，最后逆序关闭 Port、driver 和算法资源。</p></li>
+<li><p>先写纯 <code class="docutils literal notranslate"><span class="pre">ControllerCore</span></code>：输入 pose、scan snapshot、goal 和 config，输出 <code class="docutils literal notranslate"><span class="pre">ControlOutput</span> <span class="pre">+</span> <span class="pre">next</span> <span class="pre">state</span></code>，不包含 Port 或 <code class="docutils literal notranslate"><span class="pre">Time::now()</span></code>。</p></li>
+<li><p>写 <code class="docutils literal notranslate"><span class="pre">GotoWorker</span> <span class="pre">:</span> <span class="pre">PeriodicThread</span></code>，只负责采集接口快照、消费命令 mailbox、调用 core、发布带时间戳的输出。</p></li>
+<li><p>写 <code class="docutils literal notranslate"><span class="pre">NavigationDevice</span> <span class="pre">:</span> <span class="pre">DeviceDriver</span> <span class="pre">+</span> <span class="pre">INavigation2D*Actions</span></code>，把 API 请求验证后变成事件，不直接修改 core 状态。</p></li>
+<li><p>用 <code class="docutils literal notranslate"><span class="pre">yarp_prepare_plugin</span></code> 注册 device，让 <code class="docutils literal notranslate"><span class="pre">navigation2DServer</span> <span class="pre">--subdevice</span></code> 装载；此时 server/client wire 协议由 YARP wrapper 提供。</p></li>
+<li><p>在 XML 中部署 fakeMotionControl、baseControl、定位和激光 wrapper，显式连接速度与里程计 Port。</p></li>
+<li><p>最后替换真实 controlboard、localizer 与 rangefinder 配置，算法和客户端代码保持不变。</p></li>
 </ol>
+<p>第一步的纯核心不需要知道 YARP。它只接收一份值类型输入，因此可以写成普通 C++ 类：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ControllerCore</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">ControllerCore</span><span class="p">(</span><span class="n">ControllerConfig</span><span class="w"> </span><span class="n">config</span><span class="p">)</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">config_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">config</span><span class="p">))</span><span class="w"> </span><span class="p">{}</span>
+
+<span class="w">  </span><span class="n">ControlOutput</span><span class="w"> </span><span class="n">step</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">ControlInput</span><span class="o">&amp;</span><span class="w"> </span><span class="n">input</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">applyCommand</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">command</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">fresh</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">sensors</span><span class="p">,</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">now</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="n">stopped</span><span class="p">(</span><span class="n">NavigationStatusEnum</span><span class="o">::</span><span class="n">navigation_status_failing</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">advanceStateMachine</span><span class="p">(</span><span class="n">input</span><span class="p">.</span><span class="n">sensors</span><span class="p">,</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">now</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">ControllerConfig</span><span class="w"> </span><span class="n">config_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">GoalState</span><span class="w"> </span><span class="n">goal_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">NavigationStatusEnum</span><span class="w"> </span><span class="n">state_</span><span class="p">{</span><span class="n">navigation_status_idle</span><span class="p">};</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">const</span> <span class="pre">ControlInput&amp;</span></code> 表示函数只借用本周期输入且不修改它；<code class="docutils literal notranslate"><span class="pre">config_</span></code>、<code class="docutils literal notranslate"><span class="pre">goal_</span></code> 和 <code class="docutils literal notranslate"><span class="pre">state_</span></code> 是跨周期保留的核心状态。<code class="docutils literal notranslate"><span class="pre">step()</span></code> 先消费命令，再检查数据新鲜度，最后推进状态机。无论以后使用 YARP Port、ROS 2 subscription 还是共享内存，纯核心都不需要变化。</p>
+<p>第二步才让 worker 连接中间件：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">GotoWorker::run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">now</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">steady_clock</span><span class="o">::</span><span class="n">now</span><span class="p">();</span>
+<span class="w">  </span><span class="n">SensorSnapshot</span><span class="w"> </span><span class="n">snapshot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sensors_</span><span class="p">.</span><span class="n">readLatest</span><span class="p">(</span><span class="n">now</span><span class="p">);</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">optional</span><span class="o">&lt;</span><span class="n">Command</span><span class="o">&gt;</span><span class="w"> </span><span class="n">command</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">commands_</span><span class="p">.</span><span class="n">takeNext</span><span class="p">();</span>
+<span class="w">  </span><span class="n">ControlOutput</span><span class="w"> </span><span class="n">output</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">core_</span><span class="p">.</span><span class="n">step</span><span class="p">({</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">snapshot</span><span class="p">),</span>
+<span class="w">                                     </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">command</span><span class="p">),</span><span class="w"> </span><span class="n">now</span><span class="p">});</span>
+<span class="w">  </span><span class="n">velocity_</span><span class="p">.</span><span class="n">publish</span><span class="p">(</span><span class="n">output</span><span class="p">);</span><span class="w">  </span><span class="c1">// publish_zero_now 也必须形成显式输出</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>局部变量 <code class="docutils literal notranslate"><span class="pre">snapshot</span></code> 保证本周期使用同一份传感器视图；<code class="docutils literal notranslate"><span class="pre">std::move</span></code> 表示允许把向量等内部存储转交给下一层，减少不必要复制，但移动后的局部对象不能再假定保留原值。middleware adapter 管理线程、时间和 I/O，core 只负责可推导的状态转换。</p>
+<p>验证至少覆盖定位超时、激光断流、目标被替换、Stop 抢占、Port 重连、地图坐标系不一致和 close 期间仍有 RPC。完成标准是算法可在 fake 与真实 device 间只换配置，外部 client 不修改代码。</p>
+<p>完成后的最小系统应能回答六个具体问题：目标由谁拥有、命令何时生效、传感器多旧就必须停车、哪个线程能够修改状态、零速度如何抵达底盘、关闭时谁先退出。能从代码中无歧义地回答这些问题，才算真正复刻了架构；仅仅让机器人在空旷场地向前移动，还没有复刻它的工程边界。</p>
 </section>
 </section>
 
