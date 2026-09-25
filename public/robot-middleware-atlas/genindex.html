@@ -1941,33 +1941,38 @@
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id1">功能目标</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#allegro-hand">从真实 Allegro Hand 入口开始</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id2">组合结构</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#callback">朴素 callback 写法为何破坏仿真</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id3">操作系统实际调度的是内核线程</a></li>
+</ul>
+</li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#lcminterfacesystem"><code class="docutils literal notranslate"><span class="pre">LcmInterfaceSystem</span></code> 的作用</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#subscriber">Subscriber 如何跨越异步与仿真时间</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#subscriber">Subscriber 跨越异步网络与仿真时间</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#lcmsubscribersystem"><code class="docutils literal notranslate"><span class="pre">LcmSubscriberSystem</span></code> 的两份状态</a></li>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id3">初始值与陈旧命令</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id4">初始值与陈旧命令</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#publisher">Publisher 的采样策略</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id4">类型生成与边界</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id5">类型生成与边界</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#serializer">Serializer 是变化隔离层</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id5">多总线配置与依赖注入</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id6">日志回放也进入仿真时钟</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id7">数据结构与性能边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id8">优秀设计与工程取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id9">缺点与不适用条件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id10">可迁移的架构方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id6">多总线配置与依赖注入</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id7">日志回放也进入仿真时钟</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id8">数据结构与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id9">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id10">缺点与不适用条件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id11">可迁移的架构方法</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#lcm">最小复刻：增加自己的 LCM 输入输出</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#receiver">从消息端口写出最小 Receiver</a></li>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id11">将有效性和超时建模为状态，而非临时判断</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#receiver-c">把 Receiver 中的 C++ 语法逐项拆开</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id12">将有效性和超时建模为状态，而非临时判断</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#encoder-publisher">Encoder 与 Publisher 保持两段式</a></li>
 <li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#diagrambuilder">在 DiagramBuilder 中完成所有权与连线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id12">从空目录到可运行设备桥的实现顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id13">从空目录到可运行设备桥的实现顺序</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id13">测试边界</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id14">一条可重复测试</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/lcm/case-study-drake.html#id14">测试边界</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/lcm/case-study-drake.html#id15">一条可重复测试</a></li>
 </ul>
 </li>
 </ul>
