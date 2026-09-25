@@ -8,6 +8,24 @@
 
 LCM 的核心运行时主要使用 C。它要在很小的依赖面上支持不同 provider、事件循环和语言绑定，因此没有依赖 C++ 虚函数，而是手工组织对象、方法表和生命周期。理解这一层以后，C++ 包装器为何薄、哪里必须做 RAII、哪里绝不能抛异常才会变得清楚。
 
+如果“函数指针表”“类型擦除”“不透明句柄”这些词还不熟悉，可以先把它们暂时翻译成一个朴素目标：**LCM 想让同一个 `lcm_publish()` 调用，既能交给 UDP multicast 实现，也能交给日志、测试或其他 provider 实现。** C 语言没有成员函数和虚函数，项目只能把“对象的数据”和“对象会做的事”手工放在一起。
+
+可以先把 C++ 写法和 C 写法并排看：
+
+```cpp
+// C++ 的直觉写法
+provider->publish(channel, bytes);
+```
+
+```c
+/* C 中把隐含的 this 显式写成第一个参数 */
+provider->ops->publish(provider, channel, bytes, size);
+```
+
+这里的 `provider` 保存实例状态，类似 C++ 的 `this`；`ops` 指向一张共享方法表，类似虚函数表；`publish` 槽位保存具体实现的函数地址。先看懂这一次间接调用，后面的 opaque type、首成员转换和 vtable 才有落脚点。
+
+本章用一条消息贯穿两种语言边界：C++ 生成类型先编码成字节，C 核心通过 provider 发出；接收时，C 核心先获得一块借用的 payload，再经 trampoline 找回 C++ 对象并调用成员函数。每跨一次边界，都要重新回答“谁拥有内存、错误怎样返回、回调结束后地址还是否有效”。
+
 本文固定源码为 [`ad0c54ce`](https://github.com/lcm-proj/lcm/tree/ad0c54cee0ec048ef12357c34349ec1443158864)。建议按下面的纵向关系阅读，而不是先遍历目录：
 
 | 层次 | 源码入口 | 主要职责 |
@@ -49,6 +67,10 @@ typedef struct {
     int (*get_fileno)(lcm_provider_t *self);
 } provider_vtable_t;
 ```
+
+先逐字段读这段声明。`typedef struct lcm_provider lcm_provider_t;` 只告诉调用者“存在这样一种类型”，却不公开字段，因此它是一个不透明类型。方法表里的每一项都是函数指针：括号里的 `*publish` 表示该字段保存函数地址，而不是立即调用函数。所有操作都显式接收 `self`，因为 C 没有隐含的 `this`。
+
+若暂时只实现 create、publish 和 destroy，这套结构已经能工作：工厂创建一个具体 provider，把对应方法表地址放进对象；公共 API 只经由方法表调用；销毁时再调用同一实现提供的 destroy。事件循环、订阅与回调是后续叠加的能力，不是理解第一层动态分派的前置条件。
 
 函数的第一个参数 `self` 就是 C++ 非静态成员函数中隐含的 `this`。`lcm_provider_t` 只做前置声明，核心层看不到内部字段；UDPM provider 可以拥有 socket、接收线程和重组表，日志 provider 则可以拥有文件句柄和播放时钟。
 

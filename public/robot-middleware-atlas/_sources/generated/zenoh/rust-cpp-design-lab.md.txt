@@ -8,6 +8,36 @@
 
 Zenoh 核心使用 Rust，而许多机器人应用通过 C 或 C++ API 接入。读源码时最容易出现两个断层：Rust 的 `Arc`、生命周期和异步任务看懂了语法，却不知道它们解决哪个运行时问题；C++ 侧会声明 Publisher，却看不见句柄如何映射到 Rust 实体。本章把两侧放到同一张生命周期图中。
 
+先把语言名词放到一个具体场景里。假设 C++ 相机节点声明了一个 Publisher，连续发布图像，然后让 Publisher 离开作用域：
+
+```cpp
+{
+  Publisher camera = session.DeclarePublisher("robot/camera/front");
+  camera.Put(frame);
+}  // camera 在这里析构
+```
+
+表面上只是一个局部变量消失，底层却必须同时回答四个问题：
+
+1. C++ 对象析构后，Rust 侧的 Publisher 实体由谁撤销；
+2. 这次撤销能否顺便销毁 Session，还是 Session 仍被其他实体使用；
+3. 已经提交给异步任务的 `frame` 是否仍然有效；
+4. 声明或撤销失败时，C ABI 怎样报告错误而不让 Rust panic 穿过语言边界。
+
+本章后面的 `Arc`、`Weak`、Builder、RAII 和 FFI 都是在回答这四个问题。第一次阅读时，可以先把对象分成四层，不必立刻记住所有 Rust 类型：
+
+```text
+C++ RAII handle       负责“这个应用实体何时结束”
+        |
+C opaque handle       负责跨语言传递，但不暴露 Rust 内存布局
+        |
+Rust Publisher        负责声明、put 与撤销语义
+        |
+shared SessionInner   被多个 Publisher/Subscriber 和后台任务共同使用
+```
+
+最关键的区分是：Publisher 的寿命和 Session 的寿命不是一回事。局部 Publisher 析构，应撤销它自己的声明；它不能因为自己结束，就把其他订阅者仍在使用的网络运行时一并关闭。
+
 本文固定 Zenoh 源码为 [`9fcd9cb5`](https://github.com/eclipse-zenoh/zenoh/tree/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5)。语言机制要沿真实运行时对象阅读：
 
 | 学习边界 | 源码入口 | 重点问题 |
@@ -117,6 +147,17 @@ Builder 的价值不是链式调用好看，而是让一组相关选项在提交
 Builder 通常消费自身并返回新类型或最终实体。消费 `self` 可防止同一声明被重复提交；C++ 若复刻这种语义，可以让 `Build() &&` 只允许在右值 builder 上调用，或在运行期记录 `built_` 并拒绝二次提交。
 
 ### `self`、`&self` 与 `&mut self` 对 API 的含义
+
+这三个写法先不要理解成语法表。它们回答的是“调用函数时，函数拿走对象、暂时查看对象，还是暂时独占修改对象”。用同一个 Builder 对照最容易看清：
+
+```rust
+let builder = session.declare_publisher("robot/arm/state");
+let builder = builder.priority(Priority::DataHigh); // 旧值被 move，新值返回
+let publisher = builder.wait()?;                    // 提交时消费 builder
+// builder 到这里已经不能再使用
+```
+
+如果 `wait()` 只接收 `&self`，同一个 Builder 就可以被重复提交，代码还要在运行期额外判断“是否已经 build”。消费 `self` 则让这类非法状态在安全 Rust 中难以表达。下面再逐项看三种 receiver 的准确含义：
 
 - `fn build(self)` 取得 builder 所有权，调用后原变量被 move，编译器阻止再次使用；
 - `fn option(mut self, value)` 修改局部 builder 并返回它，形成链式配置；

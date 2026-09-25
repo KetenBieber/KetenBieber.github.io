@@ -12,6 +12,16 @@
 
 真正决定运行时行为的问题却藏在这句话中间：消息由哪个线程收进来，为什么不会直接在接收线程里执行 `Proc()`，数据存在哪里，谁把协程变成可运行状态，调度器又在什么时候选中它？这些问题会直接决定一次感知—规划—控制链路的排队延迟、抖动和数据年龄。
 
+后面会出现不少类名，可以先把它们压缩成三个角色。假设 `/camera/front` 刚收到第 42 帧图像：
+
+```text
+放数据的人：Receiver -> DataDispatcher -> CacheBuffer
+叫醒执行者：DataNotifier -> Scheduler
+取数据并运行的人：DataVisitor -> CRoutine -> Component::Proc
+```
+
+第 42 帧不会作为函数参数一路穿过所有这些对象。数据路径把 `shared_ptr<Frame>` 放进缓存；通知路径只携带“某个 channel 更新了”的事件；协程被调度后再从自己的 DataVisitor 取出帧。这种分离正是全文的主线。每进入一层，都可以问三个相同的问题：第 42 帧现在存在哪里，当前是哪条线程，下一步由谁唤醒谁。
+
 本文固定在 Apollo 仓库提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，沿正常部署使用的 reality mode 追踪单输入 `Component<M0>`：Reader 建立数据入口，但业务 `func` 不作为 Reader callback 直接执行，而是另建组件 task 交给 Cyber scheduler。为了回答这个问题，真正需要进入的源码空间只有六组目录：`component`、`node`、`transport`、`data`、`croutine` 和 `scheduler`。
 
 ## 先把整条链放进脑中
@@ -57,6 +67,10 @@ DataVisitor<M>              Scheduler::NotifyProcessor(task_id)
 Dispatcher 负责把同一对象写入各订阅缓存；DataVisitor 代表某个消费者的私有读取位置；CRoutine 保存可暂停和恢复的执行上下文；Processor 才是承载协程的 OS 线程。前两者属于数据面，后两者属于执行面，DataNotifier 是两者之间的桥。
 
 ## 初始化阶段已经把两条消费支路装好了
+
+这里先解释为什么同一 channel 会出现两只 `DataVisitor`。Cyber RT 的普通 Reader 还要支持 `Observe()` 和 `GetLatestObserved()`，而 Component 则需要持续调用业务 `Proc()`。如果两者共用一个会出队的读取游标，就会出现“谁先读取，谁把消息从另一方手里拿走”的竞争：业务组件处理了第 42 帧以后，调试或观察接口可能再也看不到它；反过来也一样。
+
+Cyber RT 因此不是让两名消费者争抢同一个游标，而是为 Reader 语义和 Component 语义分别建立缓存视图。二者可以共享同一个 `shared_ptr<M0>` 所指向的消息对象，但各自维护“我已经读到哪里”。先理解这个需求，再看下面的初始化代码，`Reader DataVisitor` 与 `Component DataVisitor` 就不再像无缘无故的重复对象。
 
 消息到来之前，`Component<M0>::Initialize()` 已经创建了 Reader、组件自己的 `DataVisitor` 和一个调度任务。关键实现位于 [`cyber/component/component.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component.h#L163-L237)：
 
@@ -330,6 +344,21 @@ DataDispatcher::Dispatch(channel)
 “通知”到这里仍然没有执行 `Proc()`。它只是让协程从等待态回到可选状态，并使睡眠中的 worker 重新检查 run queue。
 
 ## 防止在“检查为空”和“进入休眠”之间丢通知
+
+先看没有保护时会怎样。下面每一步都可能只相差几个 CPU 指令：
+
+```text
+时刻  消费协程                         接收线程
+t1    检查 buffer，发现为空
+t2                                     写入 frame 42
+t3                                     发送一次 notify
+t4    把自己标成等待并真正睡眠
+t5    —— 没有新的 frame，也就没有第二次 notify ——
+```
+
+问题不在于 frame 42 丢了；它仍躺在 ring 里。真正丢失的是“应该再来检查一次”的事件。消费者在通知发出以后才睡下，于是缓存非空，消费者却可能一直沉睡。这类竞态通常叫 lost wakeup。
+
+Cyber 的解法由两部分共同完成：ring 保存消息数量，`updated_` 只记住“等待边界附近发生过更新”。因此，即便 A、B、C 三次到达被合并为一个事件，消息仍由 ring 分别保存；事件位只负责阻止消费者漏掉下一次检查机会。
 
 协程函数由 [`CreateRoutineFactory<M0>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70) 生成。它循环尝试从 visitor 取数据，成功时调用业务函数，失败时让出执行权：
 

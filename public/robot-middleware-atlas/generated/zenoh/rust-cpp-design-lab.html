@@ -682,17 +682,21 @@
 <li class="toctree-l2"><a class="reference internal" href="../yarp/index.html">YARP</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../yarp/index.html#id1">统一学习路径</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../yarp/index.html#id2">源码解读</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../yarp/foundations.html">YARP 阅读基础：Port、名字服务与可插拔 Carrier</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id1">一条消息经过的完整层次</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#port-portcore">Port 是门面，PortCore 才保存连接状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#contactroute-carrier">Contact、Route 与 Carrier 名分别表达什么</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#portwriter-connectionwriter">PortWriter 与 ConnectionWriter 是双分派边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#carrier">Carrier 是策略、工厂产品和协议状态机</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#unit">输入与输出 Unit 隔离每条连接</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id2">同步写与后台写改变对象生命周期</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#interruptclose">interrupt、close 与析构是三种动作</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id3">性能分析的基本变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id4">后续阅读路线</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../yarp/foundations.html">YARP 阅读基础：从两个机器人进程开始理解 Port、名字服务与 Carrier</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#yarp">YARP 解决的是运行期接线问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id1">从四行代码建立第一个运行时模型</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#port-portcore">Port 是门面，PortCore 才是运行时内核</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id2">名字、地址和连接路线是三个不同概念</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#carrier">Carrier 决定连接怎样说话</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#portwriter">应用对象通过 PortWriter 变成连接字节</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#write">一次 write 可能多次调用消息对象</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id3">同步写与后台写的区别首先是生命周期</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#open">open 不只是把名字放进注册表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#interruptclose">interrupt、close 与析构承担不同责任</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id4">控制面与数据面需要分开观察</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id5">性能边界来自扇出、编码和慢连接</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id6">适用场景与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id7">带着一张图进入后续源码</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="../yarp/architecture-map.html">YARP 功能与组件地图：名字、连接与可插拔协议</a><ul>
@@ -2041,6 +2045,31 @@
 </ul>
 </nav>
 <p>Zenoh 核心使用 Rust，而许多机器人应用通过 C 或 C++ API 接入。读源码时最容易出现两个断层：Rust 的 <code class="docutils literal notranslate"><span class="pre">Arc</span></code>、生命周期和异步任务看懂了语法，却不知道它们解决哪个运行时问题；C++ 侧会声明 Publisher，却看不见句柄如何映射到 Rust 实体。本章把两侧放到同一张生命周期图中。</p>
+<p>先把语言名词放到一个具体场景里。假设 C++ 相机节点声明了一个 Publisher，连续发布图像，然后让 Publisher 离开作用域：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="n">Publisher</span><span class="w"> </span><span class="n">camera</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span><span class="p">.</span><span class="n">DeclarePublisher</span><span class="p">(</span><span class="s">&quot;robot/camera/front&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="n">camera</span><span class="p">.</span><span class="n">Put</span><span class="p">(</span><span class="n">frame</span><span class="p">);</span>
+<span class="p">}</span><span class="w">  </span><span class="c1">// camera 在这里析构</span>
+</pre></div>
+</div>
+<p>表面上只是一个局部变量消失，底层却必须同时回答四个问题：</p>
+<ol class="arabic simple">
+<li><p>C++ 对象析构后，Rust 侧的 Publisher 实体由谁撤销；</p></li>
+<li><p>这次撤销能否顺便销毁 Session，还是 Session 仍被其他实体使用；</p></li>
+<li><p>已经提交给异步任务的 <code class="docutils literal notranslate"><span class="pre">frame</span></code> 是否仍然有效；</p></li>
+<li><p>声明或撤销失败时，C ABI 怎样报告错误而不让 Rust panic 穿过语言边界。</p></li>
+</ol>
+<p>本章后面的 <code class="docutils literal notranslate"><span class="pre">Arc</span></code>、<code class="docutils literal notranslate"><span class="pre">Weak</span></code>、Builder、RAII 和 FFI 都是在回答这四个问题。第一次阅读时，可以先把对象分成四层，不必立刻记住所有 Rust 类型：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>C++ RAII handle       负责“这个应用实体何时结束”
+        |
+C opaque handle       负责跨语言传递，但不暴露 Rust 内存布局
+        |
+Rust Publisher        负责声明、put 与撤销语义
+        |
+shared SessionInner   被多个 Publisher/Subscriber 和后台任务共同使用
+</pre></div>
+</div>
+<p>最关键的区分是：Publisher 的寿命和 Session 的寿命不是一回事。局部 Publisher 析构，应撤销它自己的声明；它不能因为自己结束，就把其他订阅者仍在使用的网络运行时一并关闭。</p>
 <p>本文固定 Zenoh 源码为 <a class="reference external" href="https://github.com/eclipse-zenoh/zenoh/tree/9fcd9cb5d364192c3e8a27e66de76f4bc750d1d5"><code class="docutils literal notranslate"><span class="pre">9fcd9cb5</span></code></a>。语言机制要沿真实运行时对象阅读：</p>
 <table class="docutils align-default">
 <thead>
@@ -2158,6 +2187,14 @@ Publisher -&gt; Session primitives -&gt; WireExpr/resource lookup
 <p>Builder 通常消费自身并返回新类型或最终实体。消费 <code class="docutils literal notranslate"><span class="pre">self</span></code> 可防止同一声明被重复提交；C++ 若复刻这种语义，可以让 <code class="docutils literal notranslate"><span class="pre">Build()</span> <span class="pre">&amp;&amp;</span></code> 只允许在右值 builder 上调用，或在运行期记录 <code class="docutils literal notranslate"><span class="pre">built_</span></code> 并拒绝二次提交。</p>
 <section id="self-self-mut-self-api">
 <h3><a class="toc-backref" href="#id16" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">self</span></code>、<code class="docutils literal notranslate"><span class="pre">&amp;self</span></code> 与 <code class="docutils literal notranslate"><span class="pre">&amp;mut</span> <span class="pre">self</span></code> 对 API 的含义</a><a class="headerlink" href="#self-self-mut-self-api" title="Link to this heading"></a></h3>
+<p>这三个写法先不要理解成语法表。它们回答的是“调用函数时，函数拿走对象、暂时查看对象，还是暂时独占修改对象”。用同一个 Builder 对照最容易看清：</p>
+<div class="highlight-rust notranslate"><div class="highlight"><pre><span></span><span class="kd">let</span><span class="w"> </span><span class="n">builder</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">session</span><span class="p">.</span><span class="n">declare_publisher</span><span class="p">(</span><span class="s">&quot;robot/arm/state&quot;</span><span class="p">);</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">builder</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">builder</span><span class="p">.</span><span class="n">priority</span><span class="p">(</span><span class="n">Priority</span><span class="p">::</span><span class="n">DataHigh</span><span class="p">);</span><span class="w"> </span><span class="c1">// 旧值被 move，新值返回</span>
+<span class="kd">let</span><span class="w"> </span><span class="n">publisher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">builder</span><span class="p">.</span><span class="n">wait</span><span class="p">()</span><span class="o">?</span><span class="p">;</span><span class="w">                    </span><span class="c1">// 提交时消费 builder</span>
+<span class="c1">// builder 到这里已经不能再使用</span>
+</pre></div>
+</div>
+<p>如果 <code class="docutils literal notranslate"><span class="pre">wait()</span></code> 只接收 <code class="docutils literal notranslate"><span class="pre">&amp;self</span></code>，同一个 Builder 就可以被重复提交，代码还要在运行期额外判断“是否已经 build”。消费 <code class="docutils literal notranslate"><span class="pre">self</span></code> 则让这类非法状态在安全 Rust 中难以表达。下面再逐项看三种 receiver 的准确含义：</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">build(self)</span></code> 取得 builder 所有权，调用后原变量被 move，编译器阻止再次使用；</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">option(mut</span> <span class="pre">self,</span> <span class="pre">value)</span></code> 修改局部 builder 并返回它，形成链式配置；</p></li>

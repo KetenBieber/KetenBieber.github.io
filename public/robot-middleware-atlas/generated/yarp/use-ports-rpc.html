@@ -682,17 +682,21 @@
 <li class="toctree-l2 current"><a class="reference internal" href="index.html">YARP</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="index.html#id1">统一学习路径</a></li>
 <li class="toctree-l3"><a class="reference internal" href="index.html#id2">源码解读</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="foundations.html">YARP 阅读基础：Port、名字服务与可插拔 Carrier</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">一条消息经过的完整层次</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#port-portcore">Port 是门面，PortCore 才保存连接状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#contactroute-carrier">Contact、Route 与 Carrier 名分别表达什么</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#portwriter-connectionwriter">PortWriter 与 ConnectionWriter 是双分派边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#carrier">Carrier 是策略、工厂产品和协议状态机</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#unit">输入与输出 Unit 隔离每条连接</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id2">同步写与后台写改变对象生命周期</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#interruptclose">interrupt、close 与析构是三种动作</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id3">性能分析的基本变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">后续阅读路线</a></li>
+<li class="toctree-l4"><a class="reference internal" href="foundations.html">YARP 阅读基础：从两个机器人进程开始理解 Port、名字服务与 Carrier</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#yarp">YARP 解决的是运行期接线问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">从四行代码建立第一个运行时模型</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#port-portcore">Port 是门面，PortCore 才是运行时内核</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id2">名字、地址和连接路线是三个不同概念</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#carrier">Carrier 决定连接怎样说话</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#portwriter">应用对象通过 PortWriter 变成连接字节</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#write">一次 write 可能多次调用消息对象</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id3">同步写与后台写的区别首先是生命周期</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#open">open 不只是把名字放进注册表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#interruptclose">interrupt、close 与析构承担不同责任</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">控制面与数据面需要分开观察</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id5">性能边界来自扇出、编码和慢连接</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id6">适用场景与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id7">带着一张图进入后续源码</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="architecture-map.html">YARP 功能与组件地图：名字、连接与可插拔协议</a><ul>

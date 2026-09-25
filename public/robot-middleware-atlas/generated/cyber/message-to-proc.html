@@ -682,17 +682,21 @@
 <li class="toctree-l2"><a class="reference internal" href="../yarp/index.html">YARP</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../yarp/index.html#id1">统一学习路径</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../yarp/index.html#id2">源码解读</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../yarp/foundations.html">YARP 阅读基础：Port、名字服务与可插拔 Carrier</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id1">一条消息经过的完整层次</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#port-portcore">Port 是门面，PortCore 才保存连接状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#contactroute-carrier">Contact、Route 与 Carrier 名分别表达什么</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#portwriter-connectionwriter">PortWriter 与 ConnectionWriter 是双分派边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#carrier">Carrier 是策略、工厂产品和协议状态机</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#unit">输入与输出 Unit 隔离每条连接</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id2">同步写与后台写改变对象生命周期</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#interruptclose">interrupt、close 与析构是三种动作</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id3">性能分析的基本变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id4">后续阅读路线</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../yarp/foundations.html">YARP 阅读基础：从两个机器人进程开始理解 Port、名字服务与 Carrier</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#yarp">YARP 解决的是运行期接线问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id1">从四行代码建立第一个运行时模型</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#port-portcore">Port 是门面，PortCore 才是运行时内核</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id2">名字、地址和连接路线是三个不同概念</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#carrier">Carrier 决定连接怎样说话</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#portwriter">应用对象通过 PortWriter 变成连接字节</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#write">一次 write 可能多次调用消息对象</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id3">同步写与后台写的区别首先是生命周期</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#open">open 不只是把名字放进注册表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#interruptclose">interrupt、close 与析构承担不同责任</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id4">控制面与数据面需要分开观察</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id5">性能边界来自扇出、编码和慢连接</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id6">适用场景与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../yarp/foundations.html#id7">带着一张图进入后续源码</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="../yarp/architecture-map.html">YARP 功能与组件地图：名字、连接与可插拔协议</a><ul>
@@ -2019,6 +2023,13 @@
 <p>前面的章节已经分别建立了对象装配、有界 ring、Dispatcher/Notifier 与 CRoutine/Scheduler。现在把这些局部机制放回同一条时间线，跟随一枚消息从 transport callback 一直走到 <code class="docutils literal notranslate"><span class="pre">Component::Proc()</span></code>。</p>
 <p>如果只看 Cyber RT 暴露给业务层的接口，很容易形成一个过于简单的印象：Reader 收到消息，框架调用 <code class="docutils literal notranslate"><span class="pre">Component::Proc()</span></code>，链路到此结束。本章不再把中间类当成第一次出现的名词，而是检查它们组装后是否形成一条闭合的数据、线程和生命周期路径。</p>
 <p>真正决定运行时行为的问题却藏在这句话中间：消息由哪个线程收进来，为什么不会直接在接收线程里执行 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>，数据存在哪里，谁把协程变成可运行状态，调度器又在什么时候选中它？这些问题会直接决定一次感知—规划—控制链路的排队延迟、抖动和数据年龄。</p>
+<p>后面会出现不少类名，可以先把它们压缩成三个角色。假设 <code class="docutils literal notranslate"><span class="pre">/camera/front</span></code> 刚收到第 42 帧图像：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>放数据的人：Receiver -&gt; DataDispatcher -&gt; CacheBuffer
+叫醒执行者：DataNotifier -&gt; Scheduler
+取数据并运行的人：DataVisitor -&gt; CRoutine -&gt; Component::Proc
+</pre></div>
+</div>
+<p>第 42 帧不会作为函数参数一路穿过所有这些对象。数据路径把 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Frame&gt;</span></code> 放进缓存；通知路径只携带“某个 channel 更新了”的事件；协程被调度后再从自己的 DataVisitor 取出帧。这种分离正是全文的主线。每进入一层，都可以问三个相同的问题：第 42 帧现在存在哪里，当前是哪条线程，下一步由谁唤醒谁。</p>
 <p>本文固定在 Apollo 仓库提交 <a class="reference external" href="https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa"><code class="docutils literal notranslate"><span class="pre">d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa</span></code></a>，沿正常部署使用的 reality mode 追踪单输入 <code class="docutils literal notranslate"><span class="pre">Component&lt;M0&gt;</span></code>：Reader 建立数据入口，但业务 <code class="docutils literal notranslate"><span class="pre">func</span></code> 不作为 Reader callback 直接执行，而是另建组件 task 交给 Cyber scheduler。为了回答这个问题，真正需要进入的源码空间只有六组目录：<code class="docutils literal notranslate"><span class="pre">component</span></code>、<code class="docutils literal notranslate"><span class="pre">node</span></code>、<code class="docutils literal notranslate"><span class="pre">transport</span></code>、<code class="docutils literal notranslate"><span class="pre">data</span></code>、<code class="docutils literal notranslate"><span class="pre">croutine</span></code> 和 <code class="docutils literal notranslate"><span class="pre">scheduler</span></code>。</p>
 <section id="id1">
 <h2><a class="toc-backref" href="#id7" role="doc-backlink">先把整条链放进脑中</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
@@ -2061,6 +2072,8 @@ DataVisitor&lt;M&gt;              Scheduler::NotifyProcessor(task_id)
 </section>
 <section id="id2">
 <h2><a class="toc-backref" href="#id8" role="doc-backlink">初始化阶段已经把两条消费支路装好了</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>这里先解释为什么同一 channel 会出现两只 <code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code>。Cyber RT 的普通 Reader 还要支持 <code class="docutils literal notranslate"><span class="pre">Observe()</span></code> 和 <code class="docutils literal notranslate"><span class="pre">GetLatestObserved()</span></code>，而 Component 则需要持续调用业务 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>。如果两者共用一个会出队的读取游标，就会出现“谁先读取，谁把消息从另一方手里拿走”的竞争：业务组件处理了第 42 帧以后，调试或观察接口可能再也看不到它；反过来也一样。</p>
+<p>Cyber RT 因此不是让两名消费者争抢同一个游标，而是为 Reader 语义和 Component 语义分别建立缓存视图。二者可以共享同一个 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;M0&gt;</span></code> 所指向的消息对象，但各自维护“我已经读到哪里”。先理解这个需求，再看下面的初始化代码，<code class="docutils literal notranslate"><span class="pre">Reader</span> <span class="pre">DataVisitor</span></code> 与 <code class="docutils literal notranslate"><span class="pre">Component</span> <span class="pre">DataVisitor</span></code> 就不再像无缘无故的重复对象。</p>
 <p>消息到来之前，<code class="docutils literal notranslate"><span class="pre">Component&lt;M0&gt;::Initialize()</span></code> 已经创建了 Reader、组件自己的 <code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code> 和一个调度任务。关键实现位于 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/component/component.h#L163-L237"><code class="docutils literal notranslate"><span class="pre">cyber/component/component.h</span></code></a>：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">weak_ptr</span><span class="o">&lt;</span><span class="n">Component</span><span class="o">&lt;</span><span class="n">M0</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">self</span><span class="w"> </span><span class="o">=</span>
 <span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">dynamic_pointer_cast</span><span class="o">&lt;</span><span class="n">Component</span><span class="o">&lt;</span><span class="n">M0</span><span class="o">&gt;&gt;</span><span class="p">(</span><span class="n">shared_from_this</span><span class="p">());</span>
@@ -2296,6 +2309,17 @@ DataDispatcher(channel) ----|
 </section>
 <section id="id3">
 <h2><a class="toc-backref" href="#id16" role="doc-backlink">防止在“检查为空”和“进入休眠”之间丢通知</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>先看没有保护时会怎样。下面每一步都可能只相差几个 CPU 指令：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>时刻  消费协程                         接收线程
+t1    检查 buffer，发现为空
+t2                                     写入 frame 42
+t3                                     发送一次 notify
+t4    把自己标成等待并真正睡眠
+t5    —— 没有新的 frame，也就没有第二次 notify ——
+</pre></div>
+</div>
+<p>问题不在于 frame 42 丢了；它仍躺在 ring 里。真正丢失的是“应该再来检查一次”的事件。消费者在通知发出以后才睡下，于是缓存非空，消费者却可能一直沉睡。这类竞态通常叫 lost wakeup。</p>
+<p>Cyber 的解法由两部分共同完成：ring 保存消息数量，<code class="docutils literal notranslate"><span class="pre">updated_</span></code> 只记住“等待边界附近发生过更新”。因此，即便 A、B、C 三次到达被合并为一个事件，消息仍由 ring 分别保存；事件位只负责阻止消费者漏掉下一次检查机会。</p>
 <p>协程函数由 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory&lt;M0&gt;</span></code></a> 生成。它循环尝试从 visitor 取数据，成功时调用业务函数，失败时让出执行权：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">CRoutine</span><span class="o">::</span><span class="n">GetCurrentRoutine</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">set_state</span><span class="p">(</span><span class="n">RoutineState</span><span class="o">::</span><span class="n">DATA_WAIT</span><span class="p">);</span>
