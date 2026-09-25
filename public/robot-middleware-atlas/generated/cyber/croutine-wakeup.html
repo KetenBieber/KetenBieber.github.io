@@ -2137,7 +2137,7 @@ consumer: 进入 wait
 </pre></div>
 </div>
 <p>直觉上可以把“clear”理解为“还有一次更新尚未被 scheduler 消费”，把“set”理解为“当前没有未消费更新”。这里不能只看变量名猜 true/false 含义，要同时阅读写侧和读侧。</p>
-<p><code class="docutils literal notranslate"><span class="pre">atomic_flag</span></code> 保证多个线程同时修改这一位状态时不会发生普通数据竞争。代码给出的 memory order 是实现细节；消息 payload 的一致性并不靠这个 flag 单独承担，ring 的读写还由 CacheBuffer mutex 建立同步。</p>
+<p><code class="docutils literal notranslate"><span class="pre">atomic_flag</span></code> 保证多个线程同时修改这一位状态时不会发生普通数据竞争。固定源码的 <code class="docutils literal notranslate"><span class="pre">test_and_set(std::memory_order_release)</span></code> 没有 acquire 语义，不能用它证明 scheduler 看见了 producer 此前写入的 payload；payload 的发布与读取由 CacheBuffer mutex 的解锁/加锁配对建立同步。这个 flag 只保存事件状态。若把 ring 换成无锁结构，就必须另行设计 acquire/release 配对，不能照搬这里的内存序。</p>
 <p>event latch 只有一位，因此 A、B、C 三次更新可能合并成一个“有更新”。消息数量由 ring 保存，flag 只保证 consumer 最终再检查一次。</p>
 </section>
 <section id="id2">
@@ -2181,6 +2181,7 @@ event memory:
 </pre></div>
 </div>
 <p>这个调用仍在 transport 线程中同步执行，直到 <code class="docutils literal notranslate"><span class="pre">notify_one()</span></code> 返回。真正的 Processor 何时得到 CPU 由 Linux scheduler 决定，因此 CV wakeup 之后还有 OS 调度延迟。</p>
+<p><code class="docutils literal notranslate"><span class="pre">ClassicContext::Wait()</span></code> 使用受同一 mutex 保护的 <code class="docutils literal notranslate"><span class="pre">notify_grp_[group]</span> <span class="pre">&gt;</span> <span class="pre">0</span></code> 作为谓词，<code class="docutils literal notranslate"><span class="pre">Notify()</span></code> 先递增计数再调用 <code class="docutils literal notranslate"><span class="pre">notify_one()</span></code>。所以 worker 即使在通知之后才进入 <code class="docutils literal notranslate"><span class="pre">wait_for()</span></code>，也会先看见计数为正而不睡下；1000 ms 超时只是兜底重查。通知只把内核线程变为 runnable，何时重新取得 mutex 并继续扫描仍由 OS 调度器决定。</p>
 <p><code class="docutils literal notranslate"><span class="pre">notify_one()</span></code> 也不是指定“必须唤醒执行这个 task 的某一线程”。Classic group 的多个 Processor 可以等待同一 context，醒来的 worker 再扫描全部 routine 状态。</p>
 </section>
 <section id="classic-run-queue-vector">

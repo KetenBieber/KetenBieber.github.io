@@ -60,6 +60,8 @@ physical_index = logical_sequence % capacity
 
 这样做的好处是容易比较消费者是否落后。若 consumer 想读逻辑序号 17，而 buffer 最老可读序号已经是 23，仅比较单调序号就能判断 17 已被覆盖；若只保存物理下标，两者都可能等于 1，信息已经丢失。
 
+“单调”在这里有一个隐含的进程寿命前提：三个序号都是 `uint64_t`。`tail_ - head_` 的无符号减法在回绕处仍按模 $2^{64}$ 运算，但 `cursor < Head()` 这样的普通大小比较并不回绕安全，`tail_ + 1` 也会在最大值处变成 0。现实消息速率下走满 64 位几乎不可达，复刻时仍应把“计数器在进程寿命内不回绕、容量远小于计数空间”写成不变量，或采用 epoch / 回绕安全比较；构造参数也必须避免 `size + 1` 溢出。
+
 ## `std::vector<T>` 的存储与构造成本
 
 `buffer_.resize(capacity_)` 会在构造阶段一次性建立固定数量的 `T` 槽位。稳定运行中的 `Fill()` 不调用 `push_back()`，因此不会因为元素数量增长而反复扩容或搬迁整段存储。
@@ -283,19 +285,55 @@ Cyber 的实现位于“有限历史”和“latest value”之间：正常时�
 一个教学用最小接口可以是：
 
 ```cpp
+// 教学最小例子：调用者保证序号在进程寿命内不回绕
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 template <typename T>
 class LatestBiasedRing {
  public:
-  explicit LatestBiasedRing(std::size_t logical_capacity);
-  void Fill(const T& value);
-  bool Fetch(std::uint64_t& cursor, T& out);
+  explicit LatestBiasedRing(std::size_t n) : slots_(n + 1) {
+    if (n == 0 || n == UINT64_MAX) throw std::invalid_argument(std::string{});
+  }
+
+  void Fill(const T& value) {
+    if (tail_ - head_ == slots_.size() - 1) {
+      slots_[Index(head_)] = value;
+      ++head_;
+      ++tail_;
+    } else {
+      slots_[Index(tail_ + 1)] = value;
+      ++tail_;
+    }
+  }
+
+  bool Fetch(std::uint64_t& cursor, T& out) const {
+    if (tail_ == 0) return false;
+    if (cursor == 0) {
+      cursor = tail_;
+    } else if (cursor == tail_ + 1) {
+      return false;
+    } else if (cursor < head_ + 1) {
+      cursor = tail_;
+    }
+    out = slots_[Index(cursor)];
+    ++cursor;
+    return true;
+  }
 
  private:
+  std::size_t Index(std::uint64_t seq) const {
+    return seq % slots_.size();
+  }
   std::vector<T> slots_;
-  std::uint64_t head_boundary_ = 0;
+  std::uint64_t head_ = 0;
   std::uint64_t tail_ = 0;
 };
 ```
+
+为缩小接口，这个教学版本在 `Fetch()` 成功时直接递增 cursor；固定源码把读取与递增分在 `ChannelBuffer::Fetch()` 和 `DataVisitor::TryFetch()` 两层，语义相同但职责位置不同。给教学版本加 mutex 时，`Fill()` 和整个 `Fetch()` 必须由同一把锁保护，不能只锁槽位赋值而把 head、tail 和 cursor 判断留在锁外。
 
 先用 A、B、C、D、E 的表格验证每次边界和槽位，再加入 mutex；最后用两个线程制造 consumer 落后，确认 cursor 跳转不会读到被复用槽中的旧身份。
 

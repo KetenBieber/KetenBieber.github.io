@@ -2085,6 +2085,7 @@ Processor thread
 </pre></div>
 </div>
 <p>这样做的好处是容易比较消费者是否落后。若 consumer 想读逻辑序号 17，而 buffer 最老可读序号已经是 23，仅比较单调序号就能判断 17 已被覆盖；若只保存物理下标，两者都可能等于 1，信息已经丢失。</p>
+<p>“单调”在这里有一个隐含的进程寿命前提：三个序号都是 <code class="docutils literal notranslate"><span class="pre">uint64_t</span></code>。<code class="docutils literal notranslate"><span class="pre">tail_</span> <span class="pre">-</span> <span class="pre">head_</span></code> 的无符号减法在回绕处仍按模 $2^{64}$ 运算，但 <code class="docutils literal notranslate"><span class="pre">cursor</span> <span class="pre">&lt;</span> <span class="pre">Head()</span></code> 这样的普通大小比较并不回绕安全，<code class="docutils literal notranslate"><span class="pre">tail_</span> <span class="pre">+</span> <span class="pre">1</span></code> 也会在最大值处变成 0。现实消息速率下走满 64 位几乎不可达，复刻时仍应把“计数器在进程寿命内不回绕、容量远小于计数空间”写成不变量，或采用 epoch / 回绕安全比较；构造参数也必须避免 <code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">+</span> <span class="pre">1</span></code> 溢出。</p>
 </section>
 <section id="std-vector-t">
 <h2><a class="toc-backref" href="#id9" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">std::vector&lt;T&gt;</span></code> 的存储与构造成本</a><a class="headerlink" href="#std-vector-t" title="Link to this heading"></a></h2>
@@ -2312,20 +2313,55 @@ Fetch detects target before current head
 </pre></div>
 </div>
 <p>一个教学用最小接口可以是：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// 教学最小例子：调用者保证序号在进程寿命内不回绕</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;cstdint&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;stdexcept&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">LatestBiasedRing</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
-<span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">LatestBiasedRing</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">logical_capacity</span><span class="p">);</span>
-<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="nf">Fill</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">value</span><span class="p">);</span>
-<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="nf">Fetch</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="o">&amp;</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">);</span>
+<span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">LatestBiasedRing</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">slots_</span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">UINT64_MAX</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">invalid_argument</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">{});</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Fill</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">value</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tail_</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">head_</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">slots_</span><span class="p">.</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">slots_</span><span class="p">[</span><span class="n">Index</span><span class="p">(</span><span class="n">head_</span><span class="p">)]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="w">      </span><span class="o">++</span><span class="n">head_</span><span class="p">;</span>
+<span class="w">      </span><span class="o">++</span><span class="n">tail_</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">slots_</span><span class="p">[</span><span class="n">Index</span><span class="p">(</span><span class="n">tail_</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">value</span><span class="p">;</span>
+<span class="w">      </span><span class="o">++</span><span class="n">tail_</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">Fetch</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="o">&amp;</span><span class="w"> </span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">T</span><span class="o">&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tail_</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cursor</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">cursor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail_</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cursor</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">tail_</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cursor</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">head_</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">cursor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tail_</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slots_</span><span class="p">[</span><span class="n">Index</span><span class="p">(</span><span class="n">cursor</span><span class="p">)];</span>
+<span class="w">    </span><span class="o">++</span><span class="n">cursor</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
 
 <span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">Index</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">seq</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="n">slots_</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
 <span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">slots_</span><span class="p">;</span>
-<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">head_boundary_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">head_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
 <span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">tail_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
 <span class="p">};</span>
 </pre></div>
 </div>
+<p>为缩小接口，这个教学版本在 <code class="docutils literal notranslate"><span class="pre">Fetch()</span></code> 成功时直接递增 cursor；固定源码把读取与递增分在 <code class="docutils literal notranslate"><span class="pre">ChannelBuffer::Fetch()</span></code> 和 <code class="docutils literal notranslate"><span class="pre">DataVisitor::TryFetch()</span></code> 两层，语义相同但职责位置不同。给教学版本加 mutex 时，<code class="docutils literal notranslate"><span class="pre">Fill()</span></code> 和整个 <code class="docutils literal notranslate"><span class="pre">Fetch()</span></code> 必须由同一把锁保护，不能只锁槽位赋值而把 head、tail 和 cursor 判断留在锁外。</p>
 <p>先用 A、B、C、D、E 的表格验证每次边界和槽位，再加入 mutex；最后用两个线程制造 consumer 落后，确认 cursor 跳转不会读到被复用槽中的旧身份。</p>
 <p>等这个最小单元正确后，再把它包进 <code class="docutils literal notranslate"><span class="pre">ChannelBuffer</span></code>，给它加 channel id；再由 <code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code> 持有 cursor；再由 Dispatcher 按 channel 扇出写入。这样的实现顺序能让每一层只增加一个新问题。</p>
 </section>

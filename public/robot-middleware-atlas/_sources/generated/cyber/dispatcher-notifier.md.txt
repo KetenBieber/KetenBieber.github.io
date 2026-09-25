@@ -173,7 +173,7 @@ channel Y buffers: Y-reader-lock, Y-component-lock
 
 `AddBuffer()` 使用 `buffers_map_mutex_` 保护注册阶段对 vector 的修改；`Dispatch()` 读取 vector 时没有取得同一把 mutex。若系统遵循“启动阶段注册、稳定阶段只读”，vector 存储在第一条消息前就固定，热路径可以省掉全局读锁。
 
-若允许运行时并发创建新 Reader，一个线程可能导致 vector 扩容、移动底层数组，另一个线程仍在遍历旧地址。这是生命周期假设，而不是 `AtomicHashMap` 能自动解决的事情。
+若允许运行时并发创建新 Reader，一个线程可能在 `emplace_back()` 时修改 vector 的 size，甚至扩容并移动底层数组，另一个线程却仍在遍历旧地址。这在 C++ 中是 data race，行为未定义；它不只是“本轮可能漏看新 Reader”。因此当前实现依赖“启动期注册、稳定期只读”的外部生命周期约束，而不是 `AtomicHashMap` 自动保护了内部 value。
 
 一个真正支持高频热插拔的版本可以有三类选择：
 
