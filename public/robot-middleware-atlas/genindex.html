@@ -356,37 +356,36 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html">项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id1">功能需求先决定通信形状</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id2">先区分版本稳定结构与会变化的消息集合</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id1">功能需求与通信形状</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id2">版本稳定结构与可变消息集合</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id3">组件对象图</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#dag">从 DAG 到一次规划</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id4">部署文件、组件类和配置必须形成一个闭环</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code> 如何把配置变成运行时对象</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id5">Init 是资源事务而不是字段赋值集合</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#proc-localview"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 开始处应冻结一次 LocalView</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#proc"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#localview">LocalView 需要携带可验证的时间契约</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id6">线程与共享状态地图</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#c">C++ 设计一：模板输入定义调度协议</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#c-reader">C++ 设计二：辅助 Reader 的共享状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id7">为什么多输入不是严格同步</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id8">从组件进入具体规划算法</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#planning-task">增加一个 Planning Task 的工程步骤</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id9">输入未就绪也要发布可解释输出</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#latest">多输入 latest 语义与非严格同步</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id7">从组件进入具体规划算法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#planning-task">Planning Task 的扩展流程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id8">输入未就绪时的可解释输出</a></li>
 <li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#rerouting-client">Rerouting 展示 Client 与共享状态交互</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id10">DAG 与进程边界的工程作用</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id11">性能预算与数据结构</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id12">一次周期的预算表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id9">DAG 与进程边界的工程作用</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id10">性能预算与数据结构</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id11">一次周期的预算表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id13">可复用实现模式</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id14">从零搭建一个缩小版规划项目</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#record">Record 回放的可重复工作流</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id15">项目中的不足与约束</a></li>
-<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id16">自行实现相同模式的顺序</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id12">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id13">缺点与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id14">可迁移的规划组件方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="generated/cyber/case-study-apollo-planning.html#id15">最小复刻：构建可回放的规划组件</a></li>
 </ul>
 </li>
 </ul>

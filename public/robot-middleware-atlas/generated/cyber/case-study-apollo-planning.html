@@ -359,37 +359,36 @@
 </ul>
 </li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="#id1">功能需求先决定通信形状</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id2">先区分版本稳定结构与会变化的消息集合</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id1">功能需求与通信形状</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id2">版本稳定结构与可变消息集合</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#id3">组件对象图</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#dag">从 DAG 到一次规划</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#id4">部署文件、组件类和配置必须形成一个闭环</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code> 如何把配置变成运行时对象</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="#id5">Init 是资源事务而不是字段赋值集合</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#proc-localview"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 开始处应冻结一次 LocalView</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="#proc"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="#localview">LocalView 需要携带可验证的时间契约</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="#id6">线程与共享状态地图</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#c">C++ 设计一：模板输入定义调度协议</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#c-reader">C++ 设计二：辅助 Reader 的共享状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id7">为什么多输入不是严格同步</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id8">从组件进入具体规划算法</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#planning-task">增加一个 Planning Task 的工程步骤</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id9">输入未就绪也要发布可解释输出</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#latest">多输入 latest 语义与非严格同步</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id7">从组件进入具体规划算法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#planning-task">Planning Task 的扩展流程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id8">输入未就绪时的可解释输出</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#rerouting-client">Rerouting 展示 Client 与共享状态交互</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id10">DAG 与进程边界的工程作用</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id11">性能预算与数据结构</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id12">一次周期的预算表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id9">DAG 与进程边界的工程作用</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id10">性能预算与数据结构</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id11">一次周期的预算表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id13">可复用实现模式</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id14">从零搭建一个缩小版规划项目</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#record">Record 回放的可重复工作流</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id15">项目中的不足与约束</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id16">自行实现相同模式的顺序</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id12">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id13">缺点与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id14">可迁移的规划组件方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id15">最小复刻：构建可回放的规划组件</a></li>
 </ul>
 </li>
 </ul>
@@ -2015,46 +2014,56 @@
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id17">功能需求先决定通信形状</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id18">先区分版本稳定结构与会变化的消息集合</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id19">组件对象图</a></p></li>
-<li><p><a class="reference internal" href="#dag" id="id20">从 DAG 到一次规划</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id21">部署文件、组件类和配置必须形成一个闭环</a></p></li>
-<li><p><a class="reference internal" href="#init" id="id22"><code class="docutils literal notranslate"><span class="pre">Init()</span></code> 如何把配置变成运行时对象</a></p>
+<li><p><a class="reference internal" href="#id1" id="id16">功能需求与通信形状</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id17">版本稳定结构与可变消息集合</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id18">组件对象图</a></p></li>
+<li><p><a class="reference internal" href="#dag" id="id19">从 DAG 到一次规划</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id20">部署文件、组件类和配置必须形成一个闭环</a></p></li>
+<li><p><a class="reference internal" href="#init" id="id21"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id5" id="id23">Init 是资源事务而不是字段赋值集合</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id22">Init 是资源事务而不是字段赋值集合</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#proc-localview" id="id24"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 开始处应冻结一次 LocalView</a></p>
+<li><p><a class="reference internal" href="#proc" id="id23"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a></p>
 <ul>
-<li><p><a class="reference internal" href="#localview" id="id25">LocalView 需要携带可验证的时间契约</a></p></li>
+<li><p><a class="reference internal" href="#localview" id="id24">LocalView 需要携带可验证的时间契约</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id6" id="id26">线程与共享状态地图</a></p></li>
-<li><p><a class="reference internal" href="#c" id="id27">C++ 设计一：模板输入定义调度协议</a></p></li>
-<li><p><a class="reference internal" href="#c-reader" id="id28">C++ 设计二：辅助 Reader 的共享状态</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id29">为什么多输入不是严格同步</a></p></li>
-<li><p><a class="reference internal" href="#id8" id="id30">从组件进入具体规划算法</a></p></li>
-<li><p><a class="reference internal" href="#planning-task" id="id31">增加一个 Planning Task 的工程步骤</a></p></li>
-<li><p><a class="reference internal" href="#id9" id="id32">输入未就绪也要发布可解释输出</a></p></li>
-<li><p><a class="reference internal" href="#rerouting-client" id="id33">Rerouting 展示 Client 与共享状态交互</a></p></li>
-<li><p><a class="reference internal" href="#id10" id="id34">DAG 与进程边界的工程作用</a></p></li>
-<li><p><a class="reference internal" href="#id11" id="id35">性能预算与数据结构</a></p>
+<li><p><a class="reference internal" href="#id6" id="id25">线程与共享状态地图</a></p></li>
+<li><p><a class="reference internal" href="#c" id="id26">C++ 设计一：模板输入定义调度协议</a></p></li>
+<li><p><a class="reference internal" href="#c-reader" id="id27">C++ 设计二：辅助 Reader 的共享状态</a></p></li>
+<li><p><a class="reference internal" href="#latest" id="id28">多输入 latest 语义与非严格同步</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id29">从组件进入具体规划算法</a></p></li>
+<li><p><a class="reference internal" href="#planning-task" id="id30">Planning Task 的扩展流程</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id31">输入未就绪时的可解释输出</a></p></li>
+<li><p><a class="reference internal" href="#rerouting-client" id="id32">Rerouting 展示 Client 与共享状态交互</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id33">DAG 与进程边界的工程作用</a></p></li>
+<li><p><a class="reference internal" href="#id10" id="id34">性能预算与数据结构</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id12" id="id36">一次周期的预算表</a></p></li>
+<li><p><a class="reference internal" href="#id11" id="id35">一次周期的预算表</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id13" id="id37">可复用实现模式</a></p></li>
-<li><p><a class="reference internal" href="#id14" id="id38">从零搭建一个缩小版规划项目</a></p></li>
-<li><p><a class="reference internal" href="#record" id="id39">Record 回放的可重复工作流</a></p></li>
-<li><p><a class="reference internal" href="#id15" id="id40">项目中的不足与约束</a></p></li>
-<li><p><a class="reference internal" href="#id16" id="id41">自行实现相同模式的顺序</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id36">优秀设计与工程取舍</a></p></li>
+<li><p><a class="reference internal" href="#id13" id="id37">缺点与性能边界</a></p></li>
+<li><p><a class="reference internal" href="#id14" id="id38">可迁移的规划组件方法</a></p></li>
+<li><p><a class="reference internal" href="#id15" id="id39">最小复刻：构建可回放的规划组件</a></p></li>
 </ul>
 </nav>
 <p>Apollo Planning 不是为了展示 Cyber API 而写的样例，而是 Cyber RT 的核心生产级使用者。它把 Prediction、Chassis、Localization 等高频输入组织为一次规划触发，把 Routing、Traffic Light、Pad、Story 等异步输入维护为辅助状态，最后发布 ADCTrajectory。</p>
+<p>从驾驶任务看，Planning 回答的是一个不断重复的问题：车辆已经知道自己在哪里、周围有哪些交通参与者、底盘当前是什么状态，那么未来几秒应该沿着怎样的轨迹运动。它不直接转动方向盘，也不负责识别障碍物；它把上游感知和定位结果整理成带时间、速度、加速度与路径点的轨迹，再交给 Control 执行。</p>
+<p>一次最小规划周期可以先记成下面这条主线：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Prediction 新数据到达
+  -&gt; Cyber 收集 Chassis 与 Localization 的最新匹配输入
+  -&gt; PlanningComponent 冻结本周期辅助状态
+  -&gt; Planning 算法检查输入、建立 Frame、运行 Scenario/Task
+  -&gt; 生成 ADCTrajectory
+  -&gt; Writer 发布给 Control 和监控模块
+</pre></div>
+</div>
+<p>本文会沿这条主线从部署文件进入组件，再进入算法。这样 DAG、模板参数、Reader、互斥锁和 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 都有明确位置，而不是一组互不相干的 Cyber RT 名词。</p>
 <p>项目入口固定到 Apollo 提交 <code class="docutils literal notranslate"><span class="pre">d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa</span></code>：先读 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/docs/08_Planning/planning_component.md">Planning Component 官方说明</a>，再进入 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/modules/planning/planning_component/planning_component.cc"><code class="docutils literal notranslate"><span class="pre">planning_component.cc</span></code></a> 与同目录头文件、DAG。固定版本后，配置中的 Reader、源码字段和本文调用链才属于同一个事实集合。</p>
 <section id="id1">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink">功能需求先决定通信形状</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">功能需求与通信形状</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>规划模块需要同时满足：</p>
 <ul class="simple">
 <li><p>主输入到达后尽快产生新轨迹；</p></li>
@@ -2064,14 +2073,16 @@
 <li><p>可由 DAG/Launch 装载、用 Record 回放复现。</p></li>
 </ul>
 <p>因此它没有把所有 channel 都放进一个任意多输入 callback，而是区分触发输入和状态型 Reader。这一功能划分先于代码结构。</p>
+<p>这里的“触发输入”会推动一次新的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 执行；“状态输入”只是更新组件保存的最新值，等待下一次规划使用。例如新的 Prediction 通常意味着环境已经变化，应尽快重新规划；Routing 则可能几十秒都不变，没有必要每次收到同一路线时单独运行完整规划。</p>
 </section>
 <section id="id2">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">先区分版本稳定结构与会变化的消息集合</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">版本稳定结构与可变消息集合</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <p>Apollo master 上的辅助输入会随规划架构演进。当前 <code class="docutils literal notranslate"><span class="pre">PlanningComponent::Init()</span></code> 可见 <code class="docutils literal notranslate"><span class="pre">PlanningCommand</span></code>、控制交互消息以及导航模式下的 <code class="docutils literal notranslate"><span class="pre">MapMsg</span></code> 等 Reader；较早文档会列出 RoutingResponse、TrafficLightDetection、PadMessage 和 Stories。阅读时应把“辅助状态通过显式 Reader 进入组件”视为稳定模式，把具体 topic 清单视为版本事实。</p>
 <p>这也是源码分析必须固定 commit 的原因。DAG、配置 proto 和 C++ 代码若来自不同版本，Reader 名称、配置字段和算法入口可能无法互相对应。</p>
 </section>
 <section id="id3">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">组件对象图</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">组件对象图</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>先给几个核心对象一个直观定义：<code class="docutils literal notranslate"><span class="pre">Component</span></code> 是被 mainboard 装载的业务组件；<code class="docutils literal notranslate"><span class="pre">Reader</span></code> 持续接收某个 channel；<code class="docutils literal notranslate"><span class="pre">Writer</span></code> 向 channel 发布消息；<code class="docutils literal notranslate"><span class="pre">DAG</span></code> 描述组件库、类名、实例和输入配置；<code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 是由 Cyber 调度器运行的协作式任务。它们分别对应业务对象、输入、输出、部署图和执行体。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PlanningComponent : Component&lt;PredictionObstacles, Chassis, LocalizationEstimate&gt;
   ├─ Proc(prediction, chassis, localization)   主触发路径
   ├─ readers created in Init()
@@ -2086,7 +2097,7 @@
 <p>模板参数把三种主输入带入 DataVisitor/Component 调度链；普通 Reader callback 更新共享的辅助状态。这里体现了 Cyber 的两种使用方式：模板输入负责调度边界，显式 Reader 负责异步状态摄取。</p>
 </section>
 <section id="dag">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">从 DAG 到一次规划</a><a class="headerlink" href="#dag" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">从 DAG 到一次规划</a><a class="headerlink" href="#dag" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>planning.launch
   -&gt; planning.dag
   -&gt; mainboard loads PlanningComponent library
@@ -2101,7 +2112,7 @@
 <p>官方文档明确指出最终轨迹通过 <code class="docutils literal notranslate"><span class="pre">planning_writer_-&gt;Write(adc_trajectory_pb)</span></code> 送回 Cyber。这个 Writer 不在每次 Proc 中创建，而是组件初始化时建立长期实体。</p>
 </section>
 <section id="id4">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">部署文件、组件类和配置必须形成一个闭环</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">部署文件、组件类和配置必须形成一个闭环</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <p>Apollo 的运行实体不是单个 <code class="docutils literal notranslate"><span class="pre">.cc</span></code> 文件，而是一组必须版本一致的产物：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>launch
   -&gt; 选择 process/mainboard 与 dag
@@ -2158,8 +2169,8 @@ C++ Init
 <p>这张表也是发布包升级检查单。只替换 <code class="docutils literal notranslate"><span class="pre">.so</span></code> 而沿用旧 DAG/proto，可能仍能装载，却在输入数量、topic 或配置字段上产生隐蔽不兼容。</p>
 </section>
 <section id="init">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Init()</span></code> 如何把配置变成运行时对象</a><a class="headerlink" href="#init" title="Link to this heading"></a></h2>
-<p>官方源码的结构可以精简为：</p>
+<h2><a class="toc-backref" href="#id21" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><a class="headerlink" href="#init" title="Link to this heading"></a></h2>
+<p>下面是根据固定提交压缩出的<strong>源码结构摘录</strong>。它保留对象关系和关键调用，但省略了其他 Reader、错误处理与监控代码，不能当作可直接替换原文件的完整实现：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">injector_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">DependencyInjector</span><span class="o">&gt;</span><span class="p">();</span>
 
@@ -2188,8 +2199,18 @@ C++ Init
 <p><code class="docutils literal notranslate"><span class="pre">DependencyInjector</span></code> 是共享依赖容器，向规划算法提供 vehicle state、planning context、history 等服务。<code class="docutils literal notranslate"><span class="pre">unique_ptr&lt;PlanningBase&gt;</span></code> 表示 PlanningComponent 独占具体规划模式；<code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;DependencyInjector&gt;</span></code> 则允许多个内部对象共享依赖而不复制状态。</p>
 <p><code class="docutils literal notranslate"><span class="pre">ACHECK</span></code> 表达“缺少组件配置时无法继续启动”的不可恢复条件。Reader callback 复制 protobuf 到组件成员，并用同一互斥量保护。复制增加成本，却把消息寿命从 callback 的 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 中解耦，方便组件建立稳定快照。</p>
 <p>lambda 捕获 <code class="docutils literal notranslate"><span class="pre">[this]</span></code> 要求 Reader 在 PlanningComponent 析构前停止回调。若框架关闭顺序反过来，mutex 和成员都会成为悬空访问；因此 Reader 实体寿命必须被组件/Node 管理并在组件析构前撤销。</p>
+<p>逐句理解这段 C++：</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">std::make_shared&lt;DependencyInjector&gt;()</span></code> 在堆上创建对象，并返回共享所有权指针；最后一个 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 离开作用域时对象才销毁；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">std::make_unique&lt;OnLanePlanning&gt;</span></code> 表示具体 planner 只有组件拥有，不能被意外复制给另一个 owner；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CreateReader&lt;PlanningCommand&gt;</span></code> 的尖括号是模板实参，编译器由此生成只接收 <code class="docutils literal notranslate"><span class="pre">PlanningCommand</span></code> 的类型化 Reader；</p></li>
+<li><p>lambda 参数使用 <code class="docutils literal notranslate"><span class="pre">const</span> <span class="pre">std::shared_ptr&lt;...&gt;&amp;</span></code>，表示 callback 借用框架传来的智能指针，不修改指针本身；消息对象也被视为只读；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">[this]</span></code> 让 lambda 能访问 <code class="docutils literal notranslate"><span class="pre">mutex_</span></code> 和 <code class="docutils literal notranslate"><span class="pre">planning_command_</span></code>，但不会延长组件寿命，所以关闭顺序仍由框架保证；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">std::lock_guard&lt;std::mutex&gt;</span></code> 在构造时加锁、离开花括号时自动解锁，即使 <code class="docutils literal notranslate"><span class="pre">CopyFrom</span></code> 抛出异常也不会忘记释放锁。</p></li>
+</ol>
+<p><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 不等于“所有对象都应该共享”。Injector 会被多个规划内部对象共同引用，适合共享所有权；具体 <code class="docutils literal notranslate"><span class="pre">PlanningBase</span></code> 只有一个明确 owner，使用 <code class="docutils literal notranslate"><span class="pre">unique_ptr</span></code> 更能表达设计意图。智能指针首先是所有权说明，其次才是自动释放工具。</p>
 <section id="id5">
-<h3><a class="toc-backref" href="#id23" role="doc-backlink">Init 是资源事务而不是字段赋值集合</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id22" role="doc-backlink">Init 是资源事务而不是字段赋值集合</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
 <p>实际初始化至少包含依赖容器、具体 PlanningBase、配置、多个 Reader、Writer 和算法内部资源。更稳妥的自研组件使用局部候选对象，全部成功后再提交到成员：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">injector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">DependencyInjector</span><span class="o">&gt;</span><span class="p">();</span>
@@ -2217,8 +2238,8 @@ C++ Init
 <p>局部 <code class="docutils literal notranslate"><span class="pre">unique_ptr/shared_ptr</span></code> 在失败返回时自动回收，最后一段 move 是提交点。仍需注意 callback 在 Reader 创建后是否可能立刻触发：如果 lambda 捕获的 <code class="docutils literal notranslate"><span class="pre">this</span></code> 依赖尚未提交的成员，就必须先让组件进入明确 Initializing 状态，或把 callback state 独立构造后再注册。</p>
 </section>
 </section>
-<section id="proc-localview">
-<h2><a class="toc-backref" href="#id24" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 开始处应冻结一次 LocalView</a><a class="headerlink" href="#proc-localview" title="Link to this heading"></a></h2>
+<section id="proc">
+<h2><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><a class="headerlink" href="#proc" title="Link to this heading"></a></h2>
 <p>一次规划不能在算法执行一半时突然换成新 PlanningCommand。源码通过锁保护共享辅助输入，再组成 <code class="docutils literal notranslate"><span class="pre">local_view_</span></code>。其等价思路是：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Proc</span><span class="p">(</span>
 <span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">PredictionObstacles</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">prediction</span><span class="p">,</span>
@@ -2242,8 +2263,9 @@ C++ Init
 </div>
 <p>锁区只复制快照，不在锁内运行规划算法。若持锁执行 <code class="docutils literal notranslate"><span class="pre">RunOnce()</span></code>，新的辅助消息可能等待几十毫秒甚至更久，下一周期拿到更陈旧的数据。局部视图还使一次规划内部的输入集合保持一致。</p>
 <p>这里仍不是严格时间同步：三个模板输入和辅助快照可能来自不同时间。组件必须检查 header timestamp、序列和业务超时，不能把“同时放入 LocalView”误解为“同一物理时刻采样”。</p>
+<p><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 参数中的三个 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 由 Cyber 框架持有，当前函数只是共享只读消息，不应把它们转换成可修改指针。辅助状态不同：callback 后仍会继续改写组件成员，所以代码在锁内复制出本周期私有对象。两类输入看起来都放进 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code>，背后的寿命策略却不同。</p>
 <section id="localview">
-<h3><a class="toc-backref" href="#id25" role="doc-backlink">LocalView 需要携带可验证的时间契约</a><a class="headerlink" href="#localview" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id24" role="doc-backlink">LocalView 需要携带可验证的时间契约</a><a class="headerlink" href="#localview" title="Link to this heading"></a></h3>
 <p>一次快照至少应能回答每个输入的源时间、接收时间和序号。可把检查规则写成表：</p>
 <table class="docutils align-default">
 <thead>
@@ -2291,7 +2313,7 @@ C++ Init
 </section>
 </section>
 <section id="id6">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">线程与共享状态地图</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">线程与共享状态地图</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>transport/Reader callback context
   -&gt; CopyFrom/替换辅助状态
   -&gt; 更新 timestamp/sequence
@@ -2312,23 +2334,23 @@ shutdown/control thread
 <p>History、PlanningContext 和 Injector 中的服务也可能跨周期可变。它们通常由规划 CRoutine 单线程推进，比“所有字段都加锁”更容易证明；异步 callback 不应直接修改 Scenario/Frame 内部结构，而应只提交下一周期消费的状态。</p>
 </section>
 <section id="c">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">C++ 设计一：模板输入定义调度协议</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">C++ 设计一：模板输入定义调度协议</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">Component&lt;A,</span> <span class="pre">B,</span> <span class="pre">C&gt;</span></code> 不只是函数签名便利。它让框架在编译期知道三种 protobuf 类型，构造对应 DataVisitor，并把类型化 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 传给 Proc。代价是支持的输入数量和组合由模板特化决定，编译时间、错误信息和 ABI 都更复杂。</p>
 <p>设计能力是：用模板表达稳定的类型关系，用非模板 <code class="docutils literal notranslate"><span class="pre">ComponentBase</span></code> 提供动态插件边界。静态安全和运行时装配不是二选一，而是在不同边界同时使用。</p>
 </section>
 <section id="c-reader">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">C++ 设计二：辅助 Reader 的共享状态</a><a class="headerlink" href="#c-reader" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">C++ 设计二：辅助 Reader 的共享状态</a><a class="headerlink" href="#c-reader" title="Link to this heading"></a></h2>
 <p>辅助 Reader callback 与 Proc 可能运行在不同调度上下文。实际模块必须明确这些字段是互斥保护、原子快照，还是由框架保证串行。只看到 <code class="docutils literal notranslate"><span class="pre">CreateReader</span></code> 不足以判定线程安全，要继续追踪 callback executor 和被写字段。</p>
 <p>可改进的通用结构是把每类辅助输入保存为不可变 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;const</span> <span class="pre">T&gt;</span></code> 快照，callback 原子替换，Proc 在开始时一次性加载局部副本。这样一次规划内看到的辅助状态不会中途变化。</p>
 <p>源码选择 <code class="docutils literal notranslate"><span class="pre">CopyFrom</span> <span class="pre">+</span> <span class="pre">mutex</span></code> 的优点是行为直观，protobuf 对象地址稳定；缺点是 callback 和 Proc 快照都可能发生深复制。不可变 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 交换可以减少复制，却会把外部消息对象的寿命延长，并需要明确原子 shared pointer 或 mutex 语义。两种方案没有脱离 payload 大小与更新频率的绝对优劣。</p>
 </section>
-<section id="id7">
-<h2><a class="toc-backref" href="#id29" role="doc-backlink">为什么多输入不是严格同步</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<section id="latest">
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">多输入 latest 语义与非严格同步</a><a class="headerlink" href="#latest" title="Link to this heading"></a></h2>
 <p>DataVisitor 的 AllLatest 更接近“主输入到达时取其他输入最新值”。这适合规划低延迟，但可能组合不同时间的 Chassis 与 Localization。Planning 必须依赖 header timestamp、状态估计和超时检查判断数据是否仍可用。</p>
 <p>优秀之处是框架没有强制昂贵的全输入 barrier；取舍是时间一致性责任进入业务模块。</p>
 </section>
-<section id="id8">
-<h2><a class="toc-backref" href="#id30" role="doc-backlink">从组件进入具体规划算法</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<section id="id7">
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">从组件进入具体规划算法</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
 <p>默认车道规划的主线为：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PlanningComponent::Proc
   -&gt; CheckInput
@@ -2346,7 +2368,7 @@ shutdown/control thread
 <p>Task 顺序不是普通容器细节。前一个 Task 产生的 path boundary、reference line 或 speed decision 可能是后一个 Task 的输入；改变配置顺序等于改变算法数据依赖。要扩展新 Task，必须说明它读取和写入 Frame/ReferenceLineInfo 的哪些字段。</p>
 </section>
 <section id="planning-task">
-<h2><a class="toc-backref" href="#id31" role="doc-backlink">增加一个 Planning Task 的工程步骤</a><a class="headerlink" href="#planning-task" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id30" role="doc-backlink">Planning Task 的扩展流程</a><a class="headerlink" href="#planning-task" title="Link to this heading"></a></h2>
 <p>新 Task 不应从“复制现有类并改算法”开始，而应先定义数据契约：</p>
 <ol class="arabic simple">
 <li><p>写出输入字段：Frame 中的障碍物、ReferenceLineInfo、PlanningContext 或配置；</p></li>
@@ -2375,29 +2397,29 @@ shutdown/control thread
 <p><code class="docutils literal notranslate"><span class="pre">Frame*</span></code> 和 <code class="docutils literal notranslate"><span class="pre">ReferenceLineInfo*</span></code> 是一次规划周期的借用对象，Task 不应把它们保存到下一周期。<code class="docutils literal notranslate"><span class="pre">DependencyInjector</span></code> 可共享跨周期服务，但不能让 Task 通过它偷偷写入没有生命周期协议的全局状态。<code class="docutils literal notranslate"><span class="pre">Status</span></code> 要带可诊断原因，不能只返回 false 让上层猜测。</p>
 <p>测试时先构造最小 Frame/ReferenceLineInfo 验证纯 Task，再把 Task 放进单 Stage，最后才通过完整 PlanningComponent 和 Record 验证。这样失败能定位到算法、流水线配置或 Cyber 接入中的某一层。</p>
 </section>
-<section id="id9">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">输入未就绪也要发布可解释输出</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<section id="id8">
+<h2><a class="toc-backref" href="#id31" role="doc-backlink">输入未就绪时的可解释输出</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
 <p>官方 <code class="docutils literal notranslate"><span class="pre">CheckInput()</span></code> 会检查 localization、chassis、地图以及规划命令等条件。未就绪时，它不是静默跳过，而是构造带 <code class="docutils literal notranslate"><span class="pre">not_ready.reason</span></code> 的轨迹消息，填充 header 并发布，然后终止本周期。</p>
 <p>这种设计让 Control 和监控系统区分“Planning 没有运行”与“Planning 运行了但输入未准备好”。安全系统中，负结果也是协议的一部分。只打日志而不发布状态，会让下游只能等超时猜测故障。</p>
 <p>同理，正常发布轨迹后组件还发布 command execution status，并把轨迹加入 history。输出、反馈和历史是三个不同职责：Control 消费轨迹，命令发起方观察执行状态，规划内部使用历史形成跨周期上下文。</p>
 </section>
 <section id="rerouting-client">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">Rerouting 展示 Client 与共享状态交互</a><a class="headerlink" href="#rerouting-client" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id32" role="doc-backlink">Rerouting 展示 Client 与共享状态交互</a><a class="headerlink" href="#rerouting-client" title="Link to this heading"></a></h2>
 <p>当 planning context 标记需要重新路由时，组件构造 <code class="docutils literal notranslate"><span class="pre">LaneFollowCommand</span></code>，通过 Cyber Client 异步发出请求，再清除 <code class="docutils literal notranslate"><span class="pre">need_rerouting</span></code>。这里的危险是重复发送和状态竞争：检查、构造请求、发送与清标志应有明确串行上下文或锁。</p>
 <p>若发送失败，直接清除标志可能丢失重试；若不清除，又可能每周期重复发请求。工业实现需要 request id、in-flight 状态、退避和结果回调，而不是单个 bool 承担完整协议。</p>
 </section>
-<section id="id10">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">DAG 与进程边界的工程作用</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<section id="id9">
+<h2><a class="toc-backref" href="#id33" role="doc-backlink">DAG 与进程边界的工程作用</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <p>Launch 中的 <code class="docutils literal notranslate"><span class="pre">process_name</span></code> 决定组件是否共进程，进而影响 INTRA/SHM/RTPS 路径和故障隔离。Planning 与其他模块共进程可减少传输成本，但一个未捕获异常可能扩大故障域。生产配置应把性能收益和独立重启需求一起评估。</p>
 <p>DAG 还把组件库、类名、配置文件和 Reader 参数绑定成部署契约。ClassLoader 能加载类型并不表示配置兼容；发布包必须让 <code class="docutils literal notranslate"><span class="pre">.so</span></code>、DAG 和 proto 配置来自一致版本。动态插件边界也要求注册宏、符号可见性和基类 ABI 匹配。</p>
 </section>
-<section id="id11">
-<h2><a class="toc-backref" href="#id35" role="doc-backlink">性能预算与数据结构</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<section id="id10">
+<h2><a class="toc-backref" href="#id34" role="doc-backlink">性能预算与数据结构</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
 <p>单周期成本可近似拆为：输入 protobuf 深复制、LocalView 构造、参考线更新、Scenario/Stage/Task 计算、轨迹序列化与发布。规划算法通常远大于 Dispatcher 查表成本，但大消息复制与调试字段也可能显著增加尾延迟。</p>
 <p>History 和 Frame 缓存必须有界，否则长时间运行会线性增长。轨迹点数量决定序列化成本，障碍物数量与候选路径/参考线数量又会放大算法复杂度。性能报告应同时给出障碍物规模、参考线数量、场景、debug 开关和 percentile，而不能只有平均 Proc 时间。</p>
 <p>CRoutine 是协作式任务；一个过长且不 yield 的 Planning Proc 会占住对应 Processor。增加调度线程不能自动解决同一组件的最坏执行时间，也可能带来更多缓存争用。</p>
-<section id="id12">
-<h3><a class="toc-backref" href="#id36" role="doc-backlink">一次周期的预算表</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<section id="id11">
+<h3><a class="toc-backref" href="#id35" role="doc-backlink">一次周期的预算表</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Tcycle = Tvisitor_fetch
        + Tsnapshot_copy
        + Tinput_validation
@@ -2411,60 +2433,61 @@ shutdown/control thread
 <p>LocalView 中 protobuf 深复制的成本近似字段总大小；不可变 shared pointer 快照可以减少复制，却会延长消息寿命。History 若保留 H 个 Frame，每帧障碍物/候选轨迹规模为 S，内存主项近似 <code class="docutils literal notranslate"><span class="pre">O(H×S)</span></code>，必须有固定淘汰策略。</p>
 </section>
 </section>
+<section id="id12">
+<h2><a class="toc-backref" href="#id36" role="doc-backlink">优秀设计与工程取舍</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<p>Apollo Planning 最值得学习的地方，是把“消息何时到达”与“算法怎样规划”隔开。Cyber Component 负责调度和通信，<code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 把本周期输入冻结成稳定视图，<code class="docutils literal notranslate"><span class="pre">PlanningBase</span></code> 再消费这个视图。算法因此不需要在每个 Task 中直接访问 Reader，也不会在一次计算中途突然换输入。</p>
+<p>模板主输入把关键调度契约放进 C++ 类型，错误更早暴露；普通 Reader 则允许低频状态独立更新，避免为了一个交通灯消息重新设计固定模板签名。代价是系统同时存在框架管理的输入和组件自行管理的共享状态，开发者必须自己维护锁、时间戳与关闭顺序。</p>
+<p>Scenario → Stage → Task 的层级让大型规划流程可以配置和替换，但也会把执行顺序分散到 proto、注册表和多个类。它适合算法团队并行开发的生产项目；对只有一种简单策略的小机器人，直接复制整套层级会增加不必要的动态分派和配置复杂度。</p>
+</section>
 <section id="id13">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">可复用实现模式</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
-<ol class="arabic simple">
-<li><p>将输入按“触发”与“状态”分类；</p></li>
-<li><p>用类型化主输入固定执行签名；</p></li>
-<li><p>辅助输入保存不可变快照并记录时间；</p></li>
-<li><p>Proc 开始时冻结本轮输入视图；</p></li>
-<li><p>算法层不直接依赖 Reader/Writer；</p></li>
-<li><p>输出统一在组件边界发布；</p></li>
-<li><p>用 Record 固化输入，用 sequence/timestamp 验证重放。</p></li>
-</ol>
+<h2><a class="toc-backref" href="#id37" role="doc-backlink">缺点与性能边界</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<p>大量 protobuf 深复制会增加延迟与内存带宽；多输入 latest 语义不能证明严格同步；动态 DAG、共享库与 proto 必须版本一致；Planning 算法的最坏执行时间仍会占住 CRoutine 所在 Processor。Cyber 提供隔离和调度边界，但不会自动使复杂算法满足实时上界。</p>
+<p>辅助 Reader 使用共享成员和互斥锁，新增状态时容易出现“字段已加入但未纳入同一快照”的错误。<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 能延长消息寿命，却不能保证消息时间一致；锁能排除 data race，也不能证明业务数据来自同一时刻。</p>
+<p>这套结构适合拥有多源感知、复杂场景状态机和离线 Record 回放需求的自动驾驶系统。它不适合资源很小、输入固定、只运行单一局部控制律的控制器；最内层制动与转向安全也不能只依赖普通 Planning 周期和 Cyber 调度。</p>
 </section>
 <section id="id14">
-<h2><a class="toc-backref" href="#id38" role="doc-backlink">从零搭建一个缩小版规划项目</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
-<p>可以先实现 <code class="docutils literal notranslate"><span class="pre">MiniPlanningComponent</span></code>，而不是直接复制 Apollo 全部 Planning：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>主输入：Prediction + Chassis + Localization
-辅助输入：PlanningCommand
-输出：MiniTrajectory + PlanningStatus
-算法：固定速度直线/安全停车两种策略
-</pre></div>
-</div>
-<p>开发顺序：</p>
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">可迁移的规划组件方法</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
-<li><p>定义 proto，并让输出携带 header、input sequence、status reason；</p></li>
-<li><p>创建 <code class="docutils literal notranslate"><span class="pre">Component&lt;A,B,C&gt;</span></code>，Proc 只检查输入并发布直线轨迹；</p></li>
-<li><p>在 Init 中创建辅助 Reader，锁内保存不可变 command 快照；</p></li>
-<li><p>Proc 开始冻结 LocalView，检查年龄和跨输入 skew；</p></li>
-<li><p>抽出 <code class="docutils literal notranslate"><span class="pre">MiniPlanningBase::RunOnce(LocalView,</span> <span class="pre">Output*)</span></code>，不依赖 Node；</p></li>
-<li><p>增加 Strategy：正常规划与安全停车；</p></li>
-<li><p>编写 DAG/config/launch，使 library、class、topic 完整闭环；</p></li>
-<li><p>录制输入 channel，用回放 Clock 验证相同 sequence 产生可比较输出。</p></li>
+<li><p>将输入按“触发事件”和“持续状态”分类，而不是把所有消息塞进一个 callback；</p></li>
+<li><p>用类型化主输入固定执行签名，辅助输入保存不可变快照并记录源时间；</p></li>
+<li><p>在周期入口一次性冻结输入视图，锁外运行耗时算法；</p></li>
+<li><p>让算法层只依赖 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 和输出值，不直接依赖 Reader、Writer 或 Node；</p></li>
+<li><p>缺失、过期和跨输入时间偏差都形成可发布的状态，而不是简单返回失败；</p></li>
+<li><p>部署文件、注册类名、配置 proto 与共享库作为同一个版本单元发布；</p></li>
+<li><p>用 Record 固化输入，并用 sequence、timestamp 和业务容差验证重放。</p></li>
 </ol>
-<p>这个缩小版已经覆盖 Cyber 组件开发最关键的能力：模板主输入、异步辅助状态、快照、算法隔离、Writer、部署装配、回放与关闭。Scenario/Stage/Task 应在这些边界稳定后再加入。</p>
-</section>
-<section id="record">
-<h2><a class="toc-backref" href="#id39" role="doc-backlink">Record 回放的可重复工作流</a><a class="headerlink" href="#record" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>采集：记录所有主输入、辅助输入、配置版本和代码 commit
-准备：固定 DAG/proto/flags，选择回放 Clock
-回放：按记录时间注入，记录每次 Proc 的 input sequence set
-比较：trajectory/status 按容差比较，不只比较字节
-诊断：区分输入差异、调度差异、随机性和算法变化
-</pre></div>
-</div>
-<p>规划输出常含时间戳、debug 顺序或浮点差异，不宜要求整条 protobuf 字节完全相同。应选择具有业务意义的字段和容差，同时确认每次 Proc 使用的 LocalView 输入集合一致。若输入集合不同，先修复触发/快照时序，再讨论算法确定性。</p>
 </section>
 <section id="id15">
-<h2><a class="toc-backref" href="#id40" role="doc-backlink">项目中的不足与约束</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
-<p>大量 protobuf 复制和共享状态会增加延迟；多输入 latest 语义不能证明严格同步；动态 DAG 与包版本必须一致；Planning 算法本身的 WCET 仍会占住 CRoutine 所在 Processor。Cyber 提供隔离边界，但不会自动使复杂规划算法满足实时上界。</p>
-</section>
-<section id="id16">
-<h2><a class="toc-backref" href="#id41" role="doc-backlink">自行实现相同模式的顺序</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
-<p>先建立只有一个触发输入和一个 Writer 的 Component；再添加一个 mutex 保护的辅助状态 Reader；随后引入 LocalView 快照和输入就绪检查；把算法抽成不依赖 Cyber 的 PlanningBase；再增加 Scenario/Stage/Task 配置流水线；最后才接 Client、history、record replay 和多进程部署。</p>
-<p>完成标准是：辅助 callback 不与算法形成数据竞争；一次 Proc 使用冻结输入；缺失/过期输入发布明确状态；算法可以用构造的 LocalView 单元测试；Record 重放能复现同一输入序列；关闭后 Reader callback 不再访问组件；DAG 切换进程边界不改变业务接口。</p>
-<p>还应证明：Task 读取/写入字段和配置顺序有文档；每周期数据年龄与处理耗时可观测；PlanningCommand/reroute 使用 request ID 而非单布尔状态；Writer/Reader 创建失败不会留下半初始化组件；mainboard 关闭返回时没有 Planning routine 或 callback 仍访问插件代码。</p>
+<h2><a class="toc-backref" href="#id39" role="doc-backlink">最小复刻：构建可回放的规划组件</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
+<p>不要直接复制 Apollo 全部 Planning。可以先实现如下工程：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mini_planning/
+├── proto/mini_planning.proto
+├── mini_planning_component.h/.cc
+├── mini_planning_base.h/.cc
+├── straight_strategy.cc
+├── safe_stop_strategy.cc
+├── conf/mini_planning.pb.txt
+├── dag/mini_planning.dag
+└── launch/mini_planning.launch
+
+主输入：Prediction + Chassis + Localization
+辅助输入：PlanningCommand
+输出：MiniTrajectory + PlanningStatus
+</pre></div>
+</div>
+<p>开发顺序如下：</p>
+<ol class="arabic simple">
+<li><p>定义 proto，让输出携带 header、输入 sequence 集合和 status reason；</p></li>
+<li><p>创建 <code class="docutils literal notranslate"><span class="pre">Component&lt;A,</span> <span class="pre">B,</span> <span class="pre">C&gt;</span></code>，<code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 只检查输入并发布固定速度直线轨迹；</p></li>
+<li><p>在 <code class="docutils literal notranslate"><span class="pre">Init()</span></code> 中创建辅助 Reader，锁内复制 command，关闭时先停止 callback ingress；</p></li>
+<li><p>引入 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code>，在锁内冻结状态，在锁外检查年龄和跨输入 skew；</p></li>
+<li><p>抽出 <code class="docutils literal notranslate"><span class="pre">MiniPlanningBase::RunOnce(const</span> <span class="pre">LocalView&amp;,</span> <span class="pre">Output*)</span></code>，确保算法不依赖 Cyber Node；</p></li>
+<li><p>加入正常直线与安全停车两种 Strategy，所有失败出口都产生可解释输出；</p></li>
+<li><p>编写 DAG、config 与 launch，让 library、class、topic 和 proto 形成闭环；</p></li>
+<li><p>最后录制输入 channel，使用确定的回放 Clock 比较相同输入集合下的业务输出。</p></li>
+</ol>
+<p>Record 验证不应要求整条 protobuf 字节完全一致，因为时间戳、debug 顺序和浮点末位可能变化。应先确认每次 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 使用相同的 input sequence set，再按轨迹点位置、速度、状态码等字段设置业务容差。输入集合不同属于调度或快照问题，不能归因于算法随机性。</p>
+<p>完成标准是：辅助 callback 与算法没有数据竞争；一次 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 只使用冻结视图；过期输入发布明确原因；算法可以用手工构造的 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 测试；Reader/Writer 创建失败不会留下半初始化组件；关闭后没有 callback 或 CRoutine 继续访问已卸载插件；切换 DAG 进程边界不改变业务接口。</p>
 </section>
 </section>
 

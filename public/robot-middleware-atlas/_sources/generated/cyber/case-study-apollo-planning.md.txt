@@ -8,9 +8,24 @@
 
 Apollo Planning 不是为了展示 Cyber API 而写的样例，而是 Cyber RT 的核心生产级使用者。它把 Prediction、Chassis、Localization 等高频输入组织为一次规划触发，把 Routing、Traffic Light、Pad、Story 等异步输入维护为辅助状态，最后发布 ADCTrajectory。
 
+从驾驶任务看，Planning 回答的是一个不断重复的问题：车辆已经知道自己在哪里、周围有哪些交通参与者、底盘当前是什么状态，那么未来几秒应该沿着怎样的轨迹运动。它不直接转动方向盘，也不负责识别障碍物；它把上游感知和定位结果整理成带时间、速度、加速度与路径点的轨迹，再交给 Control 执行。
+
+一次最小规划周期可以先记成下面这条主线：
+
+```text
+Prediction 新数据到达
+  -> Cyber 收集 Chassis 与 Localization 的最新匹配输入
+  -> PlanningComponent 冻结本周期辅助状态
+  -> Planning 算法检查输入、建立 Frame、运行 Scenario/Task
+  -> 生成 ADCTrajectory
+  -> Writer 发布给 Control 和监控模块
+```
+
+本文会沿这条主线从部署文件进入组件，再进入算法。这样 DAG、模板参数、Reader、互斥锁和 `LocalView` 都有明确位置，而不是一组互不相干的 Cyber RT 名词。
+
 项目入口固定到 Apollo 提交 `d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`：先读 [Planning Component 官方说明](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/docs/08_Planning/planning_component.md)，再进入 [`planning_component.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/modules/planning/planning_component/planning_component.cc) 与同目录头文件、DAG。固定版本后，配置中的 Reader、源码字段和本文调用链才属于同一个事实集合。
 
-## 功能需求先决定通信形状
+## 功能需求与通信形状
 
 规划模块需要同时满足：
 
@@ -22,13 +37,17 @@ Apollo Planning 不是为了展示 Cyber API 而写的样例，而是 Cyber RT �
 
 因此它没有把所有 channel 都放进一个任意多输入 callback，而是区分触发输入和状态型 Reader。这一功能划分先于代码结构。
 
-## 先区分版本稳定结构与会变化的消息集合
+这里的“触发输入”会推动一次新的 `Proc()` 执行；“状态输入”只是更新组件保存的最新值，等待下一次规划使用。例如新的 Prediction 通常意味着环境已经变化，应尽快重新规划；Routing 则可能几十秒都不变，没有必要每次收到同一路线时单独运行完整规划。
+
+## 版本稳定结构与可变消息集合
 
 Apollo master 上的辅助输入会随规划架构演进。当前 `PlanningComponent::Init()` 可见 `PlanningCommand`、控制交互消息以及导航模式下的 `MapMsg` 等 Reader；较早文档会列出 RoutingResponse、TrafficLightDetection、PadMessage 和 Stories。阅读时应把“辅助状态通过显式 Reader 进入组件”视为稳定模式，把具体 topic 清单视为版本事实。
 
 这也是源码分析必须固定 commit 的原因。DAG、配置 proto 和 C++ 代码若来自不同版本，Reader 名称、配置字段和算法入口可能无法互相对应。
 
 ## 组件对象图
+
+先给几个核心对象一个直观定义：`Component` 是被 mainboard 装载的业务组件；`Reader` 持续接收某个 channel；`Writer` 向 channel 发布消息；`DAG` 描述组件库、类名、实例和输入配置；`CRoutine` 是由 Cyber 调度器运行的协作式任务。它们分别对应业务对象、输入、输出、部署图和执行体。
 
 ```text
 PlanningComponent : Component<PredictionObstacles, Chassis, LocalizationEstimate>
@@ -93,9 +112,9 @@ C++ Init
 
 这张表也是发布包升级检查单。只替换 `.so` 而沿用旧 DAG/proto，可能仍能装载，却在输入数量、topic 或配置字段上产生隐蔽不兼容。
 
-## `Init()` 如何把配置变成运行时对象
+## `Init()`：从配置到运行时对象
 
-官方源码的结构可以精简为：
+下面是根据固定提交压缩出的**源码结构摘录**。它保留对象关系和关键调用，但省略了其他 Reader、错误处理与监控代码，不能当作可直接替换原文件的完整实现：
 
 ```cpp
 bool PlanningComponent::Init() {
@@ -129,6 +148,17 @@ bool PlanningComponent::Init() {
 
 lambda 捕获 `[this]` 要求 Reader 在 PlanningComponent 析构前停止回调。若框架关闭顺序反过来，mutex 和成员都会成为悬空访问；因此 Reader 实体寿命必须被组件/Node 管理并在组件析构前撤销。
 
+逐句理解这段 C++：
+
+1. `std::make_shared<DependencyInjector>()` 在堆上创建对象，并返回共享所有权指针；最后一个 `shared_ptr` 离开作用域时对象才销毁；
+2. `std::make_unique<OnLanePlanning>` 表示具体 planner 只有组件拥有，不能被意外复制给另一个 owner；
+3. `CreateReader<PlanningCommand>` 的尖括号是模板实参，编译器由此生成只接收 `PlanningCommand` 的类型化 Reader；
+4. lambda 参数使用 `const std::shared_ptr<...>&`，表示 callback 借用框架传来的智能指针，不修改指针本身；消息对象也被视为只读；
+5. `[this]` 让 lambda 能访问 `mutex_` 和 `planning_command_`，但不会延长组件寿命，所以关闭顺序仍由框架保证；
+6. `std::lock_guard<std::mutex>` 在构造时加锁、离开花括号时自动解锁，即使 `CopyFrom` 抛出异常也不会忘记释放锁。
+
+`shared_ptr` 不等于“所有对象都应该共享”。Injector 会被多个规划内部对象共同引用，适合共享所有权；具体 `PlanningBase` 只有一个明确 owner，使用 `unique_ptr` 更能表达设计意图。智能指针首先是所有权说明，其次才是自动释放工具。
+
 ### Init 是资源事务而不是字段赋值集合
 
 实际初始化至少包含依赖容器、具体 PlanningBase、配置、多个 Reader、Writer 和算法内部资源。更稳妥的自研组件使用局部候选对象，全部成功后再提交到成员：
@@ -159,7 +189,7 @@ bool PlanningComponent::Init() {
 
 局部 `unique_ptr/shared_ptr` 在失败返回时自动回收，最后一段 move 是提交点。仍需注意 callback 在 Reader 创建后是否可能立刻触发：如果 lambda 捕获的 `this` 依赖尚未提交的成员，就必须先让组件进入明确 Initializing 状态，或把 callback state 独立构造后再注册。
 
-## `Proc()` 开始处应冻结一次 LocalView
+## `Proc()`：冻结一次规划输入视图
 
 一次规划不能在算法执行一半时突然换成新 PlanningCommand。源码通过锁保护共享辅助输入，再组成 `local_view_`。其等价思路是：
 
@@ -187,6 +217,8 @@ bool PlanningComponent::Proc(
 锁区只复制快照，不在锁内运行规划算法。若持锁执行 `RunOnce()`，新的辅助消息可能等待几十毫秒甚至更久，下一周期拿到更陈旧的数据。局部视图还使一次规划内部的输入集合保持一致。
 
 这里仍不是严格时间同步：三个模板输入和辅助快照可能来自不同时间。组件必须检查 header timestamp、序列和业务超时，不能把“同时放入 LocalView”误解为“同一物理时刻采样”。
+
+`Proc()` 参数中的三个 `shared_ptr` 由 Cyber 框架持有，当前函数只是共享只读消息，不应把它们转换成可修改指针。辅助状态不同：callback 后仍会继续改写组件成员，所以代码在锁内复制出本周期私有对象。两类输入看起来都放进 `LocalView`，背后的寿命策略却不同。
 
 ### LocalView 需要携带可验证的时间契约
 
@@ -239,7 +271,7 @@ History、PlanningContext 和 Injector 中的服务也可能跨周期可变。�
 
 源码选择 `CopyFrom + mutex` 的优点是行为直观，protobuf 对象地址稳定；缺点是 callback 和 Proc 快照都可能发生深复制。不可变 `shared_ptr` 交换可以减少复制，却会把外部消息对象的寿命延长，并需要明确原子 shared pointer 或 mutex 语义。两种方案没有脱离 payload 大小与更新频率的绝对优劣。
 
-## 为什么多输入不是严格同步
+## 多输入 latest 语义与非严格同步
 
 DataVisitor 的 AllLatest 更接近“主输入到达时取其他输入最新值”。这适合规划低延迟，但可能组合不同时间的 Chassis 与 Localization。Planning 必须依赖 header timestamp、状态估计和超时检查判断数据是否仍可用。
 
@@ -266,7 +298,7 @@ PlanningComponent::Proc
 
 Task 顺序不是普通容器细节。前一个 Task 产生的 path boundary、reference line 或 speed decision 可能是后一个 Task 的输入；改变配置顺序等于改变算法数据依赖。要扩展新 Task，必须说明它读取和写入 Frame/ReferenceLineInfo 的哪些字段。
 
-## 增加一个 Planning Task 的工程步骤
+## Planning Task 的扩展流程
 
 新 Task 不应从“复制现有类并改算法”开始，而应先定义数据契约：
 
@@ -299,7 +331,7 @@ class SpeedGuardTask final : public Task {
 
 测试时先构造最小 Frame/ReferenceLineInfo 验证纯 Task，再把 Task 放进单 Stage，最后才通过完整 PlanningComponent 和 Record 验证。这样失败能定位到算法、流水线配置或 Cyber 接入中的某一层。
 
-## 输入未就绪也要发布可解释输出
+## 输入未就绪时的可解释输出
 
 官方 `CheckInput()` 会检查 localization、chassis、地图以及规划命令等条件。未就绪时，它不是静默跳过，而是构造带 `not_ready.reason` 的轨迹消息，填充 header 并发布，然后终止本周期。
 
@@ -343,60 +375,63 @@ Tcycle = Tvisitor_fetch
 
 LocalView 中 protobuf 深复制的成本近似字段总大小；不可变 shared pointer 快照可以减少复制，却会延长消息寿命。History 若保留 H 个 Frame，每帧障碍物/候选轨迹规模为 S，内存主项近似 `O(H×S)`，必须有固定淘汰策略。
 
-## 可复用实现模式
+## 优秀设计与工程取舍
 
-1. 将输入按“触发”与“状态”分类；
-2. 用类型化主输入固定执行签名；
-3. 辅助输入保存不可变快照并记录时间；
-4. Proc 开始时冻结本轮输入视图；
-5. 算法层不直接依赖 Reader/Writer；
-6. 输出统一在组件边界发布；
-7. 用 Record 固化输入，用 sequence/timestamp 验证重放。
+Apollo Planning 最值得学习的地方，是把“消息何时到达”与“算法怎样规划”隔开。Cyber Component 负责调度和通信，`LocalView` 把本周期输入冻结成稳定视图，`PlanningBase` 再消费这个视图。算法因此不需要在每个 Task 中直接访问 Reader，也不会在一次计算中途突然换输入。
 
-## 从零搭建一个缩小版规划项目
+模板主输入把关键调度契约放进 C++ 类型，错误更早暴露；普通 Reader 则允许低频状态独立更新，避免为了一个交通灯消息重新设计固定模板签名。代价是系统同时存在框架管理的输入和组件自行管理的共享状态，开发者必须自己维护锁、时间戳与关闭顺序。
 
-可以先实现 `MiniPlanningComponent`，而不是直接复制 Apollo 全部 Planning：
+Scenario → Stage → Task 的层级让大型规划流程可以配置和替换，但也会把执行顺序分散到 proto、注册表和多个类。它适合算法团队并行开发的生产项目；对只有一种简单策略的小机器人，直接复制整套层级会增加不必要的动态分派和配置复杂度。
+
+## 缺点与性能边界
+
+大量 protobuf 深复制会增加延迟与内存带宽；多输入 latest 语义不能证明严格同步；动态 DAG、共享库与 proto 必须版本一致；Planning 算法的最坏执行时间仍会占住 CRoutine 所在 Processor。Cyber 提供隔离和调度边界，但不会自动使复杂算法满足实时上界。
+
+辅助 Reader 使用共享成员和互斥锁，新增状态时容易出现“字段已加入但未纳入同一快照”的错误。`shared_ptr` 能延长消息寿命，却不能保证消息时间一致；锁能排除 data race，也不能证明业务数据来自同一时刻。
+
+这套结构适合拥有多源感知、复杂场景状态机和离线 Record 回放需求的自动驾驶系统。它不适合资源很小、输入固定、只运行单一局部控制律的控制器；最内层制动与转向安全也不能只依赖普通 Planning 周期和 Cyber 调度。
+
+## 可迁移的规划组件方法
+
+1. 将输入按“触发事件”和“持续状态”分类，而不是把所有消息塞进一个 callback；
+2. 用类型化主输入固定执行签名，辅助输入保存不可变快照并记录源时间；
+3. 在周期入口一次性冻结输入视图，锁外运行耗时算法；
+4. 让算法层只依赖 `LocalView` 和输出值，不直接依赖 Reader、Writer 或 Node；
+5. 缺失、过期和跨输入时间偏差都形成可发布的状态，而不是简单返回失败；
+6. 部署文件、注册类名、配置 proto 与共享库作为同一个版本单元发布；
+7. 用 Record 固化输入，并用 sequence、timestamp 和业务容差验证重放。
+
+## 最小复刻：构建可回放的规划组件
+
+不要直接复制 Apollo 全部 Planning。可以先实现如下工程：
 
 ```text
+mini_planning/
+├── proto/mini_planning.proto
+├── mini_planning_component.h/.cc
+├── mini_planning_base.h/.cc
+├── straight_strategy.cc
+├── safe_stop_strategy.cc
+├── conf/mini_planning.pb.txt
+├── dag/mini_planning.dag
+└── launch/mini_planning.launch
+
 主输入：Prediction + Chassis + Localization
 辅助输入：PlanningCommand
 输出：MiniTrajectory + PlanningStatus
-算法：固定速度直线/安全停车两种策略
 ```
 
-开发顺序：
+开发顺序如下：
 
-1. 定义 proto，并让输出携带 header、input sequence、status reason；
-2. 创建 `Component<A,B,C>`，Proc 只检查输入并发布直线轨迹；
-3. 在 Init 中创建辅助 Reader，锁内保存不可变 command 快照；
-4. Proc 开始冻结 LocalView，检查年龄和跨输入 skew；
-5. 抽出 `MiniPlanningBase::RunOnce(LocalView, Output*)`，不依赖 Node；
-6. 增加 Strategy：正常规划与安全停车；
-7. 编写 DAG/config/launch，使 library、class、topic 完整闭环；
-8. 录制输入 channel，用回放 Clock 验证相同 sequence 产生可比较输出。
+1. 定义 proto，让输出携带 header、输入 sequence 集合和 status reason；
+2. 创建 `Component<A, B, C>`，`Proc()` 只检查输入并发布固定速度直线轨迹；
+3. 在 `Init()` 中创建辅助 Reader，锁内复制 command，关闭时先停止 callback ingress；
+4. 引入 `LocalView`，在锁内冻结状态，在锁外检查年龄和跨输入 skew；
+5. 抽出 `MiniPlanningBase::RunOnce(const LocalView&, Output*)`，确保算法不依赖 Cyber Node；
+6. 加入正常直线与安全停车两种 Strategy，所有失败出口都产生可解释输出；
+7. 编写 DAG、config 与 launch，让 library、class、topic 和 proto 形成闭环；
+8. 最后录制输入 channel，使用确定的回放 Clock 比较相同输入集合下的业务输出。
 
-这个缩小版已经覆盖 Cyber 组件开发最关键的能力：模板主输入、异步辅助状态、快照、算法隔离、Writer、部署装配、回放与关闭。Scenario/Stage/Task 应在这些边界稳定后再加入。
+Record 验证不应要求整条 protobuf 字节完全一致，因为时间戳、debug 顺序和浮点末位可能变化。应先确认每次 `Proc()` 使用相同的 input sequence set，再按轨迹点位置、速度、状态码等字段设置业务容差。输入集合不同属于调度或快照问题，不能归因于算法随机性。
 
-## Record 回放的可重复工作流
-
-```text
-采集：记录所有主输入、辅助输入、配置版本和代码 commit
-准备：固定 DAG/proto/flags，选择回放 Clock
-回放：按记录时间注入，记录每次 Proc 的 input sequence set
-比较：trajectory/status 按容差比较，不只比较字节
-诊断：区分输入差异、调度差异、随机性和算法变化
-```
-
-规划输出常含时间戳、debug 顺序或浮点差异，不宜要求整条 protobuf 字节完全相同。应选择具有业务意义的字段和容差，同时确认每次 Proc 使用的 LocalView 输入集合一致。若输入集合不同，先修复触发/快照时序，再讨论算法确定性。
-
-## 项目中的不足与约束
-
-大量 protobuf 复制和共享状态会增加延迟；多输入 latest 语义不能证明严格同步；动态 DAG 与包版本必须一致；Planning 算法本身的 WCET 仍会占住 CRoutine 所在 Processor。Cyber 提供隔离边界，但不会自动使复杂规划算法满足实时上界。
-
-## 自行实现相同模式的顺序
-
-先建立只有一个触发输入和一个 Writer 的 Component；再添加一个 mutex 保护的辅助状态 Reader；随后引入 LocalView 快照和输入就绪检查；把算法抽成不依赖 Cyber 的 PlanningBase；再增加 Scenario/Stage/Task 配置流水线；最后才接 Client、history、record replay 和多进程部署。
-
-完成标准是：辅助 callback 不与算法形成数据竞争；一次 Proc 使用冻结输入；缺失/过期输入发布明确状态；算法可以用构造的 LocalView 单元测试；Record 重放能复现同一输入序列；关闭后 Reader callback 不再访问组件；DAG 切换进程边界不改变业务接口。
-
-还应证明：Task 读取/写入字段和配置顺序有文档；每周期数据年龄与处理耗时可观测；PlanningCommand/reroute 使用 request ID 而非单布尔状态；Writer/Reader 创建失败不会留下半初始化组件；mainboard 关闭返回时没有 Planning routine 或 callback 仍访问插件代码。
+完成标准是：辅助 callback 与算法没有数据竞争；一次 `Proc()` 只使用冻结视图；过期输入发布明确原因；算法可以用手工构造的 `LocalView` 测试；Reader/Writer 创建失败不会留下半初始化组件；关闭后没有 callback 或 CRoutine 继续访问已卸载插件；切换 DAG 进程边界不改变业务接口。
