@@ -1590,12 +1590,13 @@
 <li class="toctree-l6"><a class="reference internal" href="#id9">容量与时延预算</a></li>
 </ul>
 </li>
+<li class="toctree-l5"><a class="reference internal" href="#id10">缺点与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id11">可迁移的语义适配方法</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#ros-2">在真实 ROS 2 工作空间中接入</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id10">一个可观察的最小开发任务</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id12">一个可观察的最小开发任务</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id11">扩展或复刻的实施顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id12">可迁移能力</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#c-abi-topic">最小复刻：从 C ABI 建立可等待的 topic 闭环</a></li>
 </ul>
 </li>
 </ul>
@@ -2066,13 +2067,14 @@
 <li><p><a class="reference internal" href="#id9" id="id37">容量与时延预算</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#ros-2" id="id38">在真实 ROS 2 工作空间中接入</a></p>
+<li><p><a class="reference internal" href="#id10" id="id38">缺点与不适用边界</a></p></li>
+<li><p><a class="reference internal" href="#id11" id="id39">可迁移的语义适配方法</a></p></li>
+<li><p><a class="reference internal" href="#ros-2" id="id40">在真实 ROS 2 工作空间中接入</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id10" id="id39">一个可观察的最小开发任务</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id41">一个可观察的最小开发任务</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id11" id="id40">扩展或复刻的实施顺序</a></p></li>
-<li><p><a class="reference internal" href="#id12" id="id41">可迁移能力</a></p></li>
+<li><p><a class="reference internal" href="#c-abi-topic" id="id42">最小复刻：从 C ABI 建立可等待的 topic 闭环</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://github.com/ros2/rmw_zenoh"><code class="docutils literal notranslate"><span class="pre">ros2/rmw_zenoh</span></code></a> 是 ROS 2 的 Zenoh RMW 实现，使用 zenoh-cpp 把 ROS Node、Publisher、Subscription、Service 和 Client 映射到 Session、Pub/Sub、Queryable 与 Query。它展示了怎样在不改变上层 ROS API 的前提下替换通信语义。</p>
@@ -2515,8 +2517,22 @@ remove(id):        存在则删除全部索引；不存在则记诊断并无动�
 <p>其中 <code class="docutils literal notranslate"><span class="pre">T_queue_wait</span></code> 与 <code class="docutils literal notranslate"><span class="pre">T_executor_wait</span></code> 通常最容易被平均值掩盖。评估时至少记录 p50/p99、队列最老消息年龄、覆盖数、WaitSet 唤醒到 take 的时间，而不能只报吞吐。共享内存主要削减 payload copy 与 allocation，并不会消除 Executor 排队。</p>
 </section>
 </section>
+<section id="id10">
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">缺点与不适用边界</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">rmw_zenoh</span></code> 的价值是保留 ROS 2 上层接口，同时使用 Zenoh 的数据空间、查询和 liveliness 原语；这不意味着两套语义天然等价。适配层越完整，自己维护的状态就越多：Subscription history、Service pending query、Client in-flight、GraphCache、QoS 兼容结果和 WaitSet generation 都可能成为新的竞态或容量热点。</p>
+<p>Router-centric 默认部署减少了 multicast 依赖，却让 Router 的启动、配置和恢复成为系统可用性的一部分。Session 共享减少连接数量，但 Context 级故障会同时影响多个 Node 和实体。共享内存能够减少大 payload 复制，却需要池容量、loan 生命周期和普通路径回退，不能被当成无条件零复制。</p>
+<p>它也不适合用来掩盖应用层实时性问题。ROS Executor 仍决定用户 callback 何时运行；<code class="docutils literal notranslate"><span class="pre">KEEP_LAST</span></code> 仍可能交付已经陈旧的数据；底层可靠路径也不能证明控制命令在 deadline 内被业务线程处理。安全控制需要额外的序列号、数据年龄、超时、安全状态和端到端确认。</p>
+<p>最后，rolling 的设计状态不能代表所有 ROS 发行版。若系统依赖特定 QoS、事件或 SHM 行为，应固定 ROS 发行版、<code class="docutils literal notranslate"><span class="pre">rmw_zenoh</span></code> commit、zenoh-cpp feature 集与 Router 配置，并用该组合的上层 RMW 行为测试验证，而不是只证明两个 Zenoh endpoint 能互通。</p>
+</section>
+<section id="id11">
+<h2><a class="toc-backref" href="#id39" role="doc-backlink">可迁移的语义适配方法</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<p>这个项目最值得迁移的是“语义适配表”。先逐项写出上层可观察保证，再判断底层原语属于直接提供、组合实现、近似实现还是不支持；随后为组合项明确附加状态、完成条件和销毁顺序。</p>
+<p>第二个方法是把异步 transport 与上层执行器隔开。接收 callback 只验证、取得数据所有权并更新 ready generation，真正的用户 callback 仍由 Executor 线程运行。这个边界同样适用于把设备中断、网络库或共享内存队列接入自研调度器。</p>
+<p>第三个方法是让 C ABI 成为明确的提交边界：C++ RAII 对象先完整构造，最后才把 opaque pointer 提交给 C handle；销毁时先阻止新入口和 callback，再逆序撤销外部实体，最后用原 allocator 释放 handle。不要让异常、临时字符串或半构造对象跨过 ABI。</p>
+<p>第四个方法是把“只完成一次”建模为状态机。Service reply 与关闭、Client reply 与 timeout、WaitSet attach 与数据到达都不是普通函数调用顺序，而是多个执行上下文竞争同一个完成权。共享指针只能延长寿命，不能替代状态转换。</p>
+</section>
 <section id="ros-2">
-<h2><a class="toc-backref" href="#id38" role="doc-backlink">在真实 ROS 2 工作空间中接入</a><a class="headerlink" href="#ros-2" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id40" role="doc-backlink">在真实 ROS 2 工作空间中接入</a><a class="headerlink" href="#ros-2" title="Link to this heading"></a></h2>
 <p>这不是单独运行 Zenoh pub/sub 示例，而是让真实 ROS 2 节点经过 RMW。部署时先固定 ROS 发行版与对应 <code class="docutils literal notranslate"><span class="pre">rmw_zenoh</span></code> 分支，再使用该分支随附的 Router 和 JSON5 配置；不要混用 rolling 的二进制、旧发行版的配置与另一版本的 zenoh-cpp。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>终端 A：启动该发行版提供的 rmw_zenoh router
 终端 B：设置 RMW_IMPLEMENTATION=rmw_zenoh_cpp，运行 talker
@@ -2532,14 +2548,92 @@ remove(id):        存在则删除全部索引；不存在则记诊断并无动�
 <li><p><strong>执行层</strong>：Zenoh callback 只负责入队，用户 callback 是否始终由 ROS Executor 线程执行；队列积压时哪项 QoS 生效。</p></li>
 </ol>
 <p>接入自己的包时，先用默认配置完成单机 volatile topic，再逐项开启可靠性、transient local、服务和 SHM。一次同时改变 RMW、Router、QoS 和网络配置，会让语义错误与部署错误无法区分。配置文件属于运行时接口：应随应用版本化，并记录 Router mode、listen/connect endpoint、scouting、队列和 SHM 参数。</p>
-<section id="id10">
-<h3><a class="toc-backref" href="#id39" role="doc-backlink">一个可观察的最小开发任务</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<section id="id12">
+<h3><a class="toc-backref" href="#id41" role="doc-backlink">一个可观察的最小开发任务</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
 <p>最小案例可由三个节点组成：传感器节点以固定频率发布带递增序号的大消息；处理节点使用有限 <code class="docutils literal notranslate"><span class="pre">KEEP_LAST</span></code> 队列并暴露“查询最后序号”的 Service；监控节点订阅 graph 与统计 topic。然后依次制造慢消费者、晚加入订阅者、Service 超时、Router 重启和 SHM 池不足。</p>
 <p>实现目标不是做故障演示，而是把每个现象对应回内部对象：慢消费者对应 <code class="docutils literal notranslate"><span class="pre">SubscriptionData</span></code> history；晚加入对应 advanced history query；Service 超时对应 ClientData in-flight 状态；Router 重启对应 Session 与 GraphCache 收敛；SHM 不足对应 buffer acquisition 的普通路径回退。完成这一映射后，使用者才真正知道配置改变了哪段源码行为。</p>
 </section>
 </section>
-<section id="id11">
-<h2><a class="toc-backref" href="#id40" role="doc-backlink">扩展或复刻的实施顺序</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<section id="c-abi-topic">
+<h2><a class="toc-backref" href="#id42" role="doc-backlink">最小复刻：从 C ABI 建立可等待的 topic 闭环</a><a class="headerlink" href="#c-abi-topic" title="Link to this heading"></a></h2>
+<p>不要从全部 RMW 函数开始。第一版只实现 Context、serialized Publisher、serialized Subscription、单实体 WaitSet 和对称销毁，让一条消息能够从 C ABI 进入 Zenoh，再回到 <code class="docutils literal notranslate"><span class="pre">rmw_take_serialized_message()</span></code> 风格的出口。</p>
+<p>一个便于保持依赖方向的文件树可以是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mini_rmw_zenoh/
+  include/mini_rmw/
+    context.hpp          Session 与关闭屏障
+    key_codec.hpp        ROS 名称和类型映射
+    attachment.hpp       sequence / timestamp / GID 编解码
+    message.hpp          拥有型 CDR 消息
+    subscription.hpp     history、generation 与 take
+    wait_set.hpp         attach、ready 与 shutdown
+    publisher.hpp        sequence 与 put
+  src/
+    c_api_init.cpp       C handle 校验和异常边界
+    c_api_publisher.cpp
+    c_api_subscription.cpp
+    c_api_wait.cpp
+  tests/
+    topic_lifecycle.cpp
+    wait_race.cpp
+    shutdown_race.cpp
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">context.hpp</span></code> 不应该反向依赖 C handle。内部核心先使用普通 C++ 类型表达所有权，最外层文件再负责类型擦除：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">ContextData</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ZenohSession</span><span class="o">&gt;</span><span class="w"> </span><span class="n">session</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">lifecycle_mutex</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">closing</span><span class="p">{</span><span class="nb">false</span><span class="p">};</span>
+<span class="p">};</span>
+
+<span class="k">struct</span><span class="w"> </span><span class="nc">OwnedMessage</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">byte</span><span class="o">&gt;</span><span class="w"> </span><span class="n">cdr</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">int64_t</span><span class="w"> </span><span class="n">sequence</span><span class="p">{};</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">int64_t</span><span class="w"> </span><span class="n">source_time_ns</span><span class="p">{};</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="kt">uint8_t</span><span class="p">,</span><span class="w"> </span><span class="mi">16</span><span class="o">&gt;</span><span class="w"> </span><span class="n">publisher_gid</span><span class="p">{};</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">chrono</span><span class="o">::</span><span class="n">steady_clock</span><span class="o">::</span><span class="n">time_point</span><span class="w"> </span><span class="n">received_at</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">std::vector&lt;std::byte&gt;</span></code> 表示队列元素拥有 CDR 存储，Zenoh callback 返回后仍可安全 take。<code class="docutils literal notranslate"><span class="pre">system_clock</span></code> 可能因时间校准跳变，不能用来计算本地排队时长；因此 wire source time 与本机 <code class="docutils literal notranslate"><span class="pre">steady_clock</span></code> 接收时刻必须分字段保存。</p>
+<p>Subscription 的最小状态要把队列、关闭标志和 wait generation 放在同一同步边界：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SubscriptionData</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">Enqueue</span><span class="p">(</span><span class="n">OwnedMessage</span><span class="w"> </span><span class="n">message</span><span class="p">);</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">optional</span><span class="o">&lt;</span><span class="n">OwnedMessage</span><span class="o">&gt;</span><span class="w"> </span><span class="n">Take</span><span class="p">();</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="nf">AttachIfNotReady</span><span class="p">(</span><span class="n">WaitSetState</span><span class="o">&amp;</span><span class="w"> </span><span class="n">wait</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">generation</span><span class="p">);</span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="nf">Close</span><span class="p">();</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mutex_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">deque</span><span class="o">&lt;</span><span class="n">OwnedMessage</span><span class="o">&gt;</span><span class="w"> </span><span class="n">queue_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">size_t</span><span class="w"> </span><span class="n">depth_</span><span class="p">{</span><span class="mi">10</span><span class="p">};</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">generation_</span><span class="p">{</span><span class="mi">0</span><span class="p">};</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">closing_</span><span class="p">{</span><span class="nb">false</span><span class="p">};</span>
+<span class="w">  </span><span class="n">WaitSetState</span><span class="o">*</span><span class="w"> </span><span class="n">waiter_</span><span class="p">{</span><span class="k">nullptr</span><span class="p">};</span><span class="w">  </span><span class="c1">// 非拥有，只在注册协议约束期内有效</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>这里故意没有让 <code class="docutils literal notranslate"><span class="pre">WaitSetState*</span></code> 变成 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code>。WaitSet 与实体之间是一次等待期间的临时注册关系，不应因为 subscription 保存强引用就延长整个 Executor 的寿命。裸指针只是表达非拥有关系，安全性来自 attach/detach 协议：实体锁内注册，状态变化后取走指针，锁外触发；WaitSet 销毁前必须从所有实体解绑。</p>
+<p>C ABI handle 只在内部对象完整构造后获得所有权：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="n">rmw_subscription_t</span><span class="o">*</span><span class="w"> </span><span class="n">mini_create_subscription</span><span class="p">(</span><span class="cm">/* ... */</span><span class="p">)</span><span class="w"> </span><span class="k">noexcept</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">SubscriptionData</span><span class="o">&gt;</span><span class="p">(</span><span class="cm">/* ... */</span><span class="p">);</span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">AllocateSubscriptionWithRmwAllocator</span><span class="p">();</span>
+<span class="w">    </span><span class="n">handle</span><span class="o">-&gt;</span><span class="n">implementation_identifier</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kMiniIdentifier</span><span class="p">;</span>
+<span class="w">    </span><span class="n">handle</span><span class="o">-&gt;</span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">.</span><span class="n">release</span><span class="p">();</span><span class="w">  </span><span class="c1">// 最后一步才提交</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">handle</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">bad_alloc</span><span class="o">&amp;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">SetError</span><span class="p">(</span><span class="s">&quot;allocation failed&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">exception</span><span class="o">&amp;</span><span class="w"> </span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">SetError</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">what</span><span class="p">());</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(...)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">SetError</span><span class="p">(</span><span class="s">&quot;unknown C++ exception&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">noexcept</span></code> 与 catch-all 共同保护 ABI：异常不能穿过 C 调用者。<code class="docutils literal notranslate"><span class="pre">unique_ptr</span></code> 在提交前负责失败回滚；<code class="docutils literal notranslate"><span class="pre">release()</span></code> 之后，destroy 函数必须恢复相同真实类型，并使用创建 handle 时的 allocator 对称释放。生产实现还要避免直接保存 <code class="docutils literal notranslate"><span class="pre">e.what()</span></code> 的临时地址，而应复制进 RMW/rcutils 规定的错误存储。</p>
 <p>先实现单 Context/Session 与最简单 volatile topic；再加入 CDR、key 规范化和 attachment；随后建立 Subscription 队列与 rmw_wait；再实现 graph token/cache；之后做 Service 的 pending Query 生命周期；最后才逐项映射 QoS、事件和共享内存。</p>
 <p>更具体的代码增量应保持每一步都能被上层调用：</p>
 <ol class="arabic simple">
@@ -2553,10 +2647,6 @@ remove(id):        存在则删除全部索引；不存在则记诊断并无动�
 </ol>
 <p>每新增一种实体，都要同时回答五个问题：谁拥有它；回调在哪个线程进入；哪个锁保护状态；销毁怎样阻止新工作并等待旧工作；失败到第几步需要撤销哪些资源。答不出其中任意一项，就还没有完成工业级生命周期设计。</p>
 <p>每一步都要运行上层 RMW conformance 行为，而不是只运行 Zenoh pub/sub 示例。最低完成标准包括：错误 implementation identifier 被拒绝；销毁后 callback 不再入队；相同 topic 不同 type hash 不匹配；wait 能被数据与 shutdown 唤醒；请求超时和回复只完成一次；QoS 不支持项被明确报告；SHM 失败能退化到普通路径。</p>
-</section>
-<section id="id12">
-<h2><a class="toc-backref" href="#id41" role="doc-backlink">可迁移能力</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
-<p>这个项目最值得学习的是“语义适配表”：先列出上层每项保证，再判断底层原语能直接提供、需要组合，还是只能近似。中间件适配不是 API 名字翻译，而是生命周期、完成条件、QoS 和执行上下文的系统性映射。</p>
 </section>
 </section>
 

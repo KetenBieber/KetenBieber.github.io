@@ -416,6 +416,26 @@ T = T_transport + T_validate + T_queue_wait + T_deserialize + T_executor_wait
 
 其中 `T_queue_wait` 与 `T_executor_wait` 通常最容易被平均值掩盖。评估时至少记录 p50/p99、队列最老消息年龄、覆盖数、WaitSet 唤醒到 take 的时间，而不能只报吞吐。共享内存主要削减 payload copy 与 allocation，并不会消除 Executor 排队。
 
+## 缺点与不适用边界
+
+`rmw_zenoh` 的价值是保留 ROS 2 上层接口，同时使用 Zenoh 的数据空间、查询和 liveliness 原语；这不意味着两套语义天然等价。适配层越完整，自己维护的状态就越多：Subscription history、Service pending query、Client in-flight、GraphCache、QoS 兼容结果和 WaitSet generation 都可能成为新的竞态或容量热点。
+
+Router-centric 默认部署减少了 multicast 依赖，却让 Router 的启动、配置和恢复成为系统可用性的一部分。Session 共享减少连接数量，但 Context 级故障会同时影响多个 Node 和实体。共享内存能够减少大 payload 复制，却需要池容量、loan 生命周期和普通路径回退，不能被当成无条件零复制。
+
+它也不适合用来掩盖应用层实时性问题。ROS Executor 仍决定用户 callback 何时运行；`KEEP_LAST` 仍可能交付已经陈旧的数据；底层可靠路径也不能证明控制命令在 deadline 内被业务线程处理。安全控制需要额外的序列号、数据年龄、超时、安全状态和端到端确认。
+
+最后，rolling 的设计状态不能代表所有 ROS 发行版。若系统依赖特定 QoS、事件或 SHM 行为，应固定 ROS 发行版、`rmw_zenoh` commit、zenoh-cpp feature 集与 Router 配置，并用该组合的上层 RMW 行为测试验证，而不是只证明两个 Zenoh endpoint 能互通。
+
+## 可迁移的语义适配方法
+
+这个项目最值得迁移的是“语义适配表”。先逐项写出上层可观察保证，再判断底层原语属于直接提供、组合实现、近似实现还是不支持；随后为组合项明确附加状态、完成条件和销毁顺序。
+
+第二个方法是把异步 transport 与上层执行器隔开。接收 callback 只验证、取得数据所有权并更新 ready generation，真正的用户 callback 仍由 Executor 线程运行。这个边界同样适用于把设备中断、网络库或共享内存队列接入自研调度器。
+
+第三个方法是让 C ABI 成为明确的提交边界：C++ RAII 对象先完整构造，最后才把 opaque pointer 提交给 C handle；销毁时先阻止新入口和 callback，再逆序撤销外部实体，最后用原 allocator 释放 handle。不要让异常、临时字符串或半构造对象跨过 ABI。
+
+第四个方法是把“只完成一次”建模为状态机。Service reply 与关闭、Client reply 与 timeout、WaitSet attach 与数据到达都不是普通函数调用顺序，而是多个执行上下文竞争同一个完成权。共享指针只能延长寿命，不能替代状态转换。
+
 ## 在真实 ROS 2 工作空间中接入
 
 这不是单独运行 Zenoh pub/sub 示例，而是让真实 ROS 2 节点经过 RMW。部署时先固定 ROS 发行版与对应 `rmw_zenoh` 分支，再使用该分支随附的 Router 和 JSON5 配置；不要混用 rolling 的二进制、旧发行版的配置与另一版本的 zenoh-cpp。
@@ -442,7 +462,97 @@ T = T_transport + T_validate + T_queue_wait + T_deserialize + T_executor_wait
 
 实现目标不是做故障演示，而是把每个现象对应回内部对象：慢消费者对应 `SubscriptionData` history；晚加入对应 advanced history query；Service 超时对应 ClientData in-flight 状态；Router 重启对应 Session 与 GraphCache 收敛；SHM 不足对应 buffer acquisition 的普通路径回退。完成这一映射后，使用者才真正知道配置改变了哪段源码行为。
 
-## 扩展或复刻的实施顺序
+## 最小复刻：从 C ABI 建立可等待的 topic 闭环
+
+不要从全部 RMW 函数开始。第一版只实现 Context、serialized Publisher、serialized Subscription、单实体 WaitSet 和对称销毁，让一条消息能够从 C ABI 进入 Zenoh，再回到 `rmw_take_serialized_message()` 风格的出口。
+
+一个便于保持依赖方向的文件树可以是：
+
+```text
+mini_rmw_zenoh/
+  include/mini_rmw/
+    context.hpp          Session 与关闭屏障
+    key_codec.hpp        ROS 名称和类型映射
+    attachment.hpp       sequence / timestamp / GID 编解码
+    message.hpp          拥有型 CDR 消息
+    subscription.hpp     history、generation 与 take
+    wait_set.hpp         attach、ready 与 shutdown
+    publisher.hpp        sequence 与 put
+  src/
+    c_api_init.cpp       C handle 校验和异常边界
+    c_api_publisher.cpp
+    c_api_subscription.cpp
+    c_api_wait.cpp
+  tests/
+    topic_lifecycle.cpp
+    wait_race.cpp
+    shutdown_race.cpp
+```
+
+`context.hpp` 不应该反向依赖 C handle。内部核心先使用普通 C++ 类型表达所有权，最外层文件再负责类型擦除：
+
+```cpp
+struct ContextData {
+  std::shared_ptr<ZenohSession> session;
+  std::mutex lifecycle_mutex;
+  bool closing{false};
+};
+
+struct OwnedMessage {
+  std::vector<std::byte> cdr;
+  std::int64_t sequence{};
+  std::int64_t source_time_ns{};
+  std::array<std::uint8_t, 16> publisher_gid{};
+  std::chrono::steady_clock::time_point received_at;
+};
+```
+
+`std::vector<std::byte>` 表示队列元素拥有 CDR 存储，Zenoh callback 返回后仍可安全 take。`system_clock` 可能因时间校准跳变，不能用来计算本地排队时长；因此 wire source time 与本机 `steady_clock` 接收时刻必须分字段保存。
+
+Subscription 的最小状态要把队列、关闭标志和 wait generation 放在同一同步边界：
+
+```cpp
+class SubscriptionData {
+ public:
+  bool Enqueue(OwnedMessage message);
+  std::optional<OwnedMessage> Take();
+  bool AttachIfNotReady(WaitSetState& wait, std::uint64_t generation);
+  void Close();
+
+ private:
+  std::mutex mutex_;
+  std::deque<OwnedMessage> queue_;
+  std::size_t depth_{10};
+  std::uint64_t generation_{0};
+  bool closing_{false};
+  WaitSetState* waiter_{nullptr};  // 非拥有，只在注册协议约束期内有效
+};
+```
+
+这里故意没有让 `WaitSetState*` 变成 `shared_ptr`。WaitSet 与实体之间是一次等待期间的临时注册关系，不应因为 subscription 保存强引用就延长整个 Executor 的寿命。裸指针只是表达非拥有关系，安全性来自 attach/detach 协议：实体锁内注册，状态变化后取走指针，锁外触发；WaitSet 销毁前必须从所有实体解绑。
+
+C ABI handle 只在内部对象完整构造后获得所有权：
+
+```cpp
+extern "C" rmw_subscription_t* mini_create_subscription(/* ... */) noexcept {
+  try {
+    auto data = std::make_unique<SubscriptionData>(/* ... */);
+    auto handle = AllocateSubscriptionWithRmwAllocator();
+    handle->implementation_identifier = kMiniIdentifier;
+    handle->data = data.release();  // 最后一步才提交
+    return handle;
+  } catch (const std::bad_alloc&) {
+    SetError("allocation failed");
+  } catch (const std::exception& e) {
+    SetError(e.what());
+  } catch (...) {
+    SetError("unknown C++ exception");
+  }
+  return nullptr;
+}
+```
+
+`noexcept` 与 catch-all 共同保护 ABI：异常不能穿过 C 调用者。`unique_ptr` 在提交前负责失败回滚；`release()` 之后，destroy 函数必须恢复相同真实类型，并使用创建 handle 时的 allocator 对称释放。生产实现还要避免直接保存 `e.what()` 的临时地址，而应复制进 RMW/rcutils 规定的错误存储。
 
 先实现单 Context/Session 与最简单 volatile topic；再加入 CDR、key 规范化和 attachment；随后建立 Subscription 队列与 rmw_wait；再实现 graph token/cache；之后做 Service 的 pending Query 生命周期；最后才逐项映射 QoS、事件和共享内存。
 
@@ -459,7 +569,3 @@ T = T_transport + T_validate + T_queue_wait + T_deserialize + T_executor_wait
 每新增一种实体，都要同时回答五个问题：谁拥有它；回调在哪个线程进入；哪个锁保护状态；销毁怎样阻止新工作并等待旧工作；失败到第几步需要撤销哪些资源。答不出其中任意一项，就还没有完成工业级生命周期设计。
 
 每一步都要运行上层 RMW conformance 行为，而不是只运行 Zenoh pub/sub 示例。最低完成标准包括：错误 implementation identifier 被拒绝；销毁后 callback 不再入队；相同 topic 不同 type hash 不匹配；wait 能被数据与 shutdown 唤醒；请求超时和回复只完成一次；QoS 不支持项被明确报告；SHM 失败能退化到普通路径。
-
-## 可迁移能力
-
-这个项目最值得学习的是“语义适配表”：先列出上层每项保证，再判断底层原语能直接提供、需要组合，还是只能近似。中间件适配不是 API 名字翻译，而是生命周期、完成条件、QoS 和执行上下文的系统性映射。
