@@ -24,7 +24,7 @@
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../genindex.html" />
     <link rel="search" title="搜索" href="../../search.html" />
-    <link rel="next" title="Cyber RT 功能与组件地图：从自动驾驶数据流到运行时实现" href="architecture-map.html" />
+    <link rel="next" title="从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构" href="architecture-map.html" />
     <link rel="prev" title="Apollo Cyber RT" href="index.html" /> 
 </head>
 
@@ -104,27 +104,33 @@
 <li class="toctree-l5"><a class="reference internal" href="#cyber-like">最小 Cyber-like 运行时的实现起点</a></li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="architecture-map.html">Cyber RT 功能与组件地图：从自动驾驶数据流到运行时实现</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="architecture-map.html">从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">从自动驾驶需求反推组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">六个功能子系统</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">仓库入口与源码问题</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">模块依赖顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id6">功能一：部署装配</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id7">功能二：通信与数据分发</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id8">功能三：多输入一致性</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id9">功能四：调度与隔离</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">第 0 步：先写约束，不急着写类</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">第 2 步：先切出六个最小模块</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">第 3 步：先写接口骨架，再决定实现</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">第 4 步：数据结构由不变量决定</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id7">从自动驾驶需求反推组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id8">六个功能子系统</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id9">仓库入口与源码问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id10">模块依赖顺序</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">功能一：部署装配</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id12">功能二：通信与数据分发</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id13">功能三：多输入一致性</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">功能四：调度与隔离</a></li>
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html#c">C++ 能力路线</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id10">对象所有权地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">线程与执行上下文地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id12">一条消息的逐层数据动作</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id13">控制面、数据面与执行面的边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">复杂度和容量的第一张预算表</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">源码阅读坐标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id16">七个连续源码任务</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id17">设计模式与工程代价</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">系统级可行性预算</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id19">从零实现路线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">对象所有权地图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id16">线程与执行上下文地图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id17">一条消息的逐层数据动作</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">控制面、数据面与执行面的边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id19">复杂度和容量的第一张预算表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id20">源码阅读坐标</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id21">七个连续源码任务</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id22">设计模式与工程代价</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id23">系统级可行性预算</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id24">从零实现路线</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
@@ -2335,7 +2341,7 @@ small set of Processor OS threads
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
         <a href="index.html" class="btn btn-neutral float-left" title="Apollo Cyber RT" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="architecture-map.html" class="btn btn-neutral float-right" title="Cyber RT 功能与组件地图：从自动驾驶数据流到运行时实现" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="architecture-map.html" class="btn btn-neutral float-right" title="从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
