@@ -673,10 +673,11 @@
 <li class="toctree-l6"><a class="reference internal" href="#configure">参数在 configure 边界完成提交</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id9">取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id10">测试与性能证据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id11">最小复刻顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id12">可迁移设计</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id9">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id10">缺点与不适用边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id11">数据结构、测试与性能证据</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id12">可迁移的桥接设计方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#ros">最小复刻：建立单向实时到 ROS 的桥</a></li>
 </ul>
 </li>
 </ul>
@@ -2046,13 +2047,47 @@
 <li><p><a class="reference internal" href="#configure" id="id32">参数在 configure 边界完成提交</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id9" id="id33">取舍</a></p></li>
-<li><p><a class="reference internal" href="#id10" id="id34">测试与性能证据</a></p></li>
-<li><p><a class="reference internal" href="#id11" id="id35">最小复刻顺序</a></p></li>
-<li><p><a class="reference internal" href="#id12" id="id36">可迁移设计</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id33">优秀设计与工程取舍</a></p></li>
+<li><p><a class="reference internal" href="#id10" id="id34">缺点与不适用边界</a></p></li>
+<li><p><a class="reference internal" href="#id11" id="id35">数据结构、测试与性能证据</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id36">可迁移的桥接设计方法</a></p></li>
+<li><p><a class="reference internal" href="#ros" id="id37">最小复刻：建立单向实时到 ROS 的桥</a></p></li>
 </ul>
 </nav>
 <p><a class="reference external" href="https://github.com/orocos/rtt_ros_integration"><code class="docutils literal notranslate"><span class="pre">orocos/rtt_ros_integration</span></code></a> 将 RTT 的 TaskContext、Port、Operation 和 typekit 接入 ROS 的 topic、parameter、clock、tf、actionlib 与部署体系。它的核心价值是保持实时组件内部边界，同时把非实时 ROS 功能放在适配层。</p>
+<p>先用一个控制任务说明它解决的问题。假设关节控制器必须每 1 ms 计算一次力矩，而操作者希望继续使用 ROS 的消息、录包和可视化工具。直接在控制循环里调用 <code class="docutils literal notranslate"><span class="pre">ros::Publisher::publish()</span></code> 很方便，却会把序列化、动态内存和网络阻塞带进高优先级线程。<code class="docutils literal notranslate"><span class="pre">rtt_ros_integration</span></code> 的做法是让控制器只读写 RTT Port，再由桥接插件在非实时线程与 ROS topic 交换数据：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ROS 工具与节点 ←→ 非实时 transport 适配层 ←→ 有界 RTT Port ←→ 实时控制组件
+</pre></div>
+</div>
+<p>因此，本文研究的不是“怎样在 Orocos 里调用一个 ROS API”，而是更重要的工程问题：怎样连接两套线程、生命周期和类型系统，同时不让 ROS 的不确定性悄悄进入实时闭环。</p>
+<p>几个会反复出现的名词可以先这样理解：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>名词</p></th>
+<th class="head"><p>直观含义</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TaskContext</span></code></p></td>
+<td><p>一个可部署组件，拥有 Port、Operation、属性和生命周期</p></td>
+</tr>
+<tr class="row-odd"><td><p>Port</p></td>
+<td><p>组件之间传递类型化数据的端点，不等同于网络 socket</p></td>
+</tr>
+<tr class="row-even"><td><p>Operation</p></td>
+<td><p>可被其他组件调用的命令接口，类似带线程策略的成员函数</p></td>
+</tr>
+<tr class="row-odd"><td><p>Activity</p></td>
+<td><p>驱动组件执行的线程或周期调度策略</p></td>
+</tr>
+<tr class="row-even"><td><p>typekit</p></td>
+<td><p>让 RTT 的运行时部署器认识某个 C++ 类型的插件</p></td>
+</tr>
+<tr class="row-odd"><td><p>transport plugin</p></td>
+<td><p>让已注册类型能够通过 ROS topic 等协议传输的插件</p></td>
+</tr>
+</tbody>
+</table>
 <p>这里分析的是 ROS 1 集成仓库。ROS 2 对应项目是 <a class="reference external" href="https://github.com/orocos/rtt_ros2_integration"><code class="docutils literal notranslate"><span class="pre">orocos/rtt_ros2_integration</span></code></a>，包名和底层通信实现不同，但“typekit + transport plugin + deployment boundary”的系统设计仍然延续。使用时必须按目标 ROS 版本选择仓库，不能把 ROS 1 的 catkin、roscpp 和 parameter server 代码直接搬到 ROS 2。</p>
 <p>本文源码坐标固定到提交 <a class="reference external" href="https://github.com/orocos/rtt_ros_integration/tree/d58546d81152898e21efe79f400c164e5d944c90"><code class="docutils literal notranslate"><span class="pre">d58546d8</span></code></a>。核心阅读入口如下：</p>
 <table class="docutils align-default">
@@ -2091,21 +2126,53 @@
 </table>
 <section id="id1">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink">仓库按功能拆分</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>rtt_ros                 CMake/包集成基础
-rtt_roscomm             RTT Port 与 ROS topic transport
-rtt_rosnode             ROS node 生命周期
-rtt_rosparam            Property 与参数服务
-rtt_rosclock            时间适配
-rtt_tf / rtt_actionlib  高层 ROS 能力
-rtt_rosdeployment       部署支持
-typekits                ROS message 类型进入 RTT type system
-</pre></div>
-</div>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>子包</p></th>
+<th class="head"><p>功能</p></th>
+<th class="head"><p>位于实时路径吗</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_ros</span></code></p></td>
+<td><p>CMake、插件导入和公共集成基础</p></td>
+<td><p>主要服务构建与部署</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_roscomm</span></code></p></td>
+<td><p>RTT Port 与 ROS topic 之间的 transport</p></td>
+<td><p>桥接边界；需区分实时与非实时执行体</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_rosnode</span></code></p></td>
+<td><p>初始化 ROS node、master 与 spinner</p></td>
+<td><p>非实时运行时</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_rosparam</span></code></p></td>
+<td><p>RTT Property 与 ROS 参数服务互相复制</p></td>
+<td><p>非实时配置路径</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_rosclock</span></code></p></td>
+<td><p>ROS 时间与 RTT 时间适配</p></td>
+<td><p>时间语义边界</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_tf</span></code> / <code class="docutils literal notranslate"><span class="pre">rtt_actionlib</span></code></p></td>
+<td><p>坐标变换与长任务协议</p></td>
+<td><p>通常位于非实时协调层</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rtt_rosdeployment</span></code></p></td>
+<td><p>启动和部署支持</p></td>
+<td><p>进程管理路径</p></td>
+</tr>
+<tr class="row-odd"><td><p>message typekits</p></td>
+<td><p>让 ROS message 进入 RTT 动态类型系统</p></td>
+<td><p>类型基础设施</p></td>
+</tr>
+</tbody>
+</table>
 <p>这不是一个巨型 bridge 类，而是按 ROS 功能拆为插件。使用者只加载所需能力，避免所有依赖进入实时进程。</p>
 </section>
 <section id="id2">
 <h2><a class="toc-backref" href="#id14" role="doc-backlink">开发一个可桥接组件</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
-<p>实时组件本身只声明 RTT Port，不直接包含 ROS Publisher：</p>
+<p>沿着一次数据流自顶向下看，第一步不是创建 ROS Publisher，而是写一个完全不知道 ROS 网络存在的控制组件。下面是用于解释边界的<strong>教学组件</strong>，不是目标仓库中的原样文件：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">TorqueController</span><span class="w"> </span><span class="k">final</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">RTT</span><span class="o">::</span><span class="n">TaskContext</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
 <span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">TorqueController</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">name</span><span class="p">)</span>
@@ -2141,6 +2208,16 @@ typekits                ROS message 类型进入 RTT type system
 </pre></div>
 </div>
 <p>代码表达三个边界：Port 类型在编译期固定；组件只认识消息值，不认识 ROS node/topic；<code class="docutils literal notranslate"><span class="pre">ORO_CREATE_COMPONENT</span></code> 把类注册到 RTT 插件系统，让 Deployer 能按名字实例化。</p>
+<p>按 C++ 执行顺序拆开这段代码：</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">final</span></code> 表示不再允许其他类继承 <code class="docutils literal notranslate"><span class="pre">TorqueController</span></code>，避免插件实例通过未预期的覆写改变生命周期语义；</p></li>
+<li><p>构造函数的初始化列表先构造基类，再用字符串名字构造两个 Port；Port 名会成为部署脚本引用的稳定接口；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">addPort(command_in_)</span></code> 注册的是已有成员的引用，<code class="docutils literal notranslate"><span class="pre">TaskContext</span></code> 不接管这个成员的所有权，所以 Port 成员必须与组件活得一样久；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">override</span></code> 让编译器检查函数确实覆写 RTT 生命周期钩子，签名写错时不会悄悄变成普通成员函数；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">private</span></code> Port 仍可被 RTT 部署器连接，因为构造阶段已经注册；C++ 访问控制限制的是源码直接访问，不是 RTT 的运行时接口；</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ORO_CREATE_COMPONENT</span></code> 导出插件入口。部署器依靠这个入口按类型名创建对象，而不是在自己的代码里直接 <code class="docutils literal notranslate"><span class="pre">new</span> <span class="pre">TorqueController</span></code>。</p></li>
+</ol>
+<p>这也解释了为什么构造函数只注册接口，不连接网络、不分配大型缓冲区：对象刚被插件系统创建时，属性尚未设置，其他组件也可能尚不存在。可能失败的工作应放入 <code class="docutils literal notranslate"><span class="pre">configureHook()</span></code>，周期计算才放入 <code class="docutils literal notranslate"><span class="pre">updateHook()</span></code>。</p>
 <p><code class="docutils literal notranslate"><span class="pre">sensor_msgs::JointState</span></code> 内部包含动态数组和字符串。仅把它设为 data sample 不代表所有运行期写入都无分配；configure 阶段还要为 names/position/velocity/effort 预留预期上限，并拒绝超过上限的消息或切换到固定容量内部类型。</p>
 <section id="port">
 <h3><a class="toc-backref" href="#id15" role="doc-backlink">Port 读写的三个状态</a><a class="headerlink" href="#port" title="Link to this heading"></a></h3>
@@ -2430,24 +2507,66 @@ component Activity
 </section>
 </section>
 <section id="id9">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">取舍</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id33" role="doc-backlink">优秀设计与工程取舍</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <p>集成让 ROS 工具链和消息生态服务于 RTT 控制组件，但引入两套生命周期、时间和线程模型。ROS queue size 与 RTT ConnPolicy 是两层缓冲；只配置其中一层不足以推导端到端丢弃与延迟。</p>
 <p>ROS message 直接作为实时组件 Port 类型减少转换代码，却把可变长容器和 ROS ABI 带入实时核心。另一设计是内部使用固定容量控制类型，在非实时桥接组件中转换 ROS message；代码更多，但内存上界与依赖边界更清楚。</p>
 <p>仓库覆盖参数、clock、tf、actionlib 等众多能力，但加载越多插件，实时进程的依赖、全局状态和故障面越大。按需导入包是架构约束，不只是启动优化。</p>
+<p>其中最值得复用的设计，是没有让 <code class="docutils literal notranslate"><span class="pre">TaskContext</span></code> 同时承担控制算法、ROS node 和部署配置三种责任。组件声明稳定能力，typekit 解决运行时类型，transport 解决跨系统传输，部署脚本决定具体连接。分层会增加插件数量，却让同一控制器可以在进程内测试、连接 ROS，或替换成其他 transport，而不必改动控制算法。</p>
+<p>共享 <code class="docutils literal notranslate"><span class="pre">RosPublishActivity</span></code> 则是一次明确的折中：它用较少线程集中隔离 roscpp 调用，适合 topic 数量有限的系统；代价是多个 publisher 彼此影响。这里没有“永远正确”的线程模型，只有是否与消息大小、发布频率和故障隔离需求匹配。</p>
 </section>
 <section id="id10">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">测试与性能证据</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
-<p>测试应分别测 ROS callback→RTT Port 入队、Activity 读取、组件计算和 RTT Port→ROS publish 四段延迟，并记录两层 queue high-water mark。功能测试还要覆盖消息 typekit 未加载、topic 类型错误、ROS master/node 不可用、仿真时间回拨、service 超时和关闭时 callback 在途。</p>
-<p>实时结论只适用于组件内部有界路径。ROS 1 TCPROS/XMLRPC、普通 roscpp callback queue 和 parameter server 不能因此获得硬实时保证。桥接层可以隔离不确定性，不能把它消除。</p>
+<h2><a class="toc-backref" href="#id34" role="doc-backlink">缺点与不适用边界</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>桥接不能把 ROS 1 变成硬实时系统。</strong> TCPROS、XMLRPC、参数服务器和普通 callback queue 没有确定的最坏执行时间；适配层只能把不确定性隔离在边界外。</p></li>
+<li><p><strong>两套队列容易制造隐藏延迟。</strong> ROS callback queue 与 RTT BUFFER 都可能积压数据，只观察其中一个容量无法判断命令实际年龄。</p></li>
+<li><p><strong>直接使用 ROS message 会把动态容器带进控制核心。</strong> <code class="docutils literal notranslate"><span class="pre">std::vector</span></code> 和 <code class="docutils literal notranslate"><span class="pre">std::string</span></code> 在容量变化时可能分配内存；需要硬上界时应在非实时 adapter 转换成固定容量类型。</p></li>
+<li><p><strong>动态插件扩大 ABI 风险。</strong> ROS 消息生成器、编译器、RTT、<code class="docutils literal notranslate"><span class="pre">OROCOS_TARGET</span></code> 和 typekit 必须成套匹配；“动态库能够加载”并不足以证明类型布局兼容。</p></li>
+<li><p><strong>进程级共享发布线程可能形成 convoy。</strong> 一个大消息或堵塞 publisher 会拖慢其他 topic，不能假定不同输出天然隔离。</p></li>
+<li><p><strong>生命周期组合复杂。</strong> 组件、stream、spinner、ROS node 和 typekit 的关闭顺序错误时，callback 可能访问已经销毁的实例。</p></li>
+</ol>
+<p>因此，这套集成适合需要 ROS 工具生态、但又希望把高优先级控制组件保持在 RTT 执行模型中的机器人。它不适合作为安全认证控制链的唯一通信保障，也不应让高速电机闭环跨越普通 ROS 网络。最内层硬实时控制应留在有界、经过测量的 RTT 或现场总线路径，ROS 更适合监督、任务协调、记录和可视化。</p>
 </section>
 <section id="id11">
-<h2><a class="toc-backref" href="#id35" role="doc-backlink">最小复刻顺序</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
-<p>先写只含两个 RTT Port 的组件并用进程内连接验证；生成/加载一个 ROS message typekit；再实现单向 OutputPort→topic；随后实现 callback→有界 InputPort；加入 deployment script 和 target-specific CMake；最后才接参数、service、clock 和动态重配置。</p>
-<p>完成标准包括：组件不包含 ROS node API；缺少 typekit 时启动明确失败；ROS callback 不直接执行 updateHook；两层队列策略可解释；Running 阶段无非预期分配；ROS 断线不破坏实时 Activity；关闭后无 callback 访问已卸载组件或插件。</p>
+<h2><a class="toc-backref" href="#id35" role="doc-backlink">数据结构、测试与性能证据</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<p>测试应分别测 ROS callback→RTT Port 入队、Activity 读取、组件计算和 RTT Port→ROS publish 四段延迟，并记录两层 queue high-water mark。功能测试还要覆盖消息 typekit 未加载、topic 类型错误、ROS master/node 不可用、仿真时间回拨、service 超时和关闭时 callback 在途。</p>
+<p>实时结论只适用于组件内部有界路径。ROS 1 TCPROS/XMLRPC、普通 roscpp callback queue 和 parameter server 不能因此获得硬实时保证。桥接层可以隔离不确定性，不能把它消除。</p>
+<p>复杂度主要由消息大小和积压量决定。若单条消息序列化大小为 <code class="docutils literal notranslate"><span class="pre">S</span></code>，ROS 队列和 RTT 队列容量分别为 <code class="docutils literal notranslate"><span class="pre">R</span></code>、<code class="docutils literal notranslate"><span class="pre">O</span></code>，仅缓存数据的空间上界近似为 <code class="docutils literal notranslate"><span class="pre">O(S</span> <span class="pre">×</span> <span class="pre">(R</span> <span class="pre">+</span> <span class="pre">O))</span></code>，还没有计入中间转换对象。发布 Activity 一轮若需要处理 <code class="docutils literal notranslate"><span class="pre">P</span></code> 个 publisher，第 <code class="docutils literal notranslate"><span class="pre">i</span></code> 个积压 <code class="docutils literal notranslate"><span class="pre">Nᵢ</span></code> 条消息，工作量近似为 <code class="docutils literal notranslate"><span class="pre">O(ΣNᵢ)</span></code>；因此平均频率正常并不能排除突发积压导致的长尾延迟。</p>
 </section>
 <section id="id12">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">可迁移设计</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
-<p>桥接实时与非实时系统时，用类型化 Port 作为隔离面：外部 callback 只做验证和入队，实时线程只读有界数据；所有动态发现、参数和日志留在非实时侧。这样才能对实时核心建立独立 WCET 和资源上界。</p>
+<h2><a class="toc-backref" href="#id36" role="doc-backlink">可迁移的桥接设计方法</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<p>桥接实时与非实时系统时，用类型化 Port 作为隔离面：外部 callback 只做验证、转换和有界入队，实时线程只读取已经准备好的值；所有动态发现、参数、日志和网络重连留在非实时侧。这样才能对实时核心单独建立 WCET 和资源上界。</p>
+<p>进一步可以抽出五条与具体中间件无关的规则：</p>
+<ol class="arabic simple">
+<li><p>先定义内部实时类型，再编写外部消息 adapter，不让 wire type 主导控制核心；</p></li>
+<li><p>给每一层队列写清容量、覆盖策略和超时语义，端到端判断数据年龄；</p></li>
+<li><p>用单向数据交接跨越线程边界，不让 callback 直接调用周期算法；</p></li>
+<li><p>把类型注册、传输实现和业务组件分开，使错误能在部署阶段准确定位；</p></li>
+<li><p>关闭时先阻止新输入，再停止执行体，最后卸载实例和类型插件。</p></li>
+</ol>
+</section>
+<section id="ros">
+<h2><a class="toc-backref" href="#id37" role="doc-backlink">最小复刻：建立单向实时到 ROS 的桥</a><a class="headerlink" href="#ros" title="Link to this heading"></a></h2>
+<p>最小工程可以先只包含这些文件：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mini_rtt_ros_bridge/
+├── CMakeLists.txt
+├── package.xml
+├── include/mini_bridge/torque_controller.hpp
+├── src/torque_controller.cpp
+├── config/controller.ops
+└── launch/controller.launch
+</pre></div>
+</div>
+<p>先写只含两个 RTT Port 的组件并用进程内连接验证；生成/加载一个 ROS message typekit；再实现单向 OutputPort→topic；随后实现 callback→有界 InputPort；加入 deployment script 和 target-specific CMake；最后才接参数、service、clock 和动态重配置。</p>
+<p>每一步只增加一个新边界：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>阶段 1  TaskContext -&gt; RTT Port -&gt; RTT Port
+阶段 2  OutputPort -&gt; RosPubChannelElement -&gt; ROS topic
+阶段 3  ROS callback -&gt; bounded RTT connection -&gt; InputPort
+阶段 4  .ops 明确 Activity、ConnPolicy、容量和生命周期
+阶段 5  launch 只选择进程级配置与 OROCOS_TARGET
+</pre></div>
+</div>
+<p>不要一开始同时接 parameter、tf 和 actionlib。若最简单的单向 topic 已经出现抖动，同时存在五套插件只会让所有权和线程来源更难追踪。</p>
+<p>完成标准包括：组件不包含 ROS node API；缺少 typekit 时启动明确失败；ROS callback 不直接执行 updateHook；两层队列策略可解释；Running 阶段无非预期分配；ROS 断线不破坏实时 Activity；关闭后无 callback 访问已卸载组件或插件。</p>
 </section>
 </section>
 

@@ -8,6 +8,25 @@
 
 [`orocos/rtt_ros_integration`](https://github.com/orocos/rtt_ros_integration) 将 RTT 的 TaskContext、Port、Operation 和 typekit 接入 ROS 的 topic、parameter、clock、tf、actionlib 与部署体系。它的核心价值是保持实时组件内部边界，同时把非实时 ROS 功能放在适配层。
 
+先用一个控制任务说明它解决的问题。假设关节控制器必须每 1 ms 计算一次力矩，而操作者希望继续使用 ROS 的消息、录包和可视化工具。直接在控制循环里调用 `ros::Publisher::publish()` 很方便，却会把序列化、动态内存和网络阻塞带进高优先级线程。`rtt_ros_integration` 的做法是让控制器只读写 RTT Port，再由桥接插件在非实时线程与 ROS topic 交换数据：
+
+```text
+ROS 工具与节点 ←→ 非实时 transport 适配层 ←→ 有界 RTT Port ←→ 实时控制组件
+```
+
+因此，本文研究的不是“怎样在 Orocos 里调用一个 ROS API”，而是更重要的工程问题：怎样连接两套线程、生命周期和类型系统，同时不让 ROS 的不确定性悄悄进入实时闭环。
+
+几个会反复出现的名词可以先这样理解：
+
+| 名词 | 直观含义 |
+|---|---|
+| `TaskContext` | 一个可部署组件，拥有 Port、Operation、属性和生命周期 |
+| Port | 组件之间传递类型化数据的端点，不等同于网络 socket |
+| Operation | 可被其他组件调用的命令接口，类似带线程策略的成员函数 |
+| Activity | 驱动组件执行的线程或周期调度策略 |
+| typekit | 让 RTT 的运行时部署器认识某个 C++ 类型的插件 |
+| transport plugin | 让已注册类型能够通过 ROS topic 等协议传输的插件 |
+
 这里分析的是 ROS 1 集成仓库。ROS 2 对应项目是 [`orocos/rtt_ros2_integration`](https://github.com/orocos/rtt_ros2_integration)，包名和底层通信实现不同，但“typekit + transport plugin + deployment boundary”的系统设计仍然延续。使用时必须按目标 ROS 版本选择仓库，不能把 ROS 1 的 catkin、roscpp 和 parameter server 代码直接搬到 ROS 2。
 
 本文源码坐标固定到提交 [`d58546d8`](https://github.com/orocos/rtt_ros_integration/tree/d58546d81152898e21efe79f400c164e5d944c90)。核心阅读入口如下：
@@ -23,22 +42,22 @@
 
 ## 仓库按功能拆分
 
-```text
-rtt_ros                 CMake/包集成基础
-rtt_roscomm             RTT Port 与 ROS topic transport
-rtt_rosnode             ROS node 生命周期
-rtt_rosparam            Property 与参数服务
-rtt_rosclock            时间适配
-rtt_tf / rtt_actionlib  高层 ROS 能力
-rtt_rosdeployment       部署支持
-typekits                ROS message 类型进入 RTT type system
-```
+| 子包 | 功能 | 位于实时路径吗 |
+|---|---|---|
+| `rtt_ros` | CMake、插件导入和公共集成基础 | 主要服务构建与部署 |
+| `rtt_roscomm` | RTT Port 与 ROS topic 之间的 transport | 桥接边界；需区分实时与非实时执行体 |
+| `rtt_rosnode` | 初始化 ROS node、master 与 spinner | 非实时运行时 |
+| `rtt_rosparam` | RTT Property 与 ROS 参数服务互相复制 | 非实时配置路径 |
+| `rtt_rosclock` | ROS 时间与 RTT 时间适配 | 时间语义边界 |
+| `rtt_tf` / `rtt_actionlib` | 坐标变换与长任务协议 | 通常位于非实时协调层 |
+| `rtt_rosdeployment` | 启动和部署支持 | 进程管理路径 |
+| message typekits | 让 ROS message 进入 RTT 动态类型系统 | 类型基础设施 |
 
 这不是一个巨型 bridge 类，而是按 ROS 功能拆为插件。使用者只加载所需能力，避免所有依赖进入实时进程。
 
 ## 开发一个可桥接组件
 
-实时组件本身只声明 RTT Port，不直接包含 ROS Publisher：
+沿着一次数据流自顶向下看，第一步不是创建 ROS Publisher，而是写一个完全不知道 ROS 网络存在的控制组件。下面是用于解释边界的**教学组件**，不是目标仓库中的原样文件：
 
 ```cpp
 class TorqueController final : public RTT::TaskContext {
@@ -76,6 +95,17 @@ ORO_CREATE_COMPONENT(TorqueController)
 ```
 
 代码表达三个边界：Port 类型在编译期固定；组件只认识消息值，不认识 ROS node/topic；`ORO_CREATE_COMPONENT` 把类注册到 RTT 插件系统，让 Deployer 能按名字实例化。
+
+按 C++ 执行顺序拆开这段代码：
+
+1. `final` 表示不再允许其他类继承 `TorqueController`，避免插件实例通过未预期的覆写改变生命周期语义；
+2. 构造函数的初始化列表先构造基类，再用字符串名字构造两个 Port；Port 名会成为部署脚本引用的稳定接口；
+3. `addPort(command_in_)` 注册的是已有成员的引用，`TaskContext` 不接管这个成员的所有权，所以 Port 成员必须与组件活得一样久；
+4. `override` 让编译器检查函数确实覆写 RTT 生命周期钩子，签名写错时不会悄悄变成普通成员函数；
+5. `private` Port 仍可被 RTT 部署器连接，因为构造阶段已经注册；C++ 访问控制限制的是源码直接访问，不是 RTT 的运行时接口；
+6. `ORO_CREATE_COMPONENT` 导出插件入口。部署器依靠这个入口按类型名创建对象，而不是在自己的代码里直接 `new TorqueController`。
+
+这也解释了为什么构造函数只注册接口，不连接网络、不分配大型缓冲区：对象刚被插件系统创建时，属性尚未设置，其他组件也可能尚不存在。可能失败的工作应放入 `configureHook()`，周期计算才放入 `updateHook()`。
 
 `sensor_msgs::JointState` 内部包含动态数组和字符串。仅把它设为 data sample 不代表所有运行期写入都无分配；configure 阶段还要为 names/position/velocity/effort 预留预期上限，并拒绝超过上限的消息或切换到固定容量内部类型。
 
@@ -402,7 +432,7 @@ roslaunch
 
 安全流程是：非实时部署线程读取全部参数到 Property，`configureHook()` 验证组合不变量并预分配，成功后才 start。运行期调参则先在非实时侧构造完整 `ConfigSnapshot`，验证后在周期边界交换版本；逐字段远程写 Property 会产生控制器可见的半更新状态。
 
-## 取舍
+## 优秀设计与工程取舍
 
 集成让 ROS 工具链和消息生态服务于 RTT 控制组件，但引入两套生命周期、时间和线程模型。ROS queue size 与 RTT ConnPolicy 是两层缓冲；只配置其中一层不足以推导端到端丢弃与延迟。
 
@@ -410,18 +440,67 @@ ROS message 直接作为实时组件 Port 类型减少转换代码，却把可�
 
 仓库覆盖参数、clock、tf、actionlib 等众多能力，但加载越多插件，实时进程的依赖、全局状态和故障面越大。按需导入包是架构约束，不只是启动优化。
 
-## 测试与性能证据
+其中最值得复用的设计，是没有让 `TaskContext` 同时承担控制算法、ROS node 和部署配置三种责任。组件声明稳定能力，typekit 解决运行时类型，transport 解决跨系统传输，部署脚本决定具体连接。分层会增加插件数量，却让同一控制器可以在进程内测试、连接 ROS，或替换成其他 transport，而不必改动控制算法。
+
+共享 `RosPublishActivity` 则是一次明确的折中：它用较少线程集中隔离 roscpp 调用，适合 topic 数量有限的系统；代价是多个 publisher 彼此影响。这里没有“永远正确”的线程模型，只有是否与消息大小、发布频率和故障隔离需求匹配。
+
+## 缺点与不适用边界
+
+1. **桥接不能把 ROS 1 变成硬实时系统。** TCPROS、XMLRPC、参数服务器和普通 callback queue 没有确定的最坏执行时间；适配层只能把不确定性隔离在边界外。
+2. **两套队列容易制造隐藏延迟。** ROS callback queue 与 RTT BUFFER 都可能积压数据，只观察其中一个容量无法判断命令实际年龄。
+3. **直接使用 ROS message 会把动态容器带进控制核心。** `std::vector` 和 `std::string` 在容量变化时可能分配内存；需要硬上界时应在非实时 adapter 转换成固定容量类型。
+4. **动态插件扩大 ABI 风险。** ROS 消息生成器、编译器、RTT、`OROCOS_TARGET` 和 typekit 必须成套匹配；“动态库能够加载”并不足以证明类型布局兼容。
+5. **进程级共享发布线程可能形成 convoy。** 一个大消息或堵塞 publisher 会拖慢其他 topic，不能假定不同输出天然隔离。
+6. **生命周期组合复杂。** 组件、stream、spinner、ROS node 和 typekit 的关闭顺序错误时，callback 可能访问已经销毁的实例。
+
+因此，这套集成适合需要 ROS 工具生态、但又希望把高优先级控制组件保持在 RTT 执行模型中的机器人。它不适合作为安全认证控制链的唯一通信保障，也不应让高速电机闭环跨越普通 ROS 网络。最内层硬实时控制应留在有界、经过测量的 RTT 或现场总线路径，ROS 更适合监督、任务协调、记录和可视化。
+
+## 数据结构、测试与性能证据
 
 测试应分别测 ROS callback→RTT Port 入队、Activity 读取、组件计算和 RTT Port→ROS publish 四段延迟，并记录两层 queue high-water mark。功能测试还要覆盖消息 typekit 未加载、topic 类型错误、ROS master/node 不可用、仿真时间回拨、service 超时和关闭时 callback 在途。
 
 实时结论只适用于组件内部有界路径。ROS 1 TCPROS/XMLRPC、普通 roscpp callback queue 和 parameter server 不能因此获得硬实时保证。桥接层可以隔离不确定性，不能把它消除。
 
-## 最小复刻顺序
+复杂度主要由消息大小和积压量决定。若单条消息序列化大小为 `S`，ROS 队列和 RTT 队列容量分别为 `R`、`O`，仅缓存数据的空间上界近似为 `O(S × (R + O))`，还没有计入中间转换对象。发布 Activity 一轮若需要处理 `P` 个 publisher，第 `i` 个积压 `Nᵢ` 条消息，工作量近似为 `O(ΣNᵢ)`；因此平均频率正常并不能排除突发积压导致的长尾延迟。
+
+## 可迁移的桥接设计方法
+
+桥接实时与非实时系统时，用类型化 Port 作为隔离面：外部 callback 只做验证、转换和有界入队，实时线程只读取已经准备好的值；所有动态发现、参数、日志和网络重连留在非实时侧。这样才能对实时核心单独建立 WCET 和资源上界。
+
+进一步可以抽出五条与具体中间件无关的规则：
+
+1. 先定义内部实时类型，再编写外部消息 adapter，不让 wire type 主导控制核心；
+2. 给每一层队列写清容量、覆盖策略和超时语义，端到端判断数据年龄；
+3. 用单向数据交接跨越线程边界，不让 callback 直接调用周期算法；
+4. 把类型注册、传输实现和业务组件分开，使错误能在部署阶段准确定位；
+5. 关闭时先阻止新输入，再停止执行体，最后卸载实例和类型插件。
+
+## 最小复刻：建立单向实时到 ROS 的桥
+
+最小工程可以先只包含这些文件：
+
+```text
+mini_rtt_ros_bridge/
+├── CMakeLists.txt
+├── package.xml
+├── include/mini_bridge/torque_controller.hpp
+├── src/torque_controller.cpp
+├── config/controller.ops
+└── launch/controller.launch
+```
 
 先写只含两个 RTT Port 的组件并用进程内连接验证；生成/加载一个 ROS message typekit；再实现单向 OutputPort→topic；随后实现 callback→有界 InputPort；加入 deployment script 和 target-specific CMake；最后才接参数、service、clock 和动态重配置。
 
+每一步只增加一个新边界：
+
+```text
+阶段 1  TaskContext -> RTT Port -> RTT Port
+阶段 2  OutputPort -> RosPubChannelElement -> ROS topic
+阶段 3  ROS callback -> bounded RTT connection -> InputPort
+阶段 4  .ops 明确 Activity、ConnPolicy、容量和生命周期
+阶段 5  launch 只选择进程级配置与 OROCOS_TARGET
+```
+
+不要一开始同时接 parameter、tf 和 actionlib。若最简单的单向 topic 已经出现抖动，同时存在五套插件只会让所有权和线程来源更难追踪。
+
 完成标准包括：组件不包含 ROS node API；缺少 typekit 时启动明确失败；ROS callback 不直接执行 updateHook；两层队列策略可解释；Running 阶段无非预期分配；ROS 断线不破坏实时 Activity；关闭后无 callback 访问已卸载组件或插件。
-
-## 可迁移设计
-
-桥接实时与非实时系统时，用类型化 Port 作为隔离面：外部 callback 只做验证和入队，实时线程只读有界数据；所有动态发现、参数和日志留在非实时侧。这样才能对实时核心建立独立 WCET 和资源上界。
