@@ -1669,27 +1669,6 @@
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id20">最小复刻路线</a></li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="foundations.html">LCM 阅读基础：从一次函数调用到完整消息链</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">先建立一张整体地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#c">C 结构体表示一组相关状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id2">指针表示对象的位置</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#const">const 描述通过当前指针不能修改数据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#void">void 指针抹去具体类型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id3">函数指针把行为保存为数据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#vtable-c">vtable 是 C 语言中的接口对象</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#opaque-struct">opaque struct 隐藏模块内部字段</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#callback">callback 是稍后被框架调用的函数</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#socket">socket 是内核中的通信端点</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#pipe">pipe 是进程内的唤醒通道</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#mutex">mutex 保护多步不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#ring-buffer">ring buffer 限制内存增长</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">网络字节序统一整数表示</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#iovec">iovec 表示多段连续输出</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id5">所有权必须用完整句子描述</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id6">线程图比函数列表更重要</a></li>
-<li class="toctree-l5"><a class="reference internal" href="foundations.html#id7">后续章节的阅读方法</a></li>
-</ul>
-</li>
 <li class="toctree-l4"><a class="reference internal" href="provider-vtable.html">Provider 抽象：用 C vtable 隔离传输实现</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="provider-vtable.html#vtable">vtable 的完整契约</a></li>
 <li class="toctree-l5"><a class="reference internal" href="provider-vtable.html#provider">不透明 provider 指针完成类型擦除</a></li>
@@ -1790,6 +1769,39 @@
 <li class="toctree-l5"><a class="reference internal" href="types-and-eventlog.html#id8">性能与存储模型</a></li>
 <li class="toctree-l5"><a class="reference internal" href="types-and-eventlog.html#id9">最小复刻路线</a></li>
 <li class="toctree-l5"><a class="reference internal" href="types-and-eventlog.html#id10">类型与日志的设计结论</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="foundations.html">LCM 的 C 语言阅读桥梁：让指针、回调与消息链重新连起来</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id1">先建立一张整体地图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id2">对象与地址构成运行时的地基</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#c">C 结构体表示一组相关状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#id3">指针表示对象的位置</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#const">const 描述通过当前指针不能修改数据</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#void">void 指针抹去具体类型</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id4">接口与回调把行为延迟到合适的时刻</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#id5">函数指针把行为保存为数据</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#vtable-c">vtable 是 C 语言中的接口对象</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#opaque-struct">opaque struct 隐藏模块内部字段</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#callback">callback 是稍后被框架调用的函数</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id6">操作系统把网络到达转换为应用可处理的事件</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#socket">socket 是内核中的通信端点</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#pipe">pipe 是进程内的唤醒通道</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#mutex">mutex 保护多步不变量</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#ring-buffer">ring buffer 优先复用存储，但不是固定内存上限</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id7">字节布局与所有权决定数据能否安全跨过边界</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#id8">网络字节序统一整数表示</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#iovec">iovec 表示多段连续输出</a></li>
+<li class="toctree-l6"><a class="reference internal" href="foundations.html#id9">所有权必须用完整句子描述</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id10">用线程图重新播放一次接收过程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="foundations.html#id11">用四个问题继续阅读源码</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="c-abi-cpp-design-lab.html">LCM C ABI 与 C++ 封装：从函数指针表到类型安全句柄</a><ul>

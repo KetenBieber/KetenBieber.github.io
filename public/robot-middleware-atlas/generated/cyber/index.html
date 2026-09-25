@@ -1669,27 +1669,6 @@
 <li class="toctree-l5"><a class="reference internal" href="../lcm/architecture-map.html#id20">最小复刻路线</a></li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="../lcm/foundations.html">LCM 阅读基础：从一次函数调用到完整消息链</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id1">先建立一张整体地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#c">C 结构体表示一组相关状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id2">指针表示对象的位置</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#const">const 描述通过当前指针不能修改数据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#void">void 指针抹去具体类型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id3">函数指针把行为保存为数据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#vtable-c">vtable 是 C 语言中的接口对象</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#opaque-struct">opaque struct 隐藏模块内部字段</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#callback">callback 是稍后被框架调用的函数</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#socket">socket 是内核中的通信端点</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#pipe">pipe 是进程内的唤醒通道</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#mutex">mutex 保护多步不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#ring-buffer">ring buffer 限制内存增长</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id4">网络字节序统一整数表示</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#iovec">iovec 表示多段连续输出</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id5">所有权必须用完整句子描述</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id6">线程图比函数列表更重要</a></li>
-<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id7">后续章节的阅读方法</a></li>
-</ul>
-</li>
 <li class="toctree-l4"><a class="reference internal" href="../lcm/provider-vtable.html">Provider 抽象：用 C vtable 隔离传输实现</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="../lcm/provider-vtable.html#vtable">vtable 的完整契约</a></li>
 <li class="toctree-l5"><a class="reference internal" href="../lcm/provider-vtable.html#provider">不透明 provider 指针完成类型擦除</a></li>
@@ -1790,6 +1769,39 @@
 <li class="toctree-l5"><a class="reference internal" href="../lcm/types-and-eventlog.html#id8">性能与存储模型</a></li>
 <li class="toctree-l5"><a class="reference internal" href="../lcm/types-and-eventlog.html#id9">最小复刻路线</a></li>
 <li class="toctree-l5"><a class="reference internal" href="../lcm/types-and-eventlog.html#id10">类型与日志的设计结论</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../lcm/foundations.html">LCM 的 C 语言阅读桥梁：让指针、回调与消息链重新连起来</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id1">先建立一张整体地图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id2">对象与地址构成运行时的地基</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#c">C 结构体表示一组相关状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#id3">指针表示对象的位置</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#const">const 描述通过当前指针不能修改数据</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#void">void 指针抹去具体类型</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id4">接口与回调把行为延迟到合适的时刻</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#id5">函数指针把行为保存为数据</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#vtable-c">vtable 是 C 语言中的接口对象</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#opaque-struct">opaque struct 隐藏模块内部字段</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#callback">callback 是稍后被框架调用的函数</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id6">操作系统把网络到达转换为应用可处理的事件</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#socket">socket 是内核中的通信端点</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#pipe">pipe 是进程内的唤醒通道</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#mutex">mutex 保护多步不变量</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#ring-buffer">ring buffer 优先复用存储，但不是固定内存上限</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id7">字节布局与所有权决定数据能否安全跨过边界</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#id8">网络字节序统一整数表示</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#iovec">iovec 表示多段连续输出</a></li>
+<li class="toctree-l6"><a class="reference internal" href="../lcm/foundations.html#id9">所有权必须用完整句子描述</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id10">用线程图重新播放一次接收过程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../lcm/foundations.html#id11">用四个问题继续阅读源码</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="../lcm/c-abi-cpp-design-lab.html">LCM C ABI 与 C++ 封装：从函数指针表到类型安全句柄</a><ul>
@@ -1992,14 +2004,16 @@
 <p>阅读源码时从 public entry 出发，沿真实调用链标出对象所有权、线程切换、队列、锁和数据复制，再回到关闭路径检查在途工作如何收束。</p>
 <section id="id1">
 <h2>统一学习路径<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
-<p>本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权，最后才进入语言机制、性能取舍、最小复刻和实际项目。</p>
+<p>本专题按同一条工程认知链组织。先理解它解决的系统问题，再认识组件边界；随后沿真实源码调用链追踪数据、线程与所有权。读懂实现以后，再分别讨论语言机制、设计取舍、性能边界、可迁移思想和最小复刻。实际项目案例放在这八步之后，用来观察这些机制怎样进入完整机器人系统。</p>
 <ol class="arabic simple">
 <li><p><strong>功能介绍与需求分析</strong>：<a class="reference internal" href="overview.html"><span class="doc">建立使用场景、核心保证与适用边界</span></a>。</p></li>
 <li><p><strong>组件地图</strong>：<a class="reference internal" href="architecture-map.html"><span class="doc">先看清公开入口、核心对象和控制流关系</span></a>。</p></li>
 <li><p><strong>自顶向下源码实现</strong>：<a class="reference internal" href="dag-to-component.html"><span class="doc">从第一条主调用链进入实现</span></a>，再按下方源码目录顺序阅读后续模块。</p></li>
 <li><p><strong>C/C++ 或 Rust 机制</strong>：<a class="reference internal" href="cpp-type-runtime.html"><span class="doc">把所有权、模板、RAII、ABI 与并发原语映射回设计目的</span></a>。</p></li>
-<li><p><strong>设计取舍与性能边界</strong>：<a class="reference internal" href="design-recap.html"><span class="doc">汇总数据结构复杂度、优点、缺点和失效条件</span></a>。</p></li>
-<li><p><strong>可迁移思想与最小复刻</strong>：仍在 <a class="reference internal" href="design-recap.html"><span class="doc">设计总结</span></a> 中按依赖顺序实现，并以关闭、过载和竞态不变量判定是否完成。</p></li>
+<li><p><strong>优秀设计与工程取舍</strong>：<a class="reference internal" href="design-recap.html"><span class="doc">回看分层、接口和数据结构为什么这样组织</span></a>。</p></li>
+<li><p><strong>缺点与性能边界</strong>：仍在 <a class="reference internal" href="design-recap.html"><span class="doc">设计总结</span></a> 中检查容量、复杂度、尾延迟、故障和不适用条件。</p></li>
+<li><p><strong>可迁移设计思想</strong>：从 <a class="reference internal" href="design-recap.html"><span class="doc">设计总结</span></a> 提取能够带到其他运行时、驱动和机器人框架中的方法。</p></li>
+<li><p><strong>最小复刻</strong>：进入 <a class="reference internal" href="cpp-implementation-lab.html"><span class="doc">实现练习</span></a>，按依赖顺序重建最小闭环，并用关闭、过载和竞态不变量判断实现是否完整。</p></li>
 <li><p><strong>实际开发与知名项目</strong>：从 <a class="reference internal" href="use-environment.html"><span class="doc">环境与基础操作</span></a> 开始，最后进入 <a class="reference internal" href="case-study-apollo-planning.html"><span class="doc">真实项目案例</span></a>。</p></li>
 </ol>
 </section>
