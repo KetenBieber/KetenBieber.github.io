@@ -8,6 +8,29 @@
 
 eCAL 的核心功能是让动态启动的进程先发现彼此，再为每对 Publisher/Subscriber 选择合适传输，并把多条物理路径汇入统一回调。源码可以按五个功能域阅读。
 
+## 先从一次相机帧推导 eCAL 的骨架
+
+假设相机进程每 33 ms 发布一帧图像：同机感知进程希望走共享内存，局域网记录器希望走 UDP，远端诊断工具则需要 TCP。最直接的写法是让 Publisher 每次 Send 都扫描在线 Subscriber、重新协商并直接调用对方回调。这个版本会出现可观察故障：发现线程的锁竞争进入高频 Send 路径；慢回调阻塞发送线程，后续帧堆在 socket 或丢失；对端退出后保存的裸指针还可能悬空。
+
+因此需要把问题拆成两个时间尺度。控制面维护“谁存在、支持什么、连接是否仍有效”的软状态；数据面在 Send 时复用已经建立的 writer，把 payload 写入 SHM、UDP 或 TCP。固定提交中的 CGlobals、Registration Provider/Receiver、PubGate/SubGate 和 PublisherImpl/SubscriberImpl 正好对应这两个尺度：发现线程更新连接快照，业务线程读取快照并发送，接收线程再把数据交给 SubGate 管理的对象。
+
+PubGate/SubGate 不是网络传输层，而是按 topic 找到并持有本地实现对象的索引；PublisherImpl/SubscriberImpl 不是业务回调本身，而是把连接状态、reader/writer 和生命周期协议组合起来的运行时对象；Registration 只提供发现与能力信息，不等于数据已经可以读取。若把这些职责合成一个类，Finalize 就必须同时停止发现线程、关闭 I/O、清空 topic 索引并等待用户回调，任意顺序错误都可能在已析构对象上继续执行。
+
+若没有连接快照而在每次 Send 时重新读取注册表，发送延迟会直接暴露给发现线程的锁竞争；若让 transport reader 直接调用用户 callback，慢算法会反向阻塞接收路径。eCAL 付出的代价是多一层 Impl、Gate 和 registration 状态，以及连接变化时处理旧 writer 的关闭；换来的收益是高频数据面保持短路径，控制面变化不会把每一帧都变成一次协商。
+
+:::{mermaid}
+flowchart LR
+  APP[业务 CPublisher] --> PF[PubGate]
+  PF --> PI[PublisherImpl]
+  REG[Registration] --> PF
+  PI --> SHM[SHM writer]
+  PI --> UDP[UDP writer]
+  PI --> TCP[TCP writer]
+  SHM --> SUB[Subscriber callback]
+  UDP --> SUB
+  TCP --> SUB
+:::
+
 ## 使用场景与非目标
 
 eCAL 适合主机内或受控局域网中的高带宽机器人数据流，例如相机、点云、车辆传感器和多进程仿真。它的优势是同一 Publisher API 能按端点位置与能力选择 SHM、UDP 或 TCP，并提供监控、录制和回放生态。

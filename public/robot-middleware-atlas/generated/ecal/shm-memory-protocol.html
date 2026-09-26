@@ -1044,34 +1044,35 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="architecture-map.html">eCAL 功能与组件地图：发现驱动的多传输发布订阅</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">使用场景与非目标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">功能域与组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">从机器人需求反推组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">固定源码入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">自顶向下数据链</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id6">发现时间线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">单次发送时间线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">先从一次相机帧推导 eCAL 的骨架</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">使用场景与非目标</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">功能域与组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">从机器人需求反推组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">固定源码入口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id6">自顶向下数据链</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">发现时间线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id8">单次发送时间线</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id8">核心对象与所有权</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id9">所有权与借用表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id9">核心对象与所有权</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id10">所有权与借用表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id10">控制面：软状态如何收敛</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">数据面：三类传输的语义差异</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id12">线程与数据移动矩阵</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">控制面：软状态如何收敛</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id12">数据面：三类传输的语义差异</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id13">线程与数据移动矩阵</a></li>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#shm">SHM 不是一个抽象名词</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id13">一次发送要检查的四个边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">章节对应关系</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">关键取舍</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id16">模式与工程代价</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">一次发送要检查的四个边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">章节对应关系</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id16">关键取舍</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id17">模式与工程代价</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html#c">C++ 设计能力</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id17">性能与可行性判断</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">实现路线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">性能与可行性判断</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id19">实现路线</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="publisher-discovery-send.html">Publisher 发送链：发现匹配、选层与多传输写入</a><ul>
@@ -1138,6 +1139,7 @@
 </ul>
 </li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">SHM 数据路径：双层头、Buffer 轮换与零拷贝锁域</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="#hz8-mb">先从 30 Hz、8 MB 图像的失败实现开始</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#header-payload">两层 Header 与 Payload</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#internalheader-sampleheader">InternalHeader 与 SampleHeader 的职责</a></li>
 <li class="toctree-l5"><a class="reference internal" href="#native-struct-layout-abi">Native struct layout 的 ABI 风险</a></li>
@@ -2083,31 +2085,75 @@
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#header-payload" id="id8">两层 Header 与 Payload</a></p></li>
-<li><p><a class="reference internal" href="#internalheader-sampleheader" id="id9">InternalHeader 与 SampleHeader 的职责</a></p></li>
-<li><p><a class="reference internal" href="#native-struct-layout-abi" id="id10">Native struct layout 的 ABI 风险</a></p></li>
-<li><p><a class="reference internal" href="#id1" id="id11">命名对象建立跨进程同步</a></p></li>
-<li><p><a class="reference internal" href="#cdatawritershm-buffer" id="id12">CDataWriterSHM 管理多个 Buffer</a></p></li>
-<li><p><a class="reference internal" href="#preparewrite" id="id13">PrepareWrite 棊查容量并重建</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id14">写端临界区</a></p></li>
-<li><p><a class="reference internal" href="#copy-zero-copy" id="id15">Copy 模式与 Zero-copy 模式</a></p></li>
-<li><p><a class="reference internal" href="#observer" id="id16">Observer 的读取状态机</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id17">Observer 线程粒度</a></p></li>
-<li><p><a class="reference internal" href="#zero-copy-wcet-publisher" id="id18">Zero-copy 把业务 WCET 传给 Publisher</a></p></li>
-<li><p><a class="reference internal" href="#copy" id="id19">Copy 模式隔离临界区</a></p></li>
-<li><p><a class="reference internal" href="#ack" id="id20">ACK 的目的</a></p></li>
-<li><p><a class="reference internal" href="#ack-timeout" id="id21">ACK timeout 的语义</a></p></li>
-<li><p><a class="reference internal" href="#shm" id="id22">SHM 所有权与指针有效期</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id23">内存预算</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id24">故障路径</a></p></li>
-<li><p><a class="reference internal" href="#id6" id="id25">可复刻的最小 SHM 设计</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id26">SHM 设计结论</a></p></li>
+<li><p><a class="reference internal" href="#hz8-mb" id="id8">先从 30 Hz、8 MB 图像的失败实现开始</a></p></li>
+<li><p><a class="reference internal" href="#header-payload" id="id9">两层 Header 与 Payload</a></p></li>
+<li><p><a class="reference internal" href="#internalheader-sampleheader" id="id10">InternalHeader 与 SampleHeader 的职责</a></p></li>
+<li><p><a class="reference internal" href="#native-struct-layout-abi" id="id11">Native struct layout 的 ABI 风险</a></p></li>
+<li><p><a class="reference internal" href="#id1" id="id12">命名对象建立跨进程同步</a></p></li>
+<li><p><a class="reference internal" href="#cdatawritershm-buffer" id="id13">CDataWriterSHM 管理多个 Buffer</a></p></li>
+<li><p><a class="reference internal" href="#preparewrite" id="id14">PrepareWrite 棊查容量并重建</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id15">写端临界区</a></p></li>
+<li><p><a class="reference internal" href="#copy-zero-copy" id="id16">Copy 模式与 Zero-copy 模式</a></p></li>
+<li><p><a class="reference internal" href="#observer" id="id17">Observer 的读取状态机</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id18">Observer 线程粒度</a></p></li>
+<li><p><a class="reference internal" href="#zero-copy-wcet-publisher" id="id19">Zero-copy 把业务 WCET 传给 Publisher</a></p></li>
+<li><p><a class="reference internal" href="#copy" id="id20">Copy 模式隔离临界区</a></p></li>
+<li><p><a class="reference internal" href="#ack" id="id21">ACK 的目的</a></p></li>
+<li><p><a class="reference internal" href="#ack-timeout" id="id22">ACK timeout 的语义</a></p></li>
+<li><p><a class="reference internal" href="#shm" id="id23">SHM 所有权与指针有效期</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id24">内存预算</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id25">故障路径</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id26">可复刻的最小 SHM 设计</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id27">SHM 设计结论</a></p></li>
 </ul>
 </nav>
 <p>共享内存常被简化为“Publisher 写一块内存，Subscriber 直接读”。真实实现还必须解决容量变化、跨进程互斥、新数据通知、慢读者、重复通知、对象销毁与可选确认。</p>
 <p>eCAL 将这些职责拆到 <code class="docutils literal notranslate"><span class="pre">CMemoryFile</span></code>、<code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code>、<code class="docutils literal notranslate"><span class="pre">CDataWriterSHM</span></code> 和 <code class="docutils literal notranslate"><span class="pre">CMemFileObserver</span></code>。本章从内存布局开始，追踪一次写入和一次读取。</p>
+<section id="hz8-mb">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">先从 30 Hz、8 MB 图像的失败实现开始</a><a class="headerlink" href="#hz8-mb" title="Link to this heading"></a></h2>
+<p>假设相机每 33 ms 产生一帧 8 MB 图像，同一台机器上的感知进程要消费它，另一台机器上的监控进程也要订阅它。先不要把 eCAL 的类名带进来，单独看这个工程问题：发布者必须在下一帧到来前完成写入，订阅者不能读到半帧，慢回调不能把发布线程永久卡住，进程退出后旧的共享对象也不能让新进程误读。</p>
+<p>最直接的实现通常有三个版本，但它们分别暴露了不同的边界。</p>
+<ol class="arabic simple">
+<li><p><strong>把指针通过 socket 发给订阅者。</strong> 指针只在当前进程的虚拟地址空间中有意义；另一个进程即使拿到相同的数值，也可能没有映射到同一页，解引用会崩溃。就算两个对象恰好映射到了相同地址，发布者释放或复用对象后，订阅者保存的裸指针仍然会悬空。</p></li>
+<li><p><strong>每帧通过 socket 发送 8 MB。</strong> 这会把大块数据放回内核 socket 缓冲区和用户态缓冲区之间的复制路径。生产者一旦比消费者快，发送调用就会受到反压；把发送线程改成异步线程后，又必须额外设计队列、丢帧策略和关闭协议。</p></li>
+<li><p><strong>只放一个共享槽位并立即通知。</strong> 如果写线程先写 header、发 event，再执行 <code class="docutils literal notranslate"><span class="pre">memcpy</span></code>，读线程可能被唤醒后看到新序号，却读到一半新、一半旧的图像。即使把通知放到 <code class="docutils literal notranslate"><span class="pre">memcpy</span></code> 之后，慢读者仍可能持有旧数据时被下一帧覆盖。</p></li>
+</ol>
+<p>因此，共享内存不是“把一个指针变成全局变量”，而是两个进程分别把同一个命名对象映射到自己的虚拟地址空间：Linux 的 <code class="docutils literal notranslate"><span class="pre">shm_open</span></code>/文件描述符负责找到对象，<code class="docutils literal notranslate"><span class="pre">ftruncate</span></code> 决定容量，<code class="docutils literal notranslate"><span class="pre">mmap(...,</span> <span class="pre">MAP_SHARED,</span> <span class="pre">...)</span></code> 建立映射；每个进程得到的地址可以不同，但映射背后的物理页相同。<code class="docutils literal notranslate"><span class="pre">std::mutex</span></code> 默认只保证同一进程内的线程互斥，不能直接保护另一进程的地址空间，所以还需要可命名、可跨进程打开的 mutex/event。</p>
+<p>通知也不能被理解成“队列里已经有一条消息”。event 更像一个提示：可能有新内容。读者醒来后仍要重新获取读锁、检查 header、比较 publisher clock，再决定这次是否真的产生了新 sample；重复通知、丢失通知和观察者关闭都必须由读取状态机收敛。</p>
+<p>下面先写一个教学最小模型。它不是 eCAL 原始源码，而是把必须存在的状态压缩成一个槽位，帮助我们看清提交顺序。真实实现随后会把槽位封装到 <code class="docutils literal notranslate"><span class="pre">CMemoryFile</span></code>/<code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code>，把通知交给 named event，把多个槽位交给 <code class="docutils literal notranslate"><span class="pre">CDataWriterSHM</span></code>。</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// 教学示例：只展示“锁内完成提交，解锁后通知”的数据流。</span>
+<span class="k">struct</span><span class="w"> </span><span class="nc">SharedSlot</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">process_local_only</span><span class="p">;</span><span class="w"> </span><span class="c1">// 真实跨进程实现不能直接使用它</span>
+<span class="w">  </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">sequence</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">array</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">byte</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1024</span><span class="o">&gt;</span><span class="w"> </span><span class="n">bytes</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">Write</span><span class="p">(</span><span class="n">SharedSlot</span><span class="o">&amp;</span><span class="w"> </span><span class="n">slot</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">span</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">byte</span><span class="o">&gt;</span><span class="w"> </span><span class="n">input</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">scoped_lock</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">slot</span><span class="p">.</span><span class="n">process_local_only</span><span class="p">);</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">memcpy</span><span class="p">(</span><span class="n">slot</span><span class="p">.</span><span class="n">bytes</span><span class="p">.</span><span class="n">data</span><span class="p">(),</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">data</span><span class="p">(),</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">size</span><span class="p">());</span>
+<span class="w">  </span><span class="n">slot</span><span class="p">.</span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">input</span><span class="p">.</span><span class="n">size</span><span class="p">();</span>
+<span class="w">  </span><span class="o">++</span><span class="n">slot</span><span class="p">.</span><span class="n">sequence</span><span class="p">;</span><span class="w">              </span><span class="c1">// header 与 payload 在同一临界区提交</span>
+<span class="w">  </span><span class="c1">// unlock 后才 signal send_event</span>
+<span class="p">}</span>
+
+<span class="kt">bool</span><span class="w"> </span><span class="nf">Read</span><span class="p">(</span><span class="n">SharedSlot</span><span class="o">&amp;</span><span class="w"> </span><span class="n">slot</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">byte</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">local</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">scoped_lock</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">slot</span><span class="p">.</span><span class="n">process_local_only</span><span class="p">);</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slot</span><span class="p">.</span><span class="n">size</span><span class="p">;</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">slot</span><span class="p">.</span><span class="n">sequence</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">slot</span><span class="p">.</span><span class="n">bytes</span><span class="p">.</span><span class="n">size</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span><span class="w"> </span><span class="c1">// 先校验边界</span>
+<span class="w">  </span><span class="n">local</span><span class="p">.</span><span class="n">assign</span><span class="p">(</span><span class="n">slot</span><span class="p">.</span><span class="n">bytes</span><span class="p">.</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">slot</span><span class="p">.</span><span class="n">bytes</span><span class="p">.</span><span class="n">begin</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">n</span><span class="p">);</span>
+<span class="w">  </span><span class="c1">// 解锁后 callback(local)，不把业务 WCET 带入临界区</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">seq</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>这个模型故意保留了几个缺陷：锁只是进程内的、只有一个槽位、没有 resize、没有 ACK。它的价值在于先固定一个不变量：<strong>读者只能看到已经完成 header/payload 写入的 sample，通知不能早于这个提交点。</strong> 如果把 signal 放到 <code class="docutils literal notranslate"><span class="pre">memcpy</span></code> 前面，具体失败就是读线程在 <code class="docutils literal notranslate"><span class="pre">sequence</span></code> 已更新而 <code class="docutils literal notranslate"><span class="pre">size</span></code>/payload 尚未完成时运行 callback；如果把 callback 放在锁内，40 ms 的算法回调会让发布线程在下一帧到来时等待同一个锁；如果不轮换槽位，写线程最终只能覆盖读线程正在复制的那一帧。后面的每个 eCAL 对象，都是在解决这些最小模型暴露出来的一个缺陷，而不是凭空增加抽象层。</p>
+<p>在固定版本源码中，这些职责的对应关系是：<code class="docutils literal notranslate"><span class="pre">CDataWriterSHM::Write</span></code> 选择并轮换 <code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code>；<code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code> 在命名互斥保护下写入 internal header、sample header 和 payload，再由 <code class="docutils literal notranslate"><span class="pre">SyncContent</span></code> 发出通知；<code class="docutils literal notranslate"><span class="pre">CMemFileObserver::Observe</span></code> 等待 event、重新获取读权限并校验边界；copy 模式在释放锁后回调本地副本，zero-copy 模式则把映射视图和锁的有效期延长到 callback 结束。源码位置分别见 <a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/pubsub/ecal_datawriter_shm.cpp"><code class="docutils literal notranslate"><span class="pre">ecal_datawriter_shm.cpp</span></code></a>、<a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_sync.cpp"><code class="docutils literal notranslate"><span class="pre">ecal_memfile_sync.cpp</span></code></a> 和 <a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_pool.cpp"><code class="docutils literal notranslate"><span class="pre">ecal_memfile_pool.cpp</span></code></a>。</p>
+<p>理解了这个失败—修复链条，再回头看下面的双层 Header，就能知道每个字段为什么存在：第一层描述映射容器能容纳多少字节，第二层描述这一条消息的大小、序号和发布者时钟；前者服务内存管理，后者服务消息一致性。两层都不是装饰字段，任何一层不可信都可能把读指针推进到映射边界之外。</p>
+</section>
 <section id="header-payload">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">两层 Header 与 Payload</a><a class="headerlink" href="#header-payload" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">两层 Header 与 Payload</a><a class="headerlink" href="#header-payload" title="Link to this heading"></a></h2>
 <p>共享映射的布局为：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>offset 0
 +-----------------------------------+
@@ -2131,7 +2177,7 @@
 <p><a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile.cpp"><code class="docutils literal notranslate"><span class="pre">CMemoryFile::GetReadAddress()</span></code></a> 返回 internal header 后的位置；Observer 还要再跳过 <code class="docutils literal notranslate"><span class="pre">SMemFileHeader::hdr_size</span></code> 才得到 payload。</p>
 </section>
 <section id="internalheader-sampleheader">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">InternalHeader 与 SampleHeader 的职责</a><a class="headerlink" href="#internalheader-sampleheader" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">InternalHeader 与 SampleHeader 的职责</a><a class="headerlink" href="#internalheader-sampleheader" title="Link to this heading"></a></h2>
 <p>InternalHeader 解决“这块共享对象当前可容纳多少字节”，即 allocator/container 问题。</p>
 <p>SampleHeader 解决“这里存的是哪一条 Publisher 消息”，即 messaging 问题。</p>
 <p>分层后，同一个 <code class="docutils literal notranslate"><span class="pre">CMemoryFile</span></code> 基础设施可以服务不同上层内容；pub/sub 不需要重复实现 mapping、resize 和 named mutex。</p>
@@ -2144,7 +2190,7 @@ cur_data_size &lt;= max_data_size
 <p>只信任任一 header 都可能越界访问损坏或版本不兼容的映射。</p>
 </section>
 <section id="native-struct-layout-abi">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Native struct layout 的 ABI 风险</a><a class="headerlink" href="#native-struct-layout-abi" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Native struct layout 的 ABI 风险</a><a class="headerlink" href="#native-struct-layout-abi" title="Link to this heading"></a></h2>
 <p><code class="docutils literal notranslate"><span class="pre">SInternalHeader</span></code> 对 packing 有显式处理，而 <code class="docutils literal notranslate"><span class="pre">SMemFileHeader</span></code> 依赖本地 C++ 结构布局。字段间 padding、bool 大小和 alignment 可能受编译器与平台影响。</p>
 <p>共享内存两端若使用相同发行版和 ABI，原生布局速度快、代码直接。跨编译器、跨架构或独立实现互通时，它不等同于稳定 wire format。</p>
 <p>可移植重建应显式编码固定宽度字段：</p>
@@ -2160,7 +2206,7 @@ cur_data_size &lt;= max_data_size
 </div>
 </section>
 <section id="id1">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">命名对象建立跨进程同步</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">命名对象建立跨进程同步</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>普通 <code class="docutils literal notranslate"><span class="pre">std::mutex</span></code> 只能在共享同一进程地址空间的线程间工作。eCAL SHM 使用可由多个进程按名称打开的对象：</p>
 <ul class="simple">
 <li><p>memory file：共享数据；</p></li>
@@ -2172,7 +2218,7 @@ cur_data_size &lt;= max_data_size
 <p>命名还带来清理问题：进程崩溃可能留下 OS 对象。创建端要处理 already-exists、owner death、版本不符和旧容量对象。</p>
 </section>
 <section id="cdatawritershm-buffer">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">CDataWriterSHM 管理多个 Buffer</a><a class="headerlink" href="#cdatawritershm-buffer" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">CDataWriterSHM 管理多个 Buffer</a><a class="headerlink" href="#cdatawritershm-buffer" title="Link to this heading"></a></h2>
 <p>Publisher 的 SHM writer 保存 <code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code> vector。每次发布选择下一项，形成 round-robin：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>write #0 -&gt; buffer 0
 write #1 -&gt; buffer 1
@@ -2184,7 +2230,7 @@ write #3 -&gt; buffer 0
 <p>若发布频率远高于 callback，Publisher 最终仍会绕回被占用 buffer。Buffer 数 B 只提供约 B-1 条消息的并发余量，不是无限队列。</p>
 </section>
 <section id="preparewrite">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">PrepareWrite 棊查容量并重建</a><a class="headerlink" href="#preparewrite" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">PrepareWrite 棊查容量并重建</a><a class="headerlink" href="#preparewrite" title="Link to this heading"></a></h2>
 <p>当前 payload 超过 memfile 容量时，writer 根据 payload 与 reserve 百分比申请更大映射：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>required = sample_header + payload
 new_capacity = required * (1 + reserve_percent)
@@ -2194,7 +2240,7 @@ new_capacity = required * (1 + reserve_percent)
 <p>重建可能改变 memory-file identity/list。Publisher 随后需要重新发送 registration，让 Subscriber observer 打开新对象。Resize 因而不是纯本地内存操作，而是控制面变化。</p>
 </section>
 <section id="id2">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">写端临界区</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">写端临界区</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_sync.cpp"><code class="docutils literal notranslate"><span class="pre">CSyncMemoryFile</span></code></a> 的一次写入按以下顺序：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>acquire named mutex
   -&gt; obtain write address
@@ -2210,7 +2256,7 @@ optional: wait ACK events
 <p>Header 和 payload 必须在同一临界区提交，形成一条原子可见 sample。</p>
 </section>
 <section id="copy-zero-copy">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">Copy 模式与 Zero-copy 模式</a><a class="headerlink" href="#copy-zero-copy" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Copy 模式与 Zero-copy 模式</a><a class="headerlink" href="#copy-zero-copy" title="Link to this heading"></a></h2>
 <p>Copy 模式下，Publisher 把调用者 payload 复制到 SHM；Subscriber observer 再复制到本地 vector，然后释放 named mutex、调用 callback。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>publisher bytes -&gt; shared mapping -&gt; subscriber local buffer -&gt; callback
 </pre></div>
@@ -2222,7 +2268,7 @@ optional: wait ACK events
 <p>为了防止 callback 期间 Publisher 覆盖，该 buffer 的 named mutex 仍被持有。省掉一次大 payload copy，换来临界区延长到整个业务 callback。</p>
 </section>
 <section id="observer">
-<h2><a class="toc-backref" href="#id16" role="doc-backlink">Observer 的读取状态机</a><a class="headerlink" href="#observer" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">Observer 的读取状态机</a><a class="headerlink" href="#observer" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_pool.cpp#L154-L298"><code class="docutils literal notranslate"><span class="pre">CMemFileObserver::Observe()</span></code></a> 大致执行：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>wait send event, periodically wake for shutdown
 try lock named mutex with timeout
@@ -2243,13 +2289,13 @@ if ACK enabled: signal ack event
 <p>Clock 去重用于避免重复 event 或同一 buffer 被多次观察。先确认 header/payload 边界，再使用其中 size。</p>
 </section>
 <section id="id3">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink">Observer 线程粒度</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">Observer 线程粒度</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
 <p>该设计可为每个 observed memfile 建立一个 observer/thread。优点是每个 Publisher buffer 有独立等待上下文，代码直接。</p>
 <p>如果有 M 个 memory files，线程数量、栈内存和 scheduler 唤醒可能近似 <code class="docutils literal notranslate"><span class="pre">O(M)</span></code>。大量 topic/Pub 时，这比 payload copy 更早成为规模瓶颈。</p>
 <p>可扩展替代是让一组 worker 使用可等待事件集合或平台 reactor 管理多个 memfile，但跨平台 named events 是否可统一等待会影响实现复杂度。</p>
 </section>
 <section id="zero-copy-wcet-publisher">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">Zero-copy 把业务 WCET 传给 Publisher</a><a class="headerlink" href="#zero-copy-wcet-publisher" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">Zero-copy 把业务 WCET 传给 Publisher</a><a class="headerlink" href="#zero-copy-wcet-publisher" title="Link to this heading"></a></h2>
 <p>假设 callback 执行 40 ms，Buffer 数为 1：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>t0 subscriber locks and enters callback
 t1 publisher tries next write -&gt; waits same named mutex
@@ -2261,7 +2307,7 @@ publisher can write
 <p>Buffer 数增加到 3 后，Publisher 可先写其他两块，但持续高频发布最终仍绕回。因此 zero-copy 适合 callback 极短或上层能够 loan/retain buffer 并用更明确所有权协议的场景。</p>
 </section>
 <section id="copy">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">Copy 模式隔离临界区</a><a class="headerlink" href="#copy" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">Copy 模式隔离临界区</a><a class="headerlink" href="#copy" title="Link to this heading"></a></h2>
 <p>Copy 模式在锁内只执行 <code class="docutils literal notranslate"><span class="pre">memcpy(S)</span></code>，随后 callback 在锁外运行。Publisher 最坏等待接近一次复制加调度抖动，而不是完整算法 WCET。</p>
 <p>对于中等 payload，复制成本可能比不可控尾延迟更划算。是否 zero-copy 不能只看平均带宽，应比较：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>copy time p99
@@ -2272,7 +2318,7 @@ callback WCET + mutex contention p99
 <p>“少一次复制”不是自动等于“实时性更好”。</p>
 </section>
 <section id="ack">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">ACK 的目的</a><a class="headerlink" href="#ack" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">ACK 的目的</a><a class="headerlink" href="#ack" title="Link to this heading"></a></h2>
 <p>没有 ACK 时，send event 只表示 Publisher 发布了新内容，不知道哪些 Subscriber 已经观察。</p>
 <p>启用 ACK 后，每个订阅进程关联 ack event。Publisher 通知后等待相应确认，直到全部到达或共享 timeout budget 耗尽。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Publisher signal send
@@ -2284,13 +2330,13 @@ Publisher returns after A+B or timeout
 <p>ACK 可以减少覆盖尚未读取数据的风险，但把慢/故障 Subscriber 变成 Publisher 阻塞来源。</p>
 </section>
 <section id="ack-timeout">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">ACK timeout 的语义</a><a class="headerlink" href="#ack-timeout" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id22" role="doc-backlink">ACK timeout 的语义</a><a class="headerlink" href="#ack-timeout" title="Link to this heading"></a></h2>
 <p>多个 ACK 使用同一个开始时刻时，总等待预算近似为 configured timeout，而不是每个订阅者都重新等待完整 timeout。</p>
 <p>超时后应记录该 subscriber 暂时失效，避免每次 publish 重复付出相同 timeout，直到新的 registration/health signal 恢复它。</p>
 <p>源码快照中 <code class="docutils literal notranslate"><span class="pre">SyncContent()</span></code> 先复制 event-handle map 到局部 snapshot，再把 snapshot 内的 invalid flag 置 true；变化是否回写持久 map 需要谨慎核对。就程序设计而言，健康状态必须修改权威数据，而非只修改一次迭代副本。</p>
 </section>
 <section id="shm">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink">SHM 所有权与指针有效期</a><a class="headerlink" href="#shm" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id23" role="doc-backlink">SHM 所有权与指针有效期</a><a class="headerlink" href="#shm" title="Link to this heading"></a></h2>
 <p>Zero-copy callback 得到的是映射地址借用：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>valid after header validation and lock acquisition
 valid during callback
@@ -2301,7 +2347,7 @@ invalid for application use after callback/unlock
 <p>若 API 要允许异步零拷贝，需要显式 loan handle：handle 持有 buffer lease，析构时 release；Publisher 只能复用 lease count 为零的 buffer。这个协议比 callback 借用复杂得多。</p>
 </section>
 <section id="id4">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink">内存预算</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">内存预算</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <p>设每个 Publisher 配 B 个 buffer，容量 C，有 P 个 Publisher：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>SHM payload capacity ~= P * B * C
 </pre></div>
@@ -2310,7 +2356,7 @@ invalid for application use after callback/unlock
 <p>Reserve 使 C 高于当前 payload；大小曾出现过峰值后，memfile 可能长期保持峰值容量。监控应报告 configured、allocated 和 current data size，而不只报告消息大小。</p>
 </section>
 <section id="id5">
-<h2><a class="toc-backref" href="#id24" role="doc-backlink">故障路径</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">故障路径</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
 <p>需要明确处理：</p>
 <ul class="simple">
 <li><p>Publisher 在持锁时崩溃，named mutex 是否支持 owner-death recovery；</p></li>
@@ -2323,7 +2369,7 @@ invalid for application use after callback/unlock
 <p>共享内存省去网络复制，却把跨进程生命周期变成主要复杂度。</p>
 </section>
 <section id="id6">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">可复刻的最小 SHM 设计</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">可复刻的最小 SHM 设计</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <p>第一版只用单 buffer + copy read：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">Header</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">magic</span><span class="p">;</span>
@@ -2339,7 +2385,7 @@ invalid for application use after callback/unlock
 <p>第二版加入 B 个 slot 和 round-robin。第三版加入 registration 发布 slot names。第四版才增加 ACK。最后在测得 copy 是瓶颈后，设计带 lease 的 loan API，而不是简单把 callback 移进锁内。</p>
 </section>
 <section id="id7">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">SHM 设计结论</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">SHM 设计结论</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
 <p>eCAL SHM 以 memory file 承载 bytes，以 named mutex 提交一致 sample，以 event 通知 observer，以多 buffer 缓解读写冲突，并可用 ACK 加强读取确认。</p>
 <p>它的主要优势是同机大数据吞吐；主要风险是原生 ABI、每 memfile observer 成本、resize 控制面传播，以及 zero-copy 将用户 callback 纳入跨进程临界区。真正的性能评估必须同时测复制时间、锁等待和 callback 尾延迟。</p>
 </section>

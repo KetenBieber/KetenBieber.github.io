@@ -1044,34 +1044,35 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="architecture-map.html">eCAL 功能与组件地图：发现驱动的多传输发布订阅</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">使用场景与非目标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">功能域与组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">从机器人需求反推组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">固定源码入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">自顶向下数据链</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id6">发现时间线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">单次发送时间线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">先从一次相机帧推导 eCAL 的骨架</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">使用场景与非目标</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">功能域与组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">从机器人需求反推组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">固定源码入口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id6">自顶向下数据链</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">发现时间线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id8">单次发送时间线</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id8">核心对象与所有权</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id9">所有权与借用表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id9">核心对象与所有权</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id10">所有权与借用表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id10">控制面：软状态如何收敛</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">数据面：三类传输的语义差异</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id12">线程与数据移动矩阵</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">控制面：软状态如何收敛</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id12">数据面：三类传输的语义差异</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id13">线程与数据移动矩阵</a></li>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#shm">SHM 不是一个抽象名词</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id13">一次发送要检查的四个边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">章节对应关系</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">关键取舍</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id16">模式与工程代价</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">一次发送要检查的四个边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">章节对应关系</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id16">关键取舍</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id17">模式与工程代价</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html#c">C++ 设计能力</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id17">性能与可行性判断</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">实现路线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">性能与可行性判断</a></li>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id19">实现路线</a></li>
 </ul>
 </li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">Publisher 发送链：发现匹配、选层与多传输写入</a><ul>
@@ -1138,6 +1139,7 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="shm-memory-protocol.html">SHM 数据路径：双层头、Buffer 轮换与零拷贝锁域</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#hz8-mb">先从 30 Hz、8 MB 图像的失败实现开始</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#header-payload">两层 Header 与 Payload</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#internalheader-sampleheader">InternalHeader 与 SampleHeader 的职责</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#native-struct-layout-abi">Native struct layout 的 ABI 风险</a></li>

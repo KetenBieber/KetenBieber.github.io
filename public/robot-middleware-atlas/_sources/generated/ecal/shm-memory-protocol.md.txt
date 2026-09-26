@@ -10,6 +10,56 @@
 
 eCAL 将这些职责拆到 `CMemoryFile`、`CSyncMemoryFile`、`CDataWriterSHM` 和 `CMemFileObserver`。本章从内存布局开始，追踪一次写入和一次读取。
 
+## 先从 30 Hz、8 MB 图像的失败实现开始
+
+假设相机每 33 ms 产生一帧 8 MB 图像，同一台机器上的感知进程要消费它，另一台机器上的监控进程也要订阅它。先不要把 eCAL 的类名带进来，单独看这个工程问题：发布者必须在下一帧到来前完成写入，订阅者不能读到半帧，慢回调不能把发布线程永久卡住，进程退出后旧的共享对象也不能让新进程误读。
+
+最直接的实现通常有三个版本，但它们分别暴露了不同的边界。
+
+1. **把指针通过 socket 发给订阅者。** 指针只在当前进程的虚拟地址空间中有意义；另一个进程即使拿到相同的数值，也可能没有映射到同一页，解引用会崩溃。就算两个对象恰好映射到了相同地址，发布者释放或复用对象后，订阅者保存的裸指针仍然会悬空。
+2. **每帧通过 socket 发送 8 MB。** 这会把大块数据放回内核 socket 缓冲区和用户态缓冲区之间的复制路径。生产者一旦比消费者快，发送调用就会受到反压；把发送线程改成异步线程后，又必须额外设计队列、丢帧策略和关闭协议。
+3. **只放一个共享槽位并立即通知。** 如果写线程先写 header、发 event，再执行 `memcpy`，读线程可能被唤醒后看到新序号，却读到一半新、一半旧的图像。即使把通知放到 `memcpy` 之后，慢读者仍可能持有旧数据时被下一帧覆盖。
+
+因此，共享内存不是“把一个指针变成全局变量”，而是两个进程分别把同一个命名对象映射到自己的虚拟地址空间：Linux 的 `shm_open`/文件描述符负责找到对象，`ftruncate` 决定容量，`mmap(..., MAP_SHARED, ...)` 建立映射；每个进程得到的地址可以不同，但映射背后的物理页相同。`std::mutex` 默认只保证同一进程内的线程互斥，不能直接保护另一进程的地址空间，所以还需要可命名、可跨进程打开的 mutex/event。
+
+通知也不能被理解成“队列里已经有一条消息”。event 更像一个提示：可能有新内容。读者醒来后仍要重新获取读锁、检查 header、比较 publisher clock，再决定这次是否真的产生了新 sample；重复通知、丢失通知和观察者关闭都必须由读取状态机收敛。
+
+下面先写一个教学最小模型。它不是 eCAL 原始源码，而是把必须存在的状态压缩成一个槽位，帮助我们看清提交顺序。真实实现随后会把槽位封装到 `CMemoryFile`/`CSyncMemoryFile`，把通知交给 named event，把多个槽位交给 `CDataWriterSHM`。
+
+```cpp
+// 教学示例：只展示“锁内完成提交，解锁后通知”的数据流。
+struct SharedSlot {
+  std::mutex process_local_only; // 真实跨进程实现不能直接使用它
+  uint64_t sequence = 0;
+  uint64_t size = 0;
+  std::array<std::byte, 8 * 1024 * 1024> bytes;
+};
+
+void Write(SharedSlot& slot, std::span<const std::byte> input) {
+  std::scoped_lock lock(slot.process_local_only);
+  std::memcpy(slot.bytes.data(), input.data(), input.size());
+  slot.size = input.size();
+  ++slot.sequence;              // header 与 payload 在同一临界区提交
+  // unlock 后才 signal send_event
+}
+
+bool Read(SharedSlot& slot, std::vector<std::byte>& local) {
+  std::scoped_lock lock(slot.process_local_only);
+  const auto n = slot.size;
+  const auto seq = slot.sequence;
+  if (n > slot.bytes.size()) return false; // 先校验边界
+  local.assign(slot.bytes.begin(), slot.bytes.begin() + n);
+  // 解锁后 callback(local)，不把业务 WCET 带入临界区
+  return seq != 0;
+}
+```
+
+这个模型故意保留了几个缺陷：锁只是进程内的、只有一个槽位、没有 resize、没有 ACK。它的价值在于先固定一个不变量：**读者只能看到已经完成 header/payload 写入的 sample，通知不能早于这个提交点。** 如果把 signal 放到 `memcpy` 前面，具体失败就是读线程在 `sequence` 已更新而 `size`/payload 尚未完成时运行 callback；如果把 callback 放在锁内，40 ms 的算法回调会让发布线程在下一帧到来时等待同一个锁；如果不轮换槽位，写线程最终只能覆盖读线程正在复制的那一帧。后面的每个 eCAL 对象，都是在解决这些最小模型暴露出来的一个缺陷，而不是凭空增加抽象层。
+
+在固定版本源码中，这些职责的对应关系是：`CDataWriterSHM::Write` 选择并轮换 `CSyncMemoryFile`；`CSyncMemoryFile` 在命名互斥保护下写入 internal header、sample header 和 payload，再由 `SyncContent` 发出通知；`CMemFileObserver::Observe` 等待 event、重新获取读权限并校验边界；copy 模式在释放锁后回调本地副本，zero-copy 模式则把映射视图和锁的有效期延长到 callback 结束。源码位置分别见 [`ecal_datawriter_shm.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/pubsub/ecal_datawriter_shm.cpp)、[`ecal_memfile_sync.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_sync.cpp) 和 [`ecal_memfile_pool.cpp`](https://github.com/eclipse-ecal/ecal/blob/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717/ecal/core/src/io/shm/ecal_memfile_pool.cpp)。
+
+理解了这个失败—修复链条，再回头看下面的双层 Header，就能知道每个字段为什么存在：第一层描述映射容器能容纳多少字节，第二层描述这一条消息的大小、序号和发布者时钟；前者服务内存管理，后者服务消息一致性。两层都不是装饰字段，任何一层不可信都可能把读指针推进到映射边界之外。
+
 ## 两层 Header 与 Payload
 
 共享映射的布局为：

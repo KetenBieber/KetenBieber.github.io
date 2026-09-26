@@ -21,6 +21,364 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=6dbb43f8"></script>
       <script src="../../_static/translations.js?v=beaddf03"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../genindex.html" />
     <link rel="search" title="搜索" href="../../search.html" />
@@ -1044,34 +1402,35 @@
 </ul>
 </li>
 <li class="toctree-l4 current"><a class="current reference internal" href="#">eCAL 功能与组件地图：发现驱动的多传输发布订阅</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="#id1">使用场景与非目标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id2">功能域与组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id3">从机器人需求反推组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id4">固定源码入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id5">自顶向下数据链</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id6">发现时间线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id7">单次发送时间线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id1">先从一次相机帧推导 eCAL 的骨架</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id2">使用场景与非目标</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id3">功能域与组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id4">从机器人需求反推组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id5">固定源码入口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id6">自顶向下数据链</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id7">发现时间线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id8">单次发送时间线</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id8">核心对象与所有权</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id9">所有权与借用表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id9">核心对象与所有权</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id10">所有权与借用表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id10">控制面：软状态如何收敛</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id11">数据面：三类传输的语义差异</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id12">线程与数据移动矩阵</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id11">控制面：软状态如何收敛</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id12">数据面：三类传输的语义差异</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id13">线程与数据移动矩阵</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#shm">SHM 不是一个抽象名词</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id13">一次发送要检查的四个边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id14">章节对应关系</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id15">关键取舍</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id16">模式与工程代价</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id14">一次发送要检查的四个边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id15">章节对应关系</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id16">关键取舍</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id17">模式与工程代价</a></li>
 </ul>
 </li>
 <li class="toctree-l5"><a class="reference internal" href="#c">C++ 设计能力</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id17">性能与可行性判断</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id18">实现路线</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id18">性能与可行性判断</a></li>
+<li class="toctree-l5"><a class="reference internal" href="#id19">实现路线</a></li>
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="publisher-discovery-send.html">Publisher 发送链：发现匹配、选层与多传输写入</a><ul>
@@ -1138,6 +1497,7 @@
 </ul>
 </li>
 <li class="toctree-l4"><a class="reference internal" href="shm-memory-protocol.html">SHM 数据路径：双层头、Buffer 轮换与零拷贝锁域</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#hz8-mb">先从 30 Hz、8 MB 图像的失败实现开始</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#header-payload">两层 Header 与 Payload</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#internalheader-sampleheader">InternalHeader 与 SampleHeader 的职责</a></li>
 <li class="toctree-l5"><a class="reference internal" href="shm-memory-protocol.html#native-struct-layout-abi">Native struct layout 的 ABI 风险</a></li>
@@ -2083,48 +2443,67 @@
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id19">使用场景与非目标</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id20">功能域与组件</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id21">从机器人需求反推组件</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id22">固定源码入口</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id23">自顶向下数据链</a></p>
+<li><p><a class="reference internal" href="#id1" id="id20">先从一次相机帧推导 eCAL 的骨架</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id21">使用场景与非目标</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id22">功能域与组件</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id23">从机器人需求反推组件</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id24">固定源码入口</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id25">自顶向下数据链</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id6" id="id24">发现时间线</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id25">单次发送时间线</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id26">发现时间线</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id27">单次发送时间线</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id8" id="id26">核心对象与所有权</a></p>
+<li><p><a class="reference internal" href="#id9" id="id28">核心对象与所有权</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id9" id="id27">所有权与借用表</a></p></li>
+<li><p><a class="reference internal" href="#id10" id="id29">所有权与借用表</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id10" id="id28">控制面：软状态如何收敛</a></p></li>
-<li><p><a class="reference internal" href="#id11" id="id29">数据面：三类传输的语义差异</a></p>
+<li><p><a class="reference internal" href="#id11" id="id30">控制面：软状态如何收敛</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id31">数据面：三类传输的语义差异</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id12" id="id30">线程与数据移动矩阵</a></p></li>
-<li><p><a class="reference internal" href="#shm" id="id31">SHM 不是一个抽象名词</a></p></li>
+<li><p><a class="reference internal" href="#id13" id="id32">线程与数据移动矩阵</a></p></li>
+<li><p><a class="reference internal" href="#shm" id="id33">SHM 不是一个抽象名词</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id13" id="id32">一次发送要检查的四个边界</a></p></li>
-<li><p><a class="reference internal" href="#id14" id="id33">章节对应关系</a></p></li>
-<li><p><a class="reference internal" href="#id15" id="id34">关键取舍</a></p>
+<li><p><a class="reference internal" href="#id14" id="id34">一次发送要检查的四个边界</a></p></li>
+<li><p><a class="reference internal" href="#id15" id="id35">章节对应关系</a></p></li>
+<li><p><a class="reference internal" href="#id16" id="id36">关键取舍</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id16" id="id35">模式与工程代价</a></p></li>
+<li><p><a class="reference internal" href="#id17" id="id37">模式与工程代价</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#c" id="id36">C++ 设计能力</a></p></li>
-<li><p><a class="reference internal" href="#id17" id="id37">性能与可行性判断</a></p></li>
-<li><p><a class="reference internal" href="#id18" id="id38">实现路线</a></p></li>
+<li><p><a class="reference internal" href="#c" id="id38">C++ 设计能力</a></p></li>
+<li><p><a class="reference internal" href="#id18" id="id39">性能与可行性判断</a></p></li>
+<li><p><a class="reference internal" href="#id19" id="id40">实现路线</a></p></li>
 </ul>
 </nav>
 <p>eCAL 的核心功能是让动态启动的进程先发现彼此，再为每对 Publisher/Subscriber 选择合适传输，并把多条物理路径汇入统一回调。源码可以按五个功能域阅读。</p>
 <section id="id1">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">使用场景与非目标</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">先从一次相机帧推导 eCAL 的骨架</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>假设相机进程每 33 ms 发布一帧图像：同机感知进程希望走共享内存，局域网记录器希望走 UDP，远端诊断工具则需要 TCP。最直接的写法是让 Publisher 每次 Send 都扫描在线 Subscriber、重新协商并直接调用对方回调。这个版本会出现可观察故障：发现线程的锁竞争进入高频 Send 路径；慢回调阻塞发送线程，后续帧堆在 socket 或丢失；对端退出后保存的裸指针还可能悬空。</p>
+<p>因此需要把问题拆成两个时间尺度。控制面维护“谁存在、支持什么、连接是否仍有效”的软状态；数据面在 Send 时复用已经建立的 writer，把 payload 写入 SHM、UDP 或 TCP。固定提交中的 CGlobals、Registration Provider/Receiver、PubGate/SubGate 和 PublisherImpl/SubscriberImpl 正好对应这两个尺度：发现线程更新连接快照，业务线程读取快照并发送，接收线程再把数据交给 SubGate 管理的对象。</p>
+<p>PubGate/SubGate 不是网络传输层，而是按 topic 找到并持有本地实现对象的索引；PublisherImpl/SubscriberImpl 不是业务回调本身，而是把连接状态、reader/writer 和生命周期协议组合起来的运行时对象；Registration 只提供发现与能力信息，不等于数据已经可以读取。若把这些职责合成一个类，Finalize 就必须同时停止发现线程、关闭 I/O、清空 topic 索引并等待用户回调，任意顺序错误都可能在已析构对象上继续执行。</p>
+<p>若没有连接快照而在每次 Send 时重新读取注册表，发送延迟会直接暴露给发现线程的锁竞争；若让 transport reader 直接调用用户 callback，慢算法会反向阻塞接收路径。eCAL 付出的代价是多一层 Impl、Gate 和 registration 状态，以及连接变化时处理旧 writer 的关闭；换来的收益是高频数据面保持短路径，控制面变化不会把每一帧都变成一次协商。</p>
+<pre  class="mermaid">
+        flowchart LR
+  APP[业务 CPublisher] --&gt; PF[PubGate]
+  PF --&gt; PI[PublisherImpl]
+  REG[Registration] --&gt; PF
+  PI --&gt; SHM[SHM writer]
+  PI --&gt; UDP[UDP writer]
+  PI --&gt; TCP[TCP writer]
+  SHM --&gt; SUB[Subscriber callback]
+  UDP --&gt; SUB
+  TCP --&gt; SUB
+    </pre></section>
+<section id="id2">
+<h2><a class="toc-backref" href="#id21" role="doc-backlink">使用场景与非目标</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <p>eCAL 适合主机内或受控局域网中的高带宽机器人数据流，例如相机、点云、车辆传感器和多进程仿真。它的优势是同一 Publisher API 能按端点位置与能力选择 SHM、UDP 或 TCP，并提供监控、录制和回放生态。</p>
 <p>它不是分布式数据库，也不替业务定义跨 topic 事务、严格全局顺序或无限离线积压。发现成功只表示实体可见，不能证明消费者及时处理；选择可靠传输也不能替应用解决过期数据和过载。</p>
 </section>
-<section id="id2">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">功能域与组件</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<section id="id3">
+<h2><a class="toc-backref" href="#id22" role="doc-backlink">功能域与组件</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>功能域</p></th>
@@ -2162,8 +2541,8 @@
 </tbody>
 </table>
 </section>
-<section id="id3">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">从机器人需求反推组件</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<section id="id4">
+<h2><a class="toc-backref" href="#id23" role="doc-backlink">从机器人需求反推组件</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>需求</p></th>
@@ -2204,8 +2583,8 @@
 </table>
 <p>定位问题时应先判断属于哪一平面。发现表能看到实体但没有数据，通常要继续检查 capability 和 transport；Send 返回成功但算法没有新数据，要检查 reader layer、SubGate 去重、callback/队列与数据年龄；Finalize 卡住，则从 registration/transport worker 和在途 callback 反向追踪。</p>
 </section>
-<section id="id4">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink">固定源码入口</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<section id="id5">
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">固定源码入口</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
 <p>本系列固定 eCAL 源码为 <a class="reference external" href="https://github.com/eclipse-ecal/ecal/tree/1ec0ea2fe5e5e61e3e492be6128c27cc6026d717"><code class="docutils literal notranslate"><span class="pre">1ec0ea2f</span></code></a>：</p>
 <table class="docutils align-default">
 <thead>
@@ -2251,8 +2630,8 @@
 </table>
 <p>阅读顺序不应按目录字母排列。先从公开 Publisher 的 Send 追到底层 writer，再从 registration 样本反向追到 PublisherImpl 的连接状态，最后沿 Subscriber reader 回到 callback，才能把控制面和数据面接起来。</p>
 </section>
-<section id="id5">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink">自顶向下数据链</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<section id="id6">
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">自顶向下数据链</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Initialize -&gt; Registration 周期广播
 Publisher/Subscriber registration 相遇
   -&gt; capability intersection
@@ -2264,8 +2643,8 @@ Send -&gt; selected writers
 </pre></div>
 </div>
 <p>这条链可拆成两个时间尺度：Registration 周期性维护“谁存在、支持什么”；Send 高频使用已经建立的 writer 集合。控制面允许最终一致，数据面追求短路径。若每次 Send 都重新发现和协商，发布延迟会被网络控制面支配。</p>
-<section id="id6">
-<h3><a class="toc-backref" href="#id24" role="doc-backlink">发现时间线</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<section id="id7">
+<h3><a class="toc-backref" href="#id26" role="doc-backlink">发现时间线</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>local Publisher Create
   -&gt; PubGate 持有 Impl
   -&gt; Registration Provider 周期发布 descriptor
@@ -2277,8 +2656,8 @@ Send -&gt; selected writers
 </div>
 <p>descriptor 到达不是同步握手完成。远端可能先看到 registration，稍后才打开 reader/writer；本地也可能在首次 Send 时仍没有目标。业务若要求启动屏障，需要显式等待匹配条件或在应用协议中增加 ready，不能把“休眠一秒”当正确性机制。</p>
 </section>
-<section id="id7">
-<h3><a class="toc-backref" href="#id25" role="doc-backlink">单次发送时间线</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h3>
+<section id="id8">
+<h3><a class="toc-backref" href="#id27" role="doc-backlink">单次发送时间线</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h3>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CPublisher::Send
   -&gt; weak facade lock PublisherImpl
   -&gt; 检查实体运行状态
@@ -2290,8 +2669,8 @@ Send -&gt; selected writers
 <p>发送路径应避免持有发现表的长锁。控制线程可生成不可变连接计划，Send 复制计划指针后锁外 I/O；代价是刚删除的连接可能仍被当前发送快照使用，writer 必须容忍关闭并返回明确错误。</p>
 </section>
 </section>
-<section id="id8">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">核心对象与所有权</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<section id="id9">
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">核心对象与所有权</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>CGlobals
   |-- Registration provider / receiver threads
   |-- PubGate --shared--&gt; PublisherImpl &lt;--weak-- CPublisher facade
@@ -2308,8 +2687,8 @@ SubscriberImpl
 </pre></div>
 </div>
 <p>Gate 既是按 topic 查找实体的索引，也是实现对象的所有权根。公开 facade 持弱引用，使全局 Finalize 清空 Gate 后，遗留句柄安全失效而不是指向已释放内存。Transport callback 在分发前取得局部强引用快照，解锁后再进入实体和用户代码。</p>
-<section id="id9">
-<h3><a class="toc-backref" href="#id27" role="doc-backlink">所有权与借用表</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
+<section id="id10">
+<h3><a class="toc-backref" href="#id29" role="doc-backlink">所有权与借用表</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>对象</p></th>
@@ -2354,16 +2733,16 @@ SubscriberImpl
 <p><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 只能延长内存寿命，不能定义操作是否仍被允许。Impl 即使被一次 Send 的局部强引用保活，也可能处于 Stopping；方法必须同时检查状态。相反，单独的 atomic running 也不能保护已释放对象，facade 仍需安全取得寿命租约。</p>
 </section>
 </section>
-<section id="id10">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">控制面：软状态如何收敛</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<section id="id11">
+<h2><a class="toc-backref" href="#id30" role="doc-backlink">控制面：软状态如何收敛</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
 <p>每个实体周期发布 registration；接收端按实体 identity 更新缓存和最后可见时间；超时未刷新则移除。重复 registration 是正常情况，更新操作必须幂等。网络短暂丢包只延迟收敛，不应立即删除健康实体。</p>
 <p>一条 registration 需要携带 topic、类型、进程/主机 identity、传输能力和打开数据面所需参数。identity 若只使用 topic，会把多个 Publisher 合并；若进程重启复用旧 identity，又可能让陈旧连接与新实体混淆。</p>
 <p>能力协商是集合交集：本机且双方支持 SHM 时可选择共享内存；远端可选 UDP/TCP；配置还能禁用某层。若多层同时启用，需要 sample identity 去重，否则同一发布可能从两条路径交付两次。</p>
 <p>软状态表至少应区分实体身份、进程实例和最后可见时间。进程重启若只复用 topic/host，会让旧 transport 状态污染新实体；identity 中需要 boot/session 维度，或在新 registration 到达时明确替换旧 epoch。</p>
 <p>过期阈值过短会把丢包抖动放大成连接 churn，过长则让故障实体停留更久。registration 周期 <code class="docutils literal notranslate"><span class="pre">T</span></code> 与失效阈值 <code class="docutils literal notranslate"><span class="pre">E</span></code> 应结合网络丢包率和恢复目标选择，并观察连续未见次数，而不是只用一次定时器事件删除。</p>
 </section>
-<section id="id11">
-<h2><a class="toc-backref" href="#id29" role="doc-backlink">数据面：三类传输的语义差异</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<section id="id12">
+<h2><a class="toc-backref" href="#id31" role="doc-backlink">数据面：三类传输的语义差异</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>Layer</p></th>
@@ -2391,8 +2770,8 @@ SubscriberImpl
 </tbody>
 </table>
 <p>“自动选最快层”不是完整策略。相机流可能接受丢旧，命令流可能要求可靠与有界确认；layer 选择必须结合 payload、频率、可靠性与消费者速度。</p>
-<section id="id12">
-<h3><a class="toc-backref" href="#id30" role="doc-backlink">线程与数据移动矩阵</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<section id="id13">
+<h3><a class="toc-backref" href="#id32" role="doc-backlink">线程与数据移动矩阵</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>阶段</p></th>
@@ -2442,13 +2821,13 @@ SubscriberImpl
 <p>应用需要知道 callback 在哪个线程发生，才能决定是否允许阻塞、是否与同步 Read 并发以及如何关闭。把 callback 一律再投递线程池会增加队列和数据年龄；直接执行又会让用户 WCET 反压接收路径，必须结合消息类别选择。</p>
 </section>
 <section id="shm">
-<h3><a class="toc-backref" href="#id31" role="doc-backlink">SHM 不是一个抽象名词</a><a class="headerlink" href="#shm" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id33" role="doc-backlink">SHM 不是一个抽象名词</a><a class="headerlink" href="#shm" title="Link to this heading"></a></h3>
 <p>共享内存路径至少包含：命名/打开 memfile、校验内部 header、跨进程同步、选择可写 buffer、发布 sample identity、reader 借用或复制、槽位回收。任何一步失败都要处理进程异常退出和版本/尺寸不匹配。</p>
 <p>若 publisher 拥有 <code class="docutils literal notranslate"><span class="pre">B</span></code> 个最大容量 <code class="docutils literal notranslate"><span class="pre">Smax</span></code> 的槽，单实体 payload 内存主项约为 <code class="docutils literal notranslate"><span class="pre">B×Smax</span></code>。zero-copy reader 持有槽位期间，publisher 可用槽减少；慢 callback 会从消费端跨进程反馈为发送端等待或覆盖压力。减少 memcpy 不等于降低最坏延迟。</p>
 </section>
 </section>
-<section id="id13">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">一次发送要检查的四个边界</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<section id="id14">
+<h2><a class="toc-backref" href="#id34" role="doc-backlink">一次发送要检查的四个边界</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
 <li><p>调用者 buffer 是否在 Send 返回前保持有效，writer 是否立即复制；</p></li>
 <li><p>当前连接快照是否允许 discovery 线程并发增删；</p></li>
@@ -2457,8 +2836,8 @@ SubscriberImpl
 </ol>
 <p>这四点分别对应 C++ 借用、并发快照、错误聚合和协议 identity。只分析 <code class="docutils literal notranslate"><span class="pre">memcpy</span></code> 次数无法说明发送语义。</p>
 </section>
-<section id="id14">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">章节对应关系</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<section id="id15">
+<h2><a class="toc-backref" href="#id35" role="doc-backlink">章节对应关系</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
 <p>《阅读基础》建立控制面、数据面和 Gate 概念；《Publisher 发送链》解释连接选择和多层写入；《Registration 控制面》解释发现；《SHM 数据路径》深入本机大数据；《Subscriber 接收链》解释汇聚与去重；《全局生命周期》收束线程和资源。</p>
 <p>可以把这些章节变成七个连续源码任务：</p>
 <ol class="arabic simple">
@@ -2472,12 +2851,12 @@ SubscriberImpl
 </ol>
 <p>读完后应能解释“发现了却没数据”“同一消息为何重复”“Finalize 为什么等待”分别落在哪一段，而不是只给配置建议。</p>
 </section>
-<section id="id15">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">关键取舍</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
+<section id="id16">
+<h2><a class="toc-backref" href="#id36" role="doc-backlink">关键取舍</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
 <p>软状态发现避免依赖中心注册服务，但必须周期发送并处理超时；每连接选层能适应本机/远端差异，却增加状态机和重复数据去重；SHM 降低 payload 复制，但 zero-copy 会把 subscriber 持锁时间传回 publisher。</p>
 <p>另一个重要取舍是全局运行时。集中 CGlobals 能统一线程和 provider 生命周期、减少每实体资源，却引入初始化计数、部分失败回滚和 Finalize 顺序。库调用方不能把全局关闭视为销毁一个普通 Publisher。</p>
-<section id="id16">
-<h3><a class="toc-backref" href="#id35" role="doc-backlink">模式与工程代价</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h3>
+<section id="id17">
+<h3><a class="toc-backref" href="#id37" role="doc-backlink">模式与工程代价</a><a class="headerlink" href="#id17" title="Link to this heading"></a></h3>
 <ul class="simple">
 <li><p>Facade/PImpl：公开对象保持小而稳定，Impl 可变；代价是间接访问和失效句柄语义；</p></li>
 <li><p>Registry/Gate：统一 topic 索引与所有权；代价是共享锁域和注销竞态；</p></li>
@@ -2489,7 +2868,7 @@ SubscriberImpl
 </section>
 </section>
 <section id="c">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">C++ 设计能力</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">C++ 设计能力</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
 <p>重点不是 facade 类名，而是：PImpl 隔离 ABI、Gate 用索引管理动态实体、锁内复制快照后锁外调用 callback、condition variable 用谓词处理虚假唤醒、RAII 按逆依赖关闭全局对象。</p>
 <p>阅读每个类时可用同一组问题：</p>
 <ul class="simple">
@@ -2501,15 +2880,15 @@ SubscriberImpl
 <li><p>Finalize 返回后是否仍可能有 observer 或 callback 在途。</p></li>
 </ul>
 </section>
-<section id="id17">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">性能与可行性判断</a><a class="headerlink" href="#id17" title="Link to this heading"></a></h2>
+<section id="id18">
+<h2><a class="toc-backref" href="#id39" role="doc-backlink">性能与可行性判断</a><a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
 <p>关键自变量包括 Publisher/Subscriber 数、每 topic 匹配数、payload 大小、发送频率、SHM buffer 数、UDP 分片数、TCP 队列容量与 callback WCET。内存预算至少包含实体表、每连接状态、SHM <code class="docutils literal notranslate"><span class="pre">publisher</span> <span class="pre">×</span> <span class="pre">buffers</span> <span class="pre">×</span> <span class="pre">capacity</span></code> 和 Subscriber 本地复制缓冲。</p>
 <p>可行性不能只用平均吞吐判断。应观察 Send p50/p99、SHM mutex 等待、drop/overwrite、registration 收敛时间、数据年龄、callback 队列高水位和关闭耗时。zero-copy 只有在持锁 callback 的最坏时间可控时才可能改善尾延迟。</p>
 <p>定量预算可分四部分：控制面成本近似实体数与 registration 频率之积；数据面 CPU 近似 <code class="docutils literal notranslate"><span class="pre">publish_rate</span> <span class="pre">×</span> <span class="pre">(serialization</span> <span class="pre">+</span> <span class="pre">Σlayer_cost)</span></code>；SHM 主内存近似各 publisher 的槽数乘最大容量；接收延迟由 transport、SubGate、callback 排队和用户 WCET 共同组成。</p>
 <p>多层发送的返回值不足以表达每端点结果时，必须用逐层统计补充。否则调用者看到 Send 成功，却无法发现 TCP 长期断开而 UDP 偶尔成功。对控制命令还应增加序号、deadline 与业务确认；可靠字节流不等于恰好执行一次。</p>
 </section>
-<section id="id18">
-<h2><a class="toc-backref" href="#id38" role="doc-backlink">实现路线</a><a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
+<section id="id19">
+<h2><a class="toc-backref" href="#id40" role="doc-backlink">实现路线</a><a class="headerlink" href="#id19" title="Link to this heading"></a></h2>
 <p>先做固定配置的单 transport pub/sub；再加入 Gate 与多 Subscriber；随后增加 registration 租约和 capability；最后加入 SHM buffer rotation、多路径去重与进程级生命周期。</p>
 <p>阶段完成条件应明确：固定 transport 版能够有界排队和关闭；Gate 版允许 callback 自注销且不死锁；发现版能容忍重复与短暂丢包；SHM 版验证 header 边界、进程崩溃和 resize；多层版证明同一 sample 最多交付一次；全局版证明部分初始化失败和重复 Finalize 不泄漏资源。</p>
 </section>
