@@ -80,7 +80,7 @@ class DirectChannel {
 
 因此第一次重构不是“加入更多设计模式”，而是把一条同步调用拆成三种责任：数据放在哪里、事件怎样通知、业务由谁执行。
 
-## 第 2 步：先切出六个最小模块
+## 第 2 步：先切出六个运行时模块与一个 schema 目录
 
 从失败点反推，第一份可维护目录不需要复刻 Apollo 全仓库，但应先固定依赖方向：
 
@@ -109,9 +109,8 @@ flowchart LR
   COMP --> SCHED[scheduler]
   NODE --> TRANS[transport]
   NODE --> DATA
-  DATA --> CROUTINE[croutine]
-  DATA --> SCHED
-  SCHED --> CROUTINE
+  SCHED --> CROUTINE[croutine]
+  SCHED --> DATA
   TRANS --> DATA
   TRANS --> TOPO[service_discovery]
   NODE --> TOPO
@@ -121,7 +120,7 @@ flowchart LR
   PROTO --> SCHED
 :::
 
-这张依赖图对应源码 include 与对象创建关系。它也暴露出需要警惕的环形风险：运行时数据最终会回调 Component，但编译依赖不应让 transport 反向 include 具体 Component；因此回调、模板和类型擦除承担了跨边界连接。
+这张图的实线只表达源码层的主要使用/组装方向，不等同于稳定态消息流。`Scheduler` 通过 `RoutineFactory/DataVisitorBase` 使用 data 抽象；data 模块并不 include Scheduler。运行时则由 transport 调用 DataDispatcher，DataNotifier 再调用 Scheduler 注入的无类型 callback，这条事件回边将在后面的时序图中单独画出。把编译依赖和 callback 流分开，才能解释 transport 为什么无需反向 include 具体 Component。
 
 ## 第 3 步：先写接口骨架，再决定实现
 
@@ -286,7 +285,8 @@ sequenceDiagram
   Note over W,HT: topology change enables mode for each matched Reader
   C->>W: Write(shared_ptr msg)
   W->>HT: Transmit(msg)
-  HT->>RX: selected INTRA / SHM / RTPS path
+  HT->>HT: iterate constructed mode transmitters
+  HT-->>RX: enabled INTRA / SHM / RTPS transmitter(s)
   RX->>DD: Dispatch(channel_id, msg)
   DD->>DV: Fill shared_ptr into CacheBuffer
   DD->>S: notifier callback -> NotifyProcessor
@@ -296,7 +296,7 @@ sequenceDiagram
   DV-->>C: Process(msg) -> Proc(msg)
 :::
 
-时序图把启动期与稳定期接在一起：Reader、Writer、visitor 和 task 都在第一条消息之前创建。固定版本的 `Writer::Write(shared_ptr)` 进入 `transmitter_->Transmit`；`HybridTransmitter` 根据 topology 中对端与本端的主机、进程关系启用 INTRA、SHM 或 RTPS transmitter，并在发送时遍历已经初始化的 mode 实例。图中的 `selected path` 是对三种不同线程/复制路径的折叠，不表示存在一个叫作 selected 的源码对象。消息到达后，payload 停在 CacheBuffer，跨线程传播的是事件和 task identity；Processor 恢复 routine 后才再次读取 payload。后续纵向示范文章会给每个箭头补上源码、锁、所有权和失败路径。
+时序图把启动期与稳定期接在一起：Reader、Writer、visitor 和 task 都在第一条消息之前创建。固定版本的 `Writer::Write(shared_ptr)` 进入 `transmitter_->Transmit`；`HybridTransmitter` 根据 topology 中对端与本端的主机、进程关系 enable 对应 mode，但每次发送仍遍历已构造的 mode transmitter。哪些实现真正送达由各 transmitter 的 enable/peer 状态决定，并不是每条消息经过一次显式 switch 只选一条分支。图中的 Receiver 只是接收半链的鸟瞰汇合点；INTRA 同步调用栈、SHM dispatcher 线程与 RTPS listener 线程必须在传输专题分别展开。消息进入 data 面后，payload 停在 CacheBuffer，跨线程传播的是事件和 task identity；Processor 恢复 routine 后才再次读取 payload。
 
 ## 功能一：部署装配
 
@@ -354,6 +354,7 @@ classDiagram
   class CacheBufferMsgPtr
   class DataDispatcherM0
   class CRoutine
+  class RoutineClosure
   class Scheduler
   class ProcessorContext
   class Processor
@@ -361,18 +362,19 @@ classDiagram
   ComponentBase <|-- ComponentM0
   ComponentM0 *-- Node
   Node o-- ReaderM0
-  ComponentM0 *-- DataVisitorM0
-  ReaderM0 *-- DataVisitorM0 : Reader 支路
+  ComponentM0 ..> DataVisitorM0 : creates
+  ReaderM0 ..> DataVisitorM0 : creates
   DataVisitorM0 *-- ChannelBufferM0
   ChannelBufferM0 *-- CacheBufferMsgPtr
   DataDispatcherM0 ..> CacheBufferMsgPtr : weak_ptr registry
   Scheduler o-- CRoutine : shared_ptr
-  CRoutine --> DataVisitorM0 : closure 强持有
+  CRoutine *-- RoutineClosure
+  RoutineClosure --> DataVisitorM0 : shared_ptr capture
   Processor *-- ProcessorContext
   ProcessorContext o-- CRoutine : run queue
 :::
 
-图中的菱形只表达本章需要讨论的主要寿命关系，不代表每个成员都直接按值存放。例如 Scheduler 与策略 context 会通过多张表共同持有 CRoutine；Dispatcher 对 CacheBuffer 则明确只是弱观察。初始化和关闭专题会继续核对每条边由哪个成员或 closure 实现。
+图中的菱形表达主要强所有权，不代表成员一定按值存放。例如 Scheduler 与策略 context 会通过多张表共同持有 CRoutine；Dispatcher 对 CacheBuffer 则明确只是弱观察。Component 和 Reader 只在初始化中局部创建 DataVisitor，真正延长 visitor 寿命的是 RoutineFactory 生成、随后由 CRoutine 保存的 closure，因此这里特意使用 `creates` 虚线而不是 composition 菱形。
 
 | 对象 | 直接所有者 | 被谁共享或借用 | 关闭约束 |
 |---|---|---|---|

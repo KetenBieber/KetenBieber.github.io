@@ -449,34 +449,34 @@ window.runMermaid = runMermaid;</script>
 <li class="toctree-l6"><a class="reference internal" href="#id1">使用场景与系统边界</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#id2">第 0 步：先写约束，不急着写类</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id3">第 2 步：先切出六个最小模块</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id4">第 3 步：先写接口骨架，再决定实现</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id5">第 4 步：数据结构由不变量决定</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id7">从自动驾驶需求反推组件</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id8">六个功能子系统</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id9">仓库入口与源码问题</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id10">模块依赖顺序</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id11">功能一：部署装配</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id12">功能二：通信与数据分发</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id13">功能三：多输入一致性</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id14">功能四：调度与隔离</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#schema">第 2 步：先切出六个运行时模块与一个 schema 目录</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id3">第 3 步：先写接口骨架，再决定实现</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id4">第 4 步：数据结构由不变量决定</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id5">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id6">从自动驾驶需求反推组件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id7">六个功能子系统</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id8">仓库入口与源码问题</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id9">模块依赖顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id10">功能一：部署装配</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id11">功能二：通信与数据分发</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id12">功能三：多输入一致性</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id13">功能四：调度与隔离</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#c">C++ 能力路线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id15">对象所有权地图</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id16">线程与执行上下文地图</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id17">一条消息的逐层数据动作</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id18">控制面、数据面与执行面的边界</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id19">复杂度和容量的第一张预算表</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id20">源码阅读坐标</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id21">七个连续源码任务</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id22">设计模式与工程代价</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id23">系统级可行性预算</a></li>
-<li class="toctree-l6"><a class="reference internal" href="#id24">从零实现路线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id14">对象所有权地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id15">线程与执行上下文地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id16">一条消息的逐层数据动作</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id17">控制面、数据面与执行面的边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id18">复杂度和容量的第一张预算表</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id19">源码阅读坐标</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id20">七个连续源码任务</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id21">设计模式与工程代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id22">系统级可行性预算</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id23">从零实现路线</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="index.html#id4">第一条消息之前：装配与动态类型</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id4">第一条消息之前：装配、动态类型与通信端点</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id1">业务类型与运行时类名的双入口</a></li>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#dag">DAG 的三层部署结构</a></li>
@@ -512,6 +512,26 @@ window.runMermaid = runMermaid;</script>
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id11">性能影响集中在生命周期路径</a></li>
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id12">可复刻的最小插件骨架</a></li>
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="node-reader-writer.html">从一个相机通道设计 Node、Reader 与 Writer</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#callback">直接 callback 把所有问题藏在一次函数调用里</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#endpoint">类型化 endpoint 把错误挡在编译期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id1">模板负责消息类型，虚函数负责异构生命周期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#node">Node 是名字与资源边界，不是消息总线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#roleattributes">RoleAttributes 把应用配置补成运行时身份</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-callback">一只 Reader 的创建远不止保存 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-receiver">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#topology">topology 让已有与未来的对端都能建立关系</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#writer-transmitter">Writer 由调用者拥有，并把发送委托给 Transmitter</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="node-reader-writer.html#write">两种 Write 的拷贝语义不同</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id2">把一帧图像的所有权和线程完整回放一次</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#delete">关闭过程是反向拆除回调边，不是简单 delete</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id3">这些选择解决了什么，又留下什么代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id4">一个可运行的最小复刻</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id5">从 endpoint 继续走向完整运行时</a></li>
 </ul>
 </li>
 </ul>
@@ -2420,38 +2440,38 @@ window.runMermaid = runMermaid;</script>
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id25">使用场景与系统边界</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id26">第 0 步：先写约束，不急着写类</a></p></li>
-<li><p><a class="reference internal" href="#callback" id="id27">第 1 步：直接 callback 能运行，但不能成为中间件</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id28">第 2 步：先切出六个最小模块</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id29">第 3 步：先写接口骨架，再决定实现</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id30">第 4 步：数据结构由不变量决定</a></p></li>
-<li><p><a class="reference internal" href="#id6" id="id31">第 5 步：直到 callback 必须隔离时才引入线程</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id32">从自动驾驶需求反推组件</a></p></li>
-<li><p><a class="reference internal" href="#id8" id="id33">六个功能子系统</a></p></li>
-<li><p><a class="reference internal" href="#id9" id="id34">仓库入口与源码问题</a></p></li>
-<li><p><a class="reference internal" href="#id10" id="id35">模块依赖顺序</a></p></li>
-<li><p><a class="reference internal" href="#id11" id="id36">功能一：部署装配</a></p></li>
-<li><p><a class="reference internal" href="#id12" id="id37">功能二：通信与数据分发</a></p></li>
-<li><p><a class="reference internal" href="#id13" id="id38">功能三：多输入一致性</a></p></li>
-<li><p><a class="reference internal" href="#id14" id="id39">功能四：调度与隔离</a></p></li>
-<li><p><a class="reference internal" href="#c" id="id40">C++ 能力路线</a></p></li>
-<li><p><a class="reference internal" href="#id15" id="id41">对象所有权地图</a></p></li>
-<li><p><a class="reference internal" href="#id16" id="id42">线程与执行上下文地图</a></p></li>
-<li><p><a class="reference internal" href="#id17" id="id43">一条消息的逐层数据动作</a></p></li>
-<li><p><a class="reference internal" href="#id18" id="id44">控制面、数据面与执行面的边界</a></p></li>
-<li><p><a class="reference internal" href="#id19" id="id45">复杂度和容量的第一张预算表</a></p></li>
-<li><p><a class="reference internal" href="#id20" id="id46">源码阅读坐标</a></p></li>
-<li><p><a class="reference internal" href="#id21" id="id47">七个连续源码任务</a></p></li>
-<li><p><a class="reference internal" href="#id22" id="id48">设计模式与工程代价</a></p></li>
-<li><p><a class="reference internal" href="#id23" id="id49">系统级可行性预算</a></p></li>
-<li><p><a class="reference internal" href="#id24" id="id50">从零实现路线</a></p></li>
+<li><p><a class="reference internal" href="#id1" id="id24">使用场景与系统边界</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id25">第 0 步：先写约束，不急着写类</a></p></li>
+<li><p><a class="reference internal" href="#callback" id="id26">第 1 步：直接 callback 能运行，但不能成为中间件</a></p></li>
+<li><p><a class="reference internal" href="#schema" id="id27">第 2 步：先切出六个运行时模块与一个 schema 目录</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id28">第 3 步：先写接口骨架，再决定实现</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id29">第 4 步：数据结构由不变量决定</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id30">第 5 步：直到 callback 必须隔离时才引入线程</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id31">从自动驾驶需求反推组件</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id32">六个功能子系统</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id33">仓库入口与源码问题</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id34">模块依赖顺序</a></p></li>
+<li><p><a class="reference internal" href="#id10" id="id35">功能一：部署装配</a></p></li>
+<li><p><a class="reference internal" href="#id11" id="id36">功能二：通信与数据分发</a></p></li>
+<li><p><a class="reference internal" href="#id12" id="id37">功能三：多输入一致性</a></p></li>
+<li><p><a class="reference internal" href="#id13" id="id38">功能四：调度与隔离</a></p></li>
+<li><p><a class="reference internal" href="#c" id="id39">C++ 能力路线</a></p></li>
+<li><p><a class="reference internal" href="#id14" id="id40">对象所有权地图</a></p></li>
+<li><p><a class="reference internal" href="#id15" id="id41">线程与执行上下文地图</a></p></li>
+<li><p><a class="reference internal" href="#id16" id="id42">一条消息的逐层数据动作</a></p></li>
+<li><p><a class="reference internal" href="#id17" id="id43">控制面、数据面与执行面的边界</a></p></li>
+<li><p><a class="reference internal" href="#id18" id="id44">复杂度和容量的第一张预算表</a></p></li>
+<li><p><a class="reference internal" href="#id19" id="id45">源码阅读坐标</a></p></li>
+<li><p><a class="reference internal" href="#id20" id="id46">七个连续源码任务</a></p></li>
+<li><p><a class="reference internal" href="#id21" id="id47">设计模式与工程代价</a></p></li>
+<li><p><a class="reference internal" href="#id22" id="id48">系统级可行性预算</a></p></li>
+<li><p><a class="reference internal" href="#id23" id="id49">从零实现路线</a></p></li>
 </ul>
 </nav>
 <p>这次先不从 <code class="docutils literal notranslate"><span class="pre">DataDispatcher</span></code>、<code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 或设计模式名字开始。把自己放到 Cyber RT 源码作者的位置：手里只有一批感知、定位、规划和控制算法，目标是从空目录写出一套能装配、通信、调度、关闭和排障的运行时。每增加一个模块，都必须由上一版的具体失败推出；每个抽象都要落到头文件、实现文件、数据结构和线程边界。</p>
 <p>本文先搭出可以开始编码的骨架，再把骨架逐项映射到固定 Apollo 提交。后续专题负责深入单条链路，但读者在进入任何细节前，应先能回答四个问题：仓库为什么这样分目录，模块之间允许怎样依赖，运行时会创建哪些对象和线程，以及第一行代码应该从哪里写起。</p>
 <section id="id1">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">使用场景与系统边界</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">使用场景与系统边界</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>Cyber RT 适合自动驾驶和类似的多传感器计算流水线：组件通过 DAG 装配，Node/Reader/Writer 传递类型化消息，DataVisitor 组合多输入，Scheduler 用协作式 routine 执行业务，Recorder/Player 支撑复现。它强调的是“通信、装配与执行一体化运行时”。</p>
 <p>它不自动保证传感器严格时间同步、业务命令恰好一次、算法 WCET 或硬实时调度。SHM 也不等于整条链零复制；协程减少线程数但不抢占长时间 Proc；录制输入不自动消除墙钟、随机数和外部设备带来的非确定性。</p>
 <p>下面先把用户代码、中间件和 Linux 放进一张可维护的分层图。箭头表示一次消息处理会穿过的主要边界，不表示所有模块都只能单向调用：</p>
@@ -2477,7 +2497,7 @@ window.runMermaid = runMermaid;</script>
     </pre><p>这张图里最关键的是环而不是层数：Component 通过 API 声明通信，transport 把外部数据交给 data，data 只保存消息并发事件，execution 最后再次进入 Component。mainboard 则在第一条消息前创建整个环，并在关闭时按反方向拆除它。</p>
 </section>
 <section id="id2">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">第 0 步：先写约束，不急着写类</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">第 0 步：先写约束，不急着写类</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
 <p>源码作者首先面对的不是类图，而是五条互相冲突的约束：</p>
 <ol class="arabic simple">
 <li><p>算法只声明输入输出，不能绑定某种 socket 或某只接收线程；</p></li>
@@ -2489,7 +2509,7 @@ window.runMermaid = runMermaid;</script>
 <p>这五条约束分别逼出通信门面、每消费者缓存、执行器、有界数据结构和生命周期管理。后文所有模块都应能回指其中至少一条；不能回指需求的抽象，暂时不该进入第一版。</p>
 </section>
 <section id="callback">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">第 1 步：直接 callback 能运行，但不能成为中间件</a><a class="headerlink" href="#callback" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">第 1 步：直接 callback 能运行，但不能成为中间件</a><a class="headerlink" href="#callback" title="Link to this heading"></a></h2>
 <p>最小版本只需保存 callback，发布时同步遍历。下面是故意保留缺陷的<strong>错误示例</strong>：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">DirectChannel</span><span class="w"> </span><span class="p">{</span>
@@ -2512,8 +2532,8 @@ window.runMermaid = runMermaid;</script>
 <p>它在单线程演示中成立，一进入车辆程序就暴露架构问题：30 ms 的感知 callback 会让发布者停 30 ms；遍历期间增删订阅者会破坏 vector；callback 保存裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 时可能在组件析构后调用悬空对象；跨进程后 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 地址没有意义；生产速度超过消费速度时也没有地方表达容量和丢弃策略。</p>
 <p>因此第一次重构不是“加入更多设计模式”，而是把一条同步调用拆成三种责任：数据放在哪里、事件怎样通知、业务由谁执行。</p>
 </section>
-<section id="id3">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">第 2 步：先切出六个最小模块</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<section id="schema">
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">第 2 步：先切出六个运行时模块与一个 schema 目录</a><a class="headerlink" href="#schema" title="Link to this heading"></a></h2>
 <p>从失败点反推，第一份可维护目录不需要复刻 Apollo 全仓库，但应先固定依赖方向：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mini_cyber/
 |-- api/          Node、Reader、Writer；业务只依赖这一层
@@ -2537,9 +2557,8 @@ window.runMermaid = runMermaid;</script>
   COMP --&gt; SCHED[scheduler]
   NODE --&gt; TRANS[transport]
   NODE --&gt; DATA
-  DATA --&gt; CROUTINE[croutine]
-  DATA --&gt; SCHED
-  SCHED --&gt; CROUTINE
+  SCHED --&gt; CROUTINE[croutine]
+  SCHED --&gt; DATA
   TRANS --&gt; DATA
   TRANS --&gt; TOPO[service_discovery]
   NODE --&gt; TOPO
@@ -2547,10 +2566,10 @@ window.runMermaid = runMermaid;</script>
   PROTO --&gt; COMP
   PROTO --&gt; TRANS
   PROTO --&gt; SCHED
-    </pre><p>这张依赖图对应源码 include 与对象创建关系。它也暴露出需要警惕的环形风险：运行时数据最终会回调 Component，但编译依赖不应让 transport 反向 include 具体 Component；因此回调、模板和类型擦除承担了跨边界连接。</p>
+    </pre><p>这张图的实线只表达源码层的主要使用/组装方向，不等同于稳定态消息流。<code class="docutils literal notranslate"><span class="pre">Scheduler</span></code> 通过 <code class="docutils literal notranslate"><span class="pre">RoutineFactory/DataVisitorBase</span></code> 使用 data 抽象；data 模块并不 include Scheduler。运行时则由 transport 调用 DataDispatcher，DataNotifier 再调用 Scheduler 注入的无类型 callback，这条事件回边将在后面的时序图中单独画出。把编译依赖和 callback 流分开，才能解释 transport 为什么无需反向 include 具体 Component。</p>
 </section>
-<section id="id4">
-<h2><a class="toc-backref" href="#id29" role="doc-backlink">第 3 步：先写接口骨架，再决定实现</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<section id="id3">
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">第 3 步：先写接口骨架，再决定实现</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
 <p>下面是<strong>教学骨架</strong>，不是 Apollo 原样源码。它先把数据面与执行面隔开：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">using</span><span class="w"> </span><span class="n">ChannelId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="p">;</span>
 <span class="k">using</span><span class="w"> </span><span class="n">TaskId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="p">;</span>
@@ -2574,8 +2593,8 @@ window.runMermaid = runMermaid;</script>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">Buffer&lt;T&gt;</span></code> 保留编译期消息类型，避免 <code class="docutils literal notranslate"><span class="pre">void*</span></code> 和运行时强转；<code class="docutils literal notranslate"><span class="pre">Executor</span></code> 只看无参任务和整数身份，不依赖任意消息类型。连接两者的 closure 捕获 visitor：任务运行时再从 buffer 取数据。Cyber 的 <code class="docutils literal notranslate"><span class="pre">DataVisitor&lt;M...&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code> 和 <code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 正是在更完整的实现中完成这次类型擦除。</p>
 </section>
-<section id="id5">
-<h2><a class="toc-backref" href="#id30" role="doc-backlink">第 4 步：数据结构由不变量决定</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<section id="id4">
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">第 4 步：数据结构由不变量决定</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <p>一个 channel 多个消费者时，不能只有一只 destructive queue。每位消费者需要独立游标或独立 ring；全局 registry 又不能强行延长消费者寿命。最小对象关系可以先写成：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
 <span class="k">struct</span><span class="w"> </span><span class="nc">Subscription</span><span class="w"> </span><span class="p">{</span>
@@ -2595,8 +2614,8 @@ window.runMermaid = runMermaid;</script>
 <p><code class="docutils literal notranslate"><span class="pre">vector</span></code> 适合固定容量 ring，因为构造后槽位连续且不再扩容；<code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 让长寿命 registry 能找到订阅者，却不决定其析构时刻；每只订阅缓存一把 mutex，把 head、tail、槽位和读取判断放进同一临界区。若运行中允许注册，外层 vector 的扩容必须另有同步或快照；若要求无锁，则槽位发布、覆盖和对象回收都要重新设计内存序，不能只删掉 mutex。</p>
 <p>固定源码对应 <code class="docutils literal notranslate"><span class="pre">CacheBuffer&lt;shared_ptr&lt;T&gt;&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">ChannelBuffer</span></code> 与 <code class="docutils literal notranslate"><span class="pre">DataDispatcher&lt;T&gt;::BufferVector</span></code>。专题页会逐行证明覆盖和游标语义；架构层先记住选择依据：状态流要有界且偏向最新值，长寿命基础设施不能拥有短寿命业务对象。</p>
 </section>
-<section id="id6">
-<h2><a class="toc-backref" href="#id31" role="doc-backlink">第 5 步：直到 callback 必须隔离时才引入线程</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<section id="id5">
+<h2><a class="toc-backref" href="#id30" role="doc-backlink">第 5 步：直到 callback 必须隔离时才引入线程</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
 <p>第一版先用一只 OS worker，不急着实现协程。producer 在 mutex 内写队列和状态，随后 <code class="docutils literal notranslate"><span class="pre">notify_one()</span></code>；worker 用谓词等待：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">unique_lock</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
 <span class="n">cv</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">lock</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">stopping</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">HasReadyTask</span><span class="p">();</span><span class="w"> </span><span class="p">});</span>
@@ -2608,8 +2627,8 @@ window.runMermaid = runMermaid;</script>
 <p>这里第一次需要操作系统知识。线程调用 <code class="docutils literal notranslate"><span class="pre">wait</span></code> 时会原子地释放 mutex 并进入阻塞；通知只让它变成 runnable，何时获得 CPU 仍由内核调度器决定。Linux 的常见实现会让无竞争 mutex 走用户态原子快路径，竞争等待再借助 futex 类系统调用睡眠。业务必须在锁外运行，否则 producer 会再次被长 callback 阻塞。</p>
 <p>当 task 数量增长后，才有理由把“一任务一线程”改成“少量 Processor 内核线程承载大量 CRoutine”。这是资源模型优化，不是正确性的起点：先用普通线程把队列谓词、关闭和所有权写对，再引入用户态上下文切换。</p>
 </section>
-<section id="id7">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">从自动驾驶需求反推组件</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<section id="id6">
+<h2><a class="toc-backref" href="#id31" role="doc-backlink">从自动驾驶需求反推组件</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>需求</p></th>
@@ -2650,8 +2669,8 @@ window.runMermaid = runMermaid;</script>
 </table>
 <p>定位故障时先选择平面：组件没创建看装配；Reader 存在但收不到看拓扑/Transport；Dispatcher 有数据但 Proc 不运行看 Notifier/Scheduler；Proc 运行但输入陈旧看 ChannelBuffer/DataVisitor；回放结果不同看 Clock、外部状态与算法确定性。</p>
 </section>
-<section id="id8">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">六个功能子系统</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<section id="id7">
+<h2><a class="toc-backref" href="#id32" role="doc-backlink">六个功能子系统</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>功能</p></th>
@@ -2694,8 +2713,8 @@ window.runMermaid = runMermaid;</script>
 </tbody>
 </table>
 </section>
-<section id="id9">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">仓库入口与源码问题</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<section id="id8">
+<h2><a class="toc-backref" href="#id33" role="doc-backlink">仓库入口与源码问题</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
 <p>本系列固定 Apollo 提交为 <a class="reference external" href="https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa"><code class="docutils literal notranslate"><span class="pre">d53aa3da</span></code></a>。源码入口可按以下顺序定位：</p>
 <p>先区分四类文件。源码作者不是只写 <code class="docutils literal notranslate"><span class="pre">.cc</span></code>；配置 schema、部署实例和构建边界共同定义架构：</p>
 <table class="docutils align-default">
@@ -2777,8 +2796,8 @@ window.runMermaid = runMermaid;</script>
 </table>
 <p>每进入一个文件，都同步记录线程、owner、<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 复制、锁域和关闭动作。Cyber 的核心问题分布在多个子目录，只搜索 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 会跳过决定数据何时可见的全部运行时层。</p>
 </section>
-<section id="id10">
-<h2><a class="toc-backref" href="#id35" role="doc-backlink">模块依赖顺序</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
+<section id="id9">
+<h2><a class="toc-backref" href="#id34" role="doc-backlink">模块依赖顺序</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>DAG/Launch
   -&gt; ClassLoader 创建 Component
        -&gt; Component 创建 Node / Reader / Writer
@@ -2816,7 +2835,8 @@ window.runMermaid = runMermaid;</script>
   Note over W,HT: topology change enables mode for each matched Reader
   C-&gt;&gt;W: Write(shared_ptr msg)
   W-&gt;&gt;HT: Transmit(msg)
-  HT-&gt;&gt;RX: selected INTRA / SHM / RTPS path
+  HT-&gt;&gt;HT: iterate constructed mode transmitters
+  HT--&gt;&gt;RX: enabled INTRA / SHM / RTPS transmitter(s)
   RX-&gt;&gt;DD: Dispatch(channel_id, msg)
   DD-&gt;&gt;DV: Fill shared_ptr into CacheBuffer
   DD-&gt;&gt;S: notifier callback -&gt; NotifyProcessor
@@ -2824,30 +2844,30 @@ window.runMermaid = runMermaid;</script>
   P-&gt;&gt;S: NextRoutine
   P-&gt;&gt;DV: Resume -&gt; TryFetch
   DV--&gt;&gt;C: Process(msg) -&gt; Proc(msg)
-    </pre><p>时序图把启动期与稳定期接在一起：Reader、Writer、visitor 和 task 都在第一条消息之前创建。固定版本的 <code class="docutils literal notranslate"><span class="pre">Writer::Write(shared_ptr)</span></code> 进入 <code class="docutils literal notranslate"><span class="pre">transmitter_-&gt;Transmit</span></code>；<code class="docutils literal notranslate"><span class="pre">HybridTransmitter</span></code> 根据 topology 中对端与本端的主机、进程关系启用 INTRA、SHM 或 RTPS transmitter，并在发送时遍历已经初始化的 mode 实例。图中的 <code class="docutils literal notranslate"><span class="pre">selected</span> <span class="pre">path</span></code> 是对三种不同线程/复制路径的折叠，不表示存在一个叫作 selected 的源码对象。消息到达后，payload 停在 CacheBuffer，跨线程传播的是事件和 task identity；Processor 恢复 routine 后才再次读取 payload。后续纵向示范文章会给每个箭头补上源码、锁、所有权和失败路径。</p>
+    </pre><p>时序图把启动期与稳定期接在一起：Reader、Writer、visitor 和 task 都在第一条消息之前创建。固定版本的 <code class="docutils literal notranslate"><span class="pre">Writer::Write(shared_ptr)</span></code> 进入 <code class="docutils literal notranslate"><span class="pre">transmitter_-&gt;Transmit</span></code>；<code class="docutils literal notranslate"><span class="pre">HybridTransmitter</span></code> 根据 topology 中对端与本端的主机、进程关系 enable 对应 mode，但每次发送仍遍历已构造的 mode transmitter。哪些实现真正送达由各 transmitter 的 enable/peer 状态决定，并不是每条消息经过一次显式 switch 只选一条分支。图中的 Receiver 只是接收半链的鸟瞰汇合点；INTRA 同步调用栈、SHM dispatcher 线程与 RTPS listener 线程必须在传输专题分别展开。消息进入 data 面后，payload 停在 CacheBuffer，跨线程传播的是事件和 task identity；Processor 恢复 routine 后才再次读取 payload。</p>
 </section>
-<section id="id11">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">功能一：部署装配</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<section id="id10">
+<h2><a class="toc-backref" href="#id35" role="doc-backlink">功能一：部署装配</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
 <p>功能目标是让算法类由配置选择，而不把所有组件静态写进 main。DAG 给出动态库、类名、实例与 Reader；ClassLoader 用字符串工厂创建派生类；ModuleController 保存装载批次和关闭顺序。</p>
 <p>优秀之处是部署选择与业务编译分离，代价是插件 ABI、字符串错误和动态库寿命变成运行时问题。对应章节依次为《启动与装配》《动态组件装载》《C++ 类型系统》。</p>
 </section>
-<section id="id12">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">功能二：通信与数据分发</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<section id="id11">
+<h2><a class="toc-backref" href="#id36" role="doc-backlink">功能二：通信与数据分发</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
 <p>Reader/Writer 隐藏 INTRA、SHM 与 RTPS 差异，Dispatcher 再把同一 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Message&gt;</span></code> 扇出到每个订阅者的私有 ChannelBuffer。独立 buffer 防止一个慢消费者移动其他消费者的读游标；代价是每次发布要遍历消费者并维护更多元数据。</p>
 <p>对应章节为《有界消息缓存》《进程内数据分发》《完整消息链》。阅读时固定追踪：消息是否复制、由谁持有、在哪个线程写入、满载时丢什么。</p>
 </section>
-<section id="id13">
-<h2><a class="toc-backref" href="#id38" role="doc-backlink">功能三：多输入一致性</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<section id="id12">
+<h2><a class="toc-backref" href="#id37" role="doc-backlink">功能三：多输入一致性</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
 <p>多输入 Component 不能在任意一条输入变化时随意组合。DataVisitor 以主输入建立触发边界，并用 AllLatest 固化其他输入的最新快照。它提供低等待的“近似同时”组合，但不保证时间同步。</p>
 <p>对应《多输入组件》。设计取舍是延迟优先而非严格同步；传感器融合若要求时间窗，需要在业务层增加 timestamp、buffer 和匹配策略。</p>
 </section>
-<section id="id14">
-<h2><a class="toc-backref" href="#id39" role="doc-backlink">功能四：调度与隔离</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<section id="id13">
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">功能四：调度与隔离</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
 <p>Transport callback 只负责投递与通知，Processor 所在线程才执行 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>。这种分离避免业务 WCET 阻塞网络接收；协作式 CRoutine 又减少一任务一线程的成本。</p>
 <p>缺点是非抢占执行：一个 Proc 长时间不让出，其他同 Processor 任务仍会延迟。对应《任务唤醒与执行》与《完整消息链》。</p>
 </section>
 <section id="c">
-<h2><a class="toc-backref" href="#id40" role="doc-backlink">C++ 能力路线</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id39" role="doc-backlink">C++ 能力路线</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>模板类型传播
   -&gt; Component&lt;M...&gt; / Reader&lt;T&gt; / DataVisitor&lt;M...&gt;
 类型擦除
@@ -2862,8 +2882,8 @@ window.runMermaid = runMermaid;</script>
 </div>
 <p>阅读 C++ 时不要只记语法：每种机制都要回答“它保护了哪个不变量、替代方案是什么、失败路径如何收回资源”。</p>
 </section>
-<section id="id15">
-<h2><a class="toc-backref" href="#id41" role="doc-backlink">对象所有权地图</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
+<section id="id14">
+<h2><a class="toc-backref" href="#id40" role="doc-backlink">对象所有权地图</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
 <p>理解组件名还不够，必须知道谁让谁活着：</p>
 <pre  class="mermaid">
         classDiagram
@@ -2876,6 +2896,7 @@ window.runMermaid = runMermaid;</script>
   class CacheBufferMsgPtr
   class DataDispatcherM0
   class CRoutine
+  class RoutineClosure
   class Scheduler
   class ProcessorContext
   class Processor
@@ -2883,16 +2904,17 @@ window.runMermaid = runMermaid;</script>
   ComponentBase &lt;|-- ComponentM0
   ComponentM0 *-- Node
   Node o-- ReaderM0
-  ComponentM0 *-- DataVisitorM0
-  ReaderM0 *-- DataVisitorM0 : Reader 支路
+  ComponentM0 ..&gt; DataVisitorM0 : creates
+  ReaderM0 ..&gt; DataVisitorM0 : creates
   DataVisitorM0 *-- ChannelBufferM0
   ChannelBufferM0 *-- CacheBufferMsgPtr
   DataDispatcherM0 ..&gt; CacheBufferMsgPtr : weak_ptr registry
   Scheduler o-- CRoutine : shared_ptr
-  CRoutine --&gt; DataVisitorM0 : closure 强持有
+  CRoutine *-- RoutineClosure
+  RoutineClosure --&gt; DataVisitorM0 : shared_ptr capture
   Processor *-- ProcessorContext
   ProcessorContext o-- CRoutine : run queue
-    </pre><p>图中的菱形只表达本章需要讨论的主要寿命关系，不代表每个成员都直接按值存放。例如 Scheduler 与策略 context 会通过多张表共同持有 CRoutine；Dispatcher 对 CacheBuffer 则明确只是弱观察。初始化和关闭专题会继续核对每条边由哪个成员或 closure 实现。</p>
+    </pre><p>图中的菱形表达主要强所有权，不代表成员一定按值存放。例如 Scheduler 与策略 context 会通过多张表共同持有 CRoutine；Dispatcher 对 CacheBuffer 则明确只是弱观察。Component 和 Reader 只在初始化中局部创建 DataVisitor，真正延长 visitor 寿命的是 RoutineFactory 生成、随后由 CRoutine 保存的 closure，因此这里特意使用 <code class="docutils literal notranslate"><span class="pre">creates</span></code> 虚线而不是 composition 菱形。</p>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>对象</p></th>
@@ -2941,8 +2963,8 @@ window.runMermaid = runMermaid;</script>
 </table>
 <p><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 解决“最后一个使用者之前不释放”，却不能自动打破环。若 Component 拥有 task，而 task 闭包又强引用 Component，就会形成循环；关闭函数需要显式取消任务或让回指使用 <code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code>。动态库则比普通对象多一层 ABI 约束：虚函数、析构函数和模板实例代码所在的 DSO 必须在对象整个生命期保持装载。</p>
 </section>
-<section id="id16">
-<h2><a class="toc-backref" href="#id42" role="doc-backlink">线程与执行上下文地图</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
+<section id="id15">
+<h2><a class="toc-backref" href="#id41" role="doc-backlink">线程与执行上下文地图</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
 <pre  class="mermaid">
         flowchart LR
   subgraph PROC[一个 Cyber 进程]
@@ -2983,8 +3005,8 @@ window.runMermaid = runMermaid;</script>
     </pre><p>这张图解释了“线程安全”必须具体到边界。Transport 线程会和关闭线程并发操作 listener；Processor 线程会和配置/监控线程并发读取状态；同一 Component 的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 是否串行，则取决于它创建的 routine 和 Scheduler 配置，不能只看 Component 类本身。</p>
 <p>业务回调被移出 transport 线程是一项优秀设计，但不是免费隔离。消息仍要先进入有界缓存；Processor 若持续跟不上，结果从“网络线程被阻塞”转化为“旧数据被 ring 覆盖、数据年龄增长或任务长期就绪”。因此缓存容量、Proc WCET 与调度份额必须合起来分析。</p>
 </section>
-<section id="id17">
-<h2><a class="toc-backref" href="#id43" role="doc-backlink">一条消息的逐层数据动作</a><a class="headerlink" href="#id17" title="Link to this heading"></a></h2>
+<section id="id16">
+<h2><a class="toc-backref" href="#id42" role="doc-backlink">一条消息的逐层数据动作</a><a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>阶段</p></th>
@@ -3028,8 +3050,8 @@ window.runMermaid = runMermaid;</script>
 </table>
 <p>这能纠正“共享内存等于端到端零复制”的误解：共享内存只描述某一传输段，反序列化、业务消息对象、protobuf 字段访问和输出序列化仍可能产生复制。性能分析要逐段记录 bytes，而不是给整条链贴一个 zero-copy 标签。</p>
 </section>
-<section id="id18">
-<h2><a class="toc-backref" href="#id44" role="doc-backlink">控制面、数据面与执行面的边界</a><a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
+<section id="id17">
+<h2><a class="toc-backref" href="#id43" role="doc-backlink">控制面、数据面与执行面的边界</a><a class="headerlink" href="#id17" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <thead>
 <tr class="row-odd"><th class="head"><p>平面</p></th>
@@ -3068,8 +3090,8 @@ window.runMermaid = runMermaid;</script>
 </table>
 <p>“组件正在运行”只覆盖生命周期状态，不证明这五个平面都健康。现场指标应至少区分 transport 收包数、Dispatcher 投递数、buffer 覆盖数、routine 唤醒数、Proc 完成数和输出发送数，才能定位消息消失在哪一段。</p>
 </section>
-<section id="id19">
-<h2><a class="toc-backref" href="#id45" role="doc-backlink">复杂度和容量的第一张预算表</a><a class="headerlink" href="#id19" title="Link to this heading"></a></h2>
+<section id="id18">
+<h2><a class="toc-backref" href="#id44" role="doc-backlink">复杂度和容量的第一张预算表</a><a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
 <p>设同一 channel 有 <code class="docutils literal notranslate"><span class="pre">K</span></code> 个逻辑消费者，每个消费者 buffer 容量为 <code class="docutils literal notranslate"><span class="pre">Cᵢ</span></code>，平均消息体大小为 <code class="docutils literal notranslate"><span class="pre">S</span></code>：</p>
 <ul class="simple">
 <li><p>Dispatcher 每条消息的扇出时间为 <code class="docutils literal notranslate"><span class="pre">O(K)</span></code>；</p></li>
@@ -3080,8 +3102,8 @@ window.runMermaid = runMermaid;</script>
 </ul>
 <p>容量增加可以吸收短突发，却会提高最坏数据年龄和在途对象数量。对于规划/控制链，旧数据通常比丢弃更危险，因此容量不是越大越安全。</p>
 </section>
-<section id="id20">
-<h2><a class="toc-backref" href="#id46" role="doc-backlink">源码阅读坐标</a><a class="headerlink" href="#id20" title="Link to this heading"></a></h2>
+<section id="id19">
+<h2><a class="toc-backref" href="#id45" role="doc-backlink">源码阅读坐标</a><a class="headerlink" href="#id19" title="Link to this heading"></a></h2>
 <p>主链中的关键位置均固定到同一提交：</p>
 <ul class="simple">
 <li><p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/mainboard/module_controller.cc"><code class="docutils literal notranslate"><span class="pre">mainboard.cc</span></code> 与 <code class="docutils literal notranslate"><span class="pre">module_controller.cc</span></code></a>：配置怎样进入装载器；</p></li>
@@ -3094,8 +3116,8 @@ window.runMermaid = runMermaid;</script>
 </ul>
 <p>阅读这些文件时，每到一次 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 复制、锁获取、回调注册或任务创建，都把它补回上面的所有权表和线程图。这样源码细节不会变成互不相干的函数列表。</p>
 </section>
-<section id="id21">
-<h2><a class="toc-backref" href="#id47" role="doc-backlink">七个连续源码任务</a><a class="headerlink" href="#id21" title="Link to this heading"></a></h2>
+<section id="id20">
+<h2><a class="toc-backref" href="#id46" role="doc-backlink">七个连续源码任务</a><a class="headerlink" href="#id20" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
 <li><p>从 <code class="docutils literal notranslate"><span class="pre">mainboard</span></code> 解析 DAG 进入 ModuleController，确认每个动态库和 Component 由谁持有；</p></li>
 <li><p>从 Component 模板初始化进入 Node/Reader 创建，记录 callback 如何变成 routine；</p></li>
@@ -3107,8 +3129,8 @@ window.runMermaid = runMermaid;</script>
 </ol>
 <p>这七步结束后，应能把一条消息从 bytes 一直讲到 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>，并回答任何时刻哪个线程可访问、哪个 owner 保活、队列满时丢什么、关闭如何解除等待。</p>
 </section>
-<section id="id22">
-<h2><a class="toc-backref" href="#id48" role="doc-backlink">设计模式与工程代价</a><a class="headerlink" href="#id22" title="Link to this heading"></a></h2>
+<section id="id21">
+<h2><a class="toc-backref" href="#id47" role="doc-backlink">设计模式与工程代价</a><a class="headerlink" href="#id21" title="Link to this heading"></a></h2>
 <p>模式不是起点。源码作者先遇到两个变化轴：同一个 Reader 可能部署在进程内、共享内存或网络上；同一个 mainboard 又要按 DAG 创建不同 Component。前者先逼出 transport strategy，后者再逼出 plugin factory：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">Receiver</span><span class="w"> </span><span class="p">{</span>
@@ -3137,8 +3159,8 @@ window.runMermaid = runMermaid;</script>
 </ul>
 <p>模式是否成立要在关闭和过载下验证。正常数据流中能运行的 observer，如果注销与通知并发时访问旧 callback，就仍是不完整设计。</p>
 </section>
-<section id="id23">
-<h2><a class="toc-backref" href="#id49" role="doc-backlink">系统级可行性预算</a><a class="headerlink" href="#id23" title="Link to this heading"></a></h2>
+<section id="id22">
+<h2><a class="toc-backref" href="#id48" role="doc-backlink">系统级可行性预算</a><a class="headerlink" href="#id22" title="Link to this heading"></a></h2>
 <p>设 channel 消费者数 <code class="docutils literal notranslate"><span class="pre">K</span></code>、每消费者 ring 容量 <code class="docutils literal notranslate"><span class="pre">Cᵢ</span></code>、消息最大对象大小 <code class="docutils literal notranslate"><span class="pre">Smax</span></code>、发布频率 <code class="docutils literal notranslate"><span class="pre">f</span></code>、Proc 最坏时间 <code class="docutils literal notranslate"><span class="pre">W</span></code>、同 Processor 就绪 routine 数 <code class="docutils literal notranslate"><span class="pre">R</span></code>：</p>
 <table class="docutils align-default">
 <thead>
@@ -3178,8 +3200,8 @@ window.runMermaid = runMermaid;</script>
 <p>内存也不能只按 <code class="docutils literal notranslate"><span class="pre">ΣCᵢ×sizeof(shared_ptr)</span></code> 计算：ring 共享 message body，但不同时间索引可能同时保留多个大对象。保守估算要结合发布速率、消费者最大滞后和实际消息对象/反序列化容量。</p>
 <p>控制链应观测 data age 而不仅是 queue length。容量增大可以降低短突发 drop，却会让规划消费更旧障碍物；对自动驾驶而言，及时拒绝/降级常比排队处理所有旧帧安全。</p>
 </section>
-<section id="id24">
-<h2><a class="toc-backref" href="#id50" role="doc-backlink">从零实现路线</a><a class="headerlink" href="#id24" title="Link to this heading"></a></h2>
+<section id="id23">
+<h2><a class="toc-backref" href="#id49" role="doc-backlink">从零实现路线</a><a class="headerlink" href="#id23" title="Link to this heading"></a></h2>
 <p>先实现单进程 Node 与类型化 Reader/Writer，再加入每消费者有界 buffer；随后把 callback 与执行线程分离，加入 DataVisitor；最后才做 DAG、插件、SHM/RTPS 和多策略 Scheduler。这个顺序先固定消息与生命周期语义，再增加部署弹性和性能优化。</p>
 <p>每个阶段都有可验证产物：单进程阶段验证类型与 channel；buffer 阶段验证慢消费者互不移动游标；执行分离阶段验证 transport 回调从不运行业务；DataVisitor 阶段验证触发输入与辅助快照；插件阶段验证失败回滚与 DSO pinning；多传输阶段验证同一消息身份与重复抑制；Scheduler 阶段验证优先级、饥饿与关闭屏障。</p>
 <p>实现顺序中不要提前加入动态插件和多 transport。先用单线程、单进程把消息身份、buffer 覆盖、通知谓词和关闭状态机写正确，再逐层增加并发；否则一次消息丢失可能同时来自 transport、Dispatcher、ring、Notifier 或 Scheduler，难以定位。</p>

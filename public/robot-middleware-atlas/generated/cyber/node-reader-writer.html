@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线 &mdash; Robot Middleware Source Tutorials</title>
+  <title>从一个相机通道设计 Node、Reader 与 Writer &mdash; Robot Middleware Source Tutorials</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -21,11 +21,369 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=6dbb43f8"></script>
       <script src="../../_static/translations.js?v=beaddf03"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../genindex.html" />
     <link rel="search" title="搜索" href="../../search.html" />
-    <link rel="next" title="Orocos RTT" href="../orocos/index.html" />
-    <link rel="prev" title="Cyber RT 使用教程：Component、DAG、Launch 与日常运维" href="use-component-operations.html" /> 
+    <link rel="next" title="完整消息链：从 Receiver 到 Component::Proc()" href="message-to-proc.html" />
+    <link rel="prev" title="动态组件装载：注册宏、工厂对象与共享库生命周期" href="class-loader-abi.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -85,7 +443,7 @@
 <li class="toctree-l1 current"><a class="reference internal" href="../../industrial.html">工业级中间件</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="index.html">Apollo Cyber RT</a><ul class="current">
 <li class="toctree-l3"><a class="reference internal" href="index.html#id1">怎样使用这套课程</a></li>
-<li class="toctree-l3"><a class="reference internal" href="index.html#id2">源码工程课程</a><ul>
+<li class="toctree-l3 current"><a class="reference internal" href="index.html#id2">源码工程课程</a><ul class="current">
 <li class="toctree-l4"><a class="reference internal" href="index.html#id3">从空目录建立系统全貌</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="architecture-map.html">从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
@@ -118,7 +476,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="index.html#id4">第一条消息之前：装配、动态类型与通信端点</a><ul>
+<li class="toctree-l4 current"><a class="reference internal" href="index.html#id4">第一条消息之前：装配、动态类型与通信端点</a><ul class="current">
 <li class="toctree-l5"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id1">业务类型与运行时类名的双入口</a></li>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#dag">DAG 的三层部署结构</a></li>
@@ -156,24 +514,24 @@
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="node-reader-writer.html">从一个相机通道设计 Node、Reader 与 Writer</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#callback">直接 callback 把所有问题藏在一次函数调用里</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#endpoint">类型化 endpoint 把错误挡在编译期</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id1">模板负责消息类型，虚函数负责异构生命周期</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#node">Node 是名字与资源边界，不是消息总线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#roleattributes">RoleAttributes 把应用配置补成运行时身份</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-callback">一只 Reader 的创建远不止保存 callback</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-receiver">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#topology">topology 让已有与未来的对端都能建立关系</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#writer-transmitter">Writer 由调用者拥有，并把发送委托给 Transmitter</a><ul>
-<li class="toctree-l7"><a class="reference internal" href="node-reader-writer.html#write">两种 Write 的拷贝语义不同</a></li>
+<li class="toctree-l5 current"><a class="current reference internal" href="#">从一个相机通道设计 Node、Reader 与 Writer</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#callback">直接 callback 把所有问题藏在一次函数调用里</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#endpoint">类型化 endpoint 把错误挡在编译期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id1">模板负责消息类型，虚函数负责异构生命周期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#node">Node 是名字与资源边界，不是消息总线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#roleattributes">RoleAttributes 把应用配置补成运行时身份</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#reader-callback">一只 Reader 的创建远不止保存 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#reader-receiver">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#topology">topology 让已有与未来的对端都能建立关系</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#writer-transmitter">Writer 由调用者拥有，并把发送委托给 Transmitter</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="#write">两种 Write 的拷贝语义不同</a></li>
 </ul>
 </li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id2">把一帧图像的所有权和线程完整回放一次</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#delete">关闭过程是反向拆除回调边，不是简单 delete</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id3">这些选择解决了什么，又留下什么代价</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id4">一个可运行的最小复刻</a></li>
-<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id5">从 endpoint 继续走向完整运行时</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id2">把一帧图像的所有权和线程完整回放一次</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#delete">关闭过程是反向拆除回调边，不是简单 delete</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id3">这些选择解决了什么，又留下什么代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id4">一个可运行的最小复刻</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id5">从 endpoint 继续走向完整运行时</a></li>
 </ul>
 </li>
 </ul>
@@ -372,7 +730,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l3 current"><a class="reference internal" href="index.html#id9">实际开发与生产案例</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="index.html#id9">实际开发与生产案例</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="use-environment.html">Cyber RT 使用教程：环境、构建与诊断基线</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="use-environment.html#id1">环境分层</a></li>
 <li class="toctree-l5"><a class="reference internal" href="use-environment.html#id2">验证源码与工具</a></li>
@@ -421,37 +779,37 @@
 <li class="toctree-l5"><a class="reference internal" href="use-component-operations.html#id7">运维检查表</a></li>
 </ul>
 </li>
-<li class="toctree-l4 current"><a class="current reference internal" href="#">项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="#id1">功能需求与通信形状</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id2">版本稳定结构与可变消息集合</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id3">组件对象图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#dag">从 DAG 到一次规划</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id4">部署文件、组件类和配置必须形成一个闭环</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id5">Init 是资源事务而不是字段赋值集合</a></li>
+<li class="toctree-l4"><a class="reference internal" href="case-study-apollo-planning.html">项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id1">功能需求与通信形状</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id2">版本稳定结构与可变消息集合</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id3">组件对象图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#dag">从 DAG 到一次规划</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id4">部署文件、组件类和配置必须形成一个闭环</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#init"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="case-study-apollo-planning.html#id5">Init 是资源事务而不是字段赋值集合</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#proc"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#localview">LocalView 需要携带可验证的时间契约</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#proc"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="case-study-apollo-planning.html#localview">LocalView 需要携带可验证的时间契约</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id6">线程与共享状态地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#c">C++ 设计一：模板输入定义调度协议</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#c-reader">C++ 设计二：辅助 Reader 的共享状态</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#latest">多输入 latest 语义与非严格同步</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id7">从组件进入具体规划算法</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#planning-task">Planning Task 的扩展流程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id8">输入未就绪时的可解释输出</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#rerouting-client">Rerouting 展示 Client 与共享状态交互</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id9">DAG 与进程边界的工程作用</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id10">性能预算与数据结构</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="#id11">一次周期的预算表</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id6">线程与共享状态地图</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#c">C++ 设计一：模板输入定义调度协议</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#c-reader">C++ 设计二：辅助 Reader 的共享状态</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#latest">多输入 latest 语义与非严格同步</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id7">从组件进入具体规划算法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#planning-task">Planning Task 的扩展流程</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id8">输入未就绪时的可解释输出</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#rerouting-client">Rerouting 展示 Client 与共享状态交互</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id9">DAG 与进程边界的工程作用</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id10">性能预算与数据结构</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="case-study-apollo-planning.html#id11">一次周期的预算表</a></li>
 </ul>
 </li>
-<li class="toctree-l5"><a class="reference internal" href="#id12">优秀设计与工程取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id13">缺点与性能边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id14">可迁移的规划组件方法</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id15">最小复刻：构建可回放的规划组件</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id12">优秀设计与工程取舍</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id13">缺点与性能边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id14">可迁移的规划组件方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="case-study-apollo-planning.html#id15">最小复刻：构建可回放的规划组件</a></li>
 </ul>
 </li>
 </ul>
@@ -2067,9 +2425,9 @@
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../industrial.html">工业级中间件</a></li>
           <li class="breadcrumb-item"><a href="index.html">Apollo Cyber RT</a></li>
-      <li class="breadcrumb-item active">项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线</li>
+      <li class="breadcrumb-item active">从一个相机通道设计 Node、Reader 与 Writer</li>
       <li class="wy-breadcrumbs-aside">
-            <a href="../../_sources/generated/cyber/case-study-apollo-planning.md.txt" rel="nofollow"> 查看页面源码</a>
+            <a href="../../_sources/generated/cyber/node-reader-writer.md.txt" rel="nofollow"> 查看页面源码</a>
       </li>
   </ul>
   <hr/>
@@ -2077,485 +2435,693 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="apollo-planning-cyber-rt">
-<h1>项目案例：Apollo Planning 如何把 Cyber RT 变成规划流水线<a class="headerlink" href="#apollo-planning-cyber-rt" title="Link to this heading"></a></h1>
+  <section id="nodereader-writer">
+<h1>从一个相机通道设计 Node、Reader 与 Writer<a class="headerlink" href="#nodereader-writer" title="Link to this heading"></a></h1>
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#id1" id="id16">功能需求与通信形状</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id17">版本稳定结构与可变消息集合</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id18">组件对象图</a></p></li>
-<li><p><a class="reference internal" href="#dag" id="id19">从 DAG 到一次规划</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id20">部署文件、组件类和配置必须形成一个闭环</a></p></li>
-<li><p><a class="reference internal" href="#init" id="id21"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a></p>
+<li><p><a class="reference internal" href="#callback" id="id6">直接 callback 把所有问题藏在一次函数调用里</a></p></li>
+<li><p><a class="reference internal" href="#endpoint" id="id7">类型化 endpoint 把错误挡在编译期</a></p></li>
+<li><p><a class="reference internal" href="#id1" id="id8">模板负责消息类型，虚函数负责异构生命周期</a></p></li>
+<li><p><a class="reference internal" href="#node" id="id9">Node 是名字与资源边界，不是消息总线</a></p></li>
+<li><p><a class="reference internal" href="#roleattributes" id="id10">RoleAttributes 把应用配置补成运行时身份</a></p></li>
+<li><p><a class="reference internal" href="#reader-callback" id="id11">一只 Reader 的创建远不止保存 callback</a></p></li>
+<li><p><a class="reference internal" href="#reader-receiver" id="id12">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></p></li>
+<li><p><a class="reference internal" href="#topology" id="id13">topology 让已有与未来的对端都能建立关系</a></p></li>
+<li><p><a class="reference internal" href="#writer-transmitter" id="id14">Writer 由调用者拥有，并把发送委托给 Transmitter</a></p>
 <ul>
-<li><p><a class="reference internal" href="#id5" id="id22">Init 是资源事务而不是字段赋值集合</a></p></li>
+<li><p><a class="reference internal" href="#write" id="id15">两种 Write 的拷贝语义不同</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#proc" id="id23"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a></p>
-<ul>
-<li><p><a class="reference internal" href="#localview" id="id24">LocalView 需要携带可验证的时间契约</a></p></li>
-</ul>
-</li>
-<li><p><a class="reference internal" href="#id6" id="id25">线程与共享状态地图</a></p></li>
-<li><p><a class="reference internal" href="#c" id="id26">C++ 设计一：模板输入定义调度协议</a></p></li>
-<li><p><a class="reference internal" href="#c-reader" id="id27">C++ 设计二：辅助 Reader 的共享状态</a></p></li>
-<li><p><a class="reference internal" href="#latest" id="id28">多输入 latest 语义与非严格同步</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id29">从组件进入具体规划算法</a></p></li>
-<li><p><a class="reference internal" href="#planning-task" id="id30">Planning Task 的扩展流程</a></p></li>
-<li><p><a class="reference internal" href="#id8" id="id31">输入未就绪时的可解释输出</a></p></li>
-<li><p><a class="reference internal" href="#rerouting-client" id="id32">Rerouting 展示 Client 与共享状态交互</a></p></li>
-<li><p><a class="reference internal" href="#id9" id="id33">DAG 与进程边界的工程作用</a></p></li>
-<li><p><a class="reference internal" href="#id10" id="id34">性能预算与数据结构</a></p>
-<ul>
-<li><p><a class="reference internal" href="#id11" id="id35">一次周期的预算表</a></p></li>
-</ul>
-</li>
-<li><p><a class="reference internal" href="#id12" id="id36">优秀设计与工程取舍</a></p></li>
-<li><p><a class="reference internal" href="#id13" id="id37">缺点与性能边界</a></p></li>
-<li><p><a class="reference internal" href="#id14" id="id38">可迁移的规划组件方法</a></p></li>
-<li><p><a class="reference internal" href="#id15" id="id39">最小复刻：构建可回放的规划组件</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id16">把一帧图像的所有权和线程完整回放一次</a></p></li>
+<li><p><a class="reference internal" href="#delete" id="id17">关闭过程是反向拆除回调边，不是简单 delete</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id18">这些选择解决了什么，又留下什么代价</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id19">一个可运行的最小复刻</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id20">从 endpoint 继续走向完整运行时</a></p></li>
 </ul>
 </nav>
-<p>Apollo Planning 不是为了展示 Cyber API 而写的样例，而是 Cyber RT 的核心生产级使用者。它把 Prediction、Chassis、Localization 等高频输入组织为一次规划触发，把 Routing、Traffic Light、Pad、Story 等异步输入维护为辅助状态，最后发布 ADCTrajectory。</p>
-<p>从驾驶任务看，Planning 回答的是一个不断重复的问题：车辆已经知道自己在哪里、周围有哪些交通参与者、底盘当前是什么状态，那么未来几秒应该沿着怎样的轨迹运动。它不直接转动方向盘，也不负责识别障碍物；它把上游感知和定位结果整理成带时间、速度、加速度与路径点的轨迹，再交给 Control 执行。</p>
-<p>一次最小规划周期可以先记成下面这条主线：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Prediction 新数据到达
-  -&gt; Cyber 收集 Chassis 与 Localization 的最新匹配输入
-  -&gt; PlanningComponent 冻结本周期辅助状态
-  -&gt; Planning 算法检查输入、建立 Frame、运行 Scenario/Task
-  -&gt; 生成 ADCTrajectory
-  -&gt; Writer 发布给 Control 和监控模块
-</pre></div>
-</div>
-<p>本文会沿这条主线从部署文件进入组件，再进入算法。这样 DAG、模板参数、Reader、互斥锁和 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 都有明确位置，而不是一组互不相干的 Cyber RT 名词。</p>
-<p>项目入口固定到 Apollo 提交 <code class="docutils literal notranslate"><span class="pre">d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa</span></code>：先读 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/docs/08_Planning/planning_component.md">Planning Component 官方说明</a>，再进入 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/modules/planning/planning_component/planning_component.cc"><code class="docutils literal notranslate"><span class="pre">planning_component.cc</span></code></a> 与同目录头文件、DAG。固定版本后，配置中的 Reader、源码字段和本文调用链才属于同一个事实集合。</p>
-<section id="id1">
-<h2><a class="toc-backref" href="#id16" role="doc-backlink">功能需求与通信形状</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
-<p>规划模块需要同时满足：</p>
-<ul class="simple">
-<li><p>主输入到达后尽快产生新轨迹；</p></li>
-<li><p>低频辅助输入可在两次规划间更新；</p></li>
-<li><p>多输入来自不同频率，不能要求严格同时到达；</p></li>
-<li><p>规划算法与 Cyber 生命周期、Reader/Writer 创建分离；</p></li>
-<li><p>可由 DAG/Launch 装载、用 Record 回放复现。</p></li>
-</ul>
-<p>因此它没有把所有 channel 都放进一个任意多输入 callback，而是区分触发输入和状态型 Reader。这一功能划分先于代码结构。</p>
-<p>这里的“触发输入”会推动一次新的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 执行；“状态输入”只是更新组件保存的最新值，等待下一次规划使用。例如新的 Prediction 通常意味着环境已经变化，应尽快重新规划；Routing 则可能几十秒都不变，没有必要每次收到同一路线时单独运行完整规划。</p>
-</section>
-<section id="id2">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink">版本稳定结构与可变消息集合</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
-<p>Apollo master 上的辅助输入会随规划架构演进。当前 <code class="docutils literal notranslate"><span class="pre">PlanningComponent::Init()</span></code> 可见 <code class="docutils literal notranslate"><span class="pre">PlanningCommand</span></code>、控制交互消息以及导航模式下的 <code class="docutils literal notranslate"><span class="pre">MapMsg</span></code> 等 Reader；较早文档会列出 RoutingResponse、TrafficLightDetection、PadMessage 和 Stories。阅读时应把“辅助状态通过显式 Reader 进入组件”视为稳定模式，把具体 topic 清单视为版本事实。</p>
-<p>这也是源码分析必须固定 commit 的原因。DAG、配置 proto 和 C++ 代码若来自不同版本，Reader 名称、配置字段和算法入口可能无法互相对应。</p>
-</section>
-<section id="id3">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">组件对象图</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
-<p>先给几个核心对象一个直观定义：<code class="docutils literal notranslate"><span class="pre">Component</span></code> 是被 mainboard 装载的业务组件；<code class="docutils literal notranslate"><span class="pre">Reader</span></code> 持续接收某个 channel；<code class="docutils literal notranslate"><span class="pre">Writer</span></code> 向 channel 发布消息；<code class="docutils literal notranslate"><span class="pre">DAG</span></code> 描述组件库、类名、实例和输入配置；<code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 是由 Cyber 调度器运行的协作式任务。它们分别对应业务对象、输入、输出、部署图和执行体。</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PlanningComponent : Component&lt;PredictionObstacles, Chassis, LocalizationEstimate&gt;
-  ├─ Proc(prediction, chassis, localization)   主触发路径
-  ├─ readers created in Init()
-  │    ├─ RoutingResponse
-  │    ├─ TrafficLightDetection
-  │    ├─ PadMessage
-  │    └─ Stories / MapMsg ...
-  ├─ planning algorithm object
-  └─ Writer&lt;ADCTrajectory&gt;
-</pre></div>
-</div>
-<p>模板参数把三种主输入带入 DataVisitor/Component 调度链；普通 Reader callback 更新共享的辅助状态。这里体现了 Cyber 的两种使用方式：模板输入负责调度边界，显式 Reader 负责异步状态摄取。</p>
-</section>
-<section id="dag">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">从 DAG 到一次规划</a><a class="headerlink" href="#dag" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>planning.launch
-  -&gt; planning.dag
-  -&gt; mainboard loads PlanningComponent library
-  -&gt; Component::Initialize creates Node and Readers
-  -&gt; main input updates DataVisitor
-  -&gt; Scheduler wakes CRoutine
-  -&gt; PlanningComponent::Proc(...)
-  -&gt; algorithm RunOnce / Plan
-  -&gt; planning_writer_-&gt;Write(adc_trajectory)
-</pre></div>
-</div>
-<p>官方文档明确指出最终轨迹通过 <code class="docutils literal notranslate"><span class="pre">planning_writer_-&gt;Write(adc_trajectory_pb)</span></code> 送回 Cyber。这个 Writer 不在每次 Proc 中创建，而是组件初始化时建立长期实体。</p>
-</section>
-<section id="id4">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">部署文件、组件类和配置必须形成一个闭环</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
-<p>Apollo 的运行实体不是单个 <code class="docutils literal notranslate"><span class="pre">.cc</span></code> 文件，而是一组必须版本一致的产物：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>launch
-  -&gt; 选择 process/mainboard 与 dag
-dag
-  -&gt; shared library + class name + component config
-class registration
-  -&gt; 字符串类名映射到 PlanningComponent factory
-component config proto
-  -&gt; topic、算法配置、运行模式
-C++ Init
-  -&gt; 读取 config，创建 Reader/Writer/algorithm
-</pre></div>
-</div>
-<p>任意一层错位都会产生不同故障：库路径错导致无法装载；注册类名错导致 factory 查找失败；DAG Reader 与模板签名/配置不一致会让输入永不触发；topic 配置错会让组件存在但数据链为空；算法配置版本错则可能在 Init 或首次 Proc 才失败。</p>
-<p>部署审查应把以下字段放在同一张表中，而不是逐文件人工猜测：</p>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>契约</p></th>
-<th class="head"><p>定义位置</p></th>
-<th class="head"><p>运行时消费者</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>component library</p></td>
-<td><p>DAG</p></td>
-<td><p>ClassLoader</p></td>
-</tr>
-<tr class="row-odd"><td><p>class name</p></td>
-<td><p>DAG + registration macro</p></td>
-<td><p>ClassFactory</p></td>
-</tr>
-<tr class="row-even"><td><p>instance name</p></td>
-<td><p>DAG</p></td>
-<td><p>topology/scheduler/monitor</p></td>
-</tr>
-<tr class="row-odd"><td><p>trigger channels</p></td>
-<td><p>Component 模板/DAG reader config</p></td>
-<td><p>DataVisitor</p></td>
-</tr>
-<tr class="row-even"><td><p>auxiliary channels</p></td>
-<td><p>Planning config</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">Init()</span></code> 中 CreateReader</p></td>
-</tr>
-<tr class="row-odd"><td><p>output channel</p></td>
-<td><p>Planning config</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">CreateWriter</span></code></p></td>
-</tr>
-<tr class="row-even"><td><p>algorithm mode/config</p></td>
-<td><p>flags + proto</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">PlanningBase::Init</span></code></p></td>
-</tr>
-</tbody>
-</table>
-<p>这张表也是发布包升级检查单。只替换 <code class="docutils literal notranslate"><span class="pre">.so</span></code> 而沿用旧 DAG/proto，可能仍能装载，却在输入数量、topic 或配置字段上产生隐蔽不兼容。</p>
-</section>
-<section id="init">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Init()</span></code>：从配置到运行时对象</a><a class="headerlink" href="#init" title="Link to this heading"></a></h2>
-<p>下面是根据固定提交压缩出的<strong>源码结构摘录</strong>。它保留对象关系和关键调用，但省略了其他 Reader、错误处理与监控代码，不能当作可直接替换原文件的完整实现：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">injector_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">DependencyInjector</span><span class="o">&gt;</span><span class="p">();</span>
-
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">FLAGS_use_navigation_mode</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">planning_base_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">NaviPlanning</span><span class="o">&gt;</span><span class="p">(</span><span class="n">injector_</span><span class="p">);</span>
-<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="n">planning_base_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_unique</span><span class="o">&lt;</span><span class="n">OnLanePlanning</span><span class="o">&gt;</span><span class="p">(</span><span class="n">injector_</span><span class="p">);</span>
-<span class="w">  </span><span class="p">}</span>
-
-<span class="w">  </span><span class="n">ACHECK</span><span class="p">(</span><span class="n">ComponentBase</span><span class="o">::</span><span class="n">GetProtoConfig</span><span class="p">(</span><span class="o">&amp;</span><span class="n">config_</span><span class="p">));</span>
-<span class="w">  </span><span class="n">planning_base_</span><span class="o">-&gt;</span><span class="n">Init</span><span class="p">(</span><span class="n">config_</span><span class="p">);</span>
-
-<span class="w">  </span><span class="n">planning_command_reader_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node_</span><span class="o">-&gt;</span><span class="n">CreateReader</span><span class="o">&lt;</span><span class="n">PlanningCommand</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">      </span><span class="n">config_</span><span class="p">.</span><span class="n">topic_config</span><span class="p">().</span><span class="n">planning_command_topic</span><span class="p">(),</span>
-<span class="w">      </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">PlanningCommand</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
-<span class="w">        </span><span class="n">planning_command_</span><span class="p">.</span><span class="n">CopyFrom</span><span class="p">(</span><span class="o">*</span><span class="n">message</span><span class="p">);</span>
-<span class="w">      </span><span class="p">});</span>
-
-<span class="w">  </span><span class="n">planning_writer_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node_</span><span class="o">-&gt;</span><span class="n">CreateWriter</span><span class="o">&lt;</span><span class="n">ADCTrajectory</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">      </span><span class="n">config_</span><span class="p">.</span><span class="n">topic_config</span><span class="p">().</span><span class="n">planning_trajectory_topic</span><span class="p">());</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p><code class="docutils literal notranslate"><span class="pre">DependencyInjector</span></code> 是共享依赖容器，向规划算法提供 vehicle state、planning context、history 等服务。<code class="docutils literal notranslate"><span class="pre">unique_ptr&lt;PlanningBase&gt;</span></code> 表示 PlanningComponent 独占具体规划模式；<code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;DependencyInjector&gt;</span></code> 则允许多个内部对象共享依赖而不复制状态。</p>
-<p><code class="docutils literal notranslate"><span class="pre">ACHECK</span></code> 表达“缺少组件配置时无法继续启动”的不可恢复条件。Reader callback 复制 protobuf 到组件成员，并用同一互斥量保护。复制增加成本，却把消息寿命从 callback 的 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 中解耦，方便组件建立稳定快照。</p>
-<p>lambda 捕获 <code class="docutils literal notranslate"><span class="pre">[this]</span></code> 要求 Reader 在 PlanningComponent 析构前停止回调。若框架关闭顺序反过来，mutex 和成员都会成为悬空访问；因此 Reader 实体寿命必须被组件/Node 管理并在组件析构前撤销。</p>
-<p>逐句理解这段 C++：</p>
-<ol class="arabic simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">std::make_shared&lt;DependencyInjector&gt;()</span></code> 在堆上创建对象，并返回共享所有权指针；最后一个 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 离开作用域时对象才销毁；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">std::make_unique&lt;OnLanePlanning&gt;</span></code> 表示具体 planner 只有组件拥有，不能被意外复制给另一个 owner；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">CreateReader&lt;PlanningCommand&gt;</span></code> 的尖括号是模板实参，编译器由此生成只接收 <code class="docutils literal notranslate"><span class="pre">PlanningCommand</span></code> 的类型化 Reader；</p></li>
-<li><p>lambda 参数使用 <code class="docutils literal notranslate"><span class="pre">const</span> <span class="pre">std::shared_ptr&lt;...&gt;&amp;</span></code>，表示 callback 借用框架传来的智能指针，不修改指针本身；消息对象也被视为只读；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">[this]</span></code> 让 lambda 能访问 <code class="docutils literal notranslate"><span class="pre">mutex_</span></code> 和 <code class="docutils literal notranslate"><span class="pre">planning_command_</span></code>，但不会延长组件寿命，所以关闭顺序仍由框架保证；</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">std::lock_guard&lt;std::mutex&gt;</span></code> 在构造时加锁、离开花括号时自动解锁，即使 <code class="docutils literal notranslate"><span class="pre">CopyFrom</span></code> 抛出异常也不会忘记释放锁。</p></li>
-</ol>
-<p><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 不等于“所有对象都应该共享”。Injector 会被多个规划内部对象共同引用，适合共享所有权；具体 <code class="docutils literal notranslate"><span class="pre">PlanningBase</span></code> 只有一个明确 owner，使用 <code class="docutils literal notranslate"><span class="pre">unique_ptr</span></code> 更能表达设计意图。智能指针首先是所有权说明，其次才是自动释放工具。</p>
-<section id="id5">
-<h3><a class="toc-backref" href="#id22" role="doc-backlink">Init 是资源事务而不是字段赋值集合</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
-<p>实际初始化至少包含依赖容器、具体 PlanningBase、配置、多个 Reader、Writer 和算法内部资源。更稳妥的自研组件使用局部候选对象，全部成功后再提交到成员：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">injector</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">DependencyInjector</span><span class="o">&gt;</span><span class="p">();</span>
-<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">planner</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">MakePlanner</span><span class="p">(</span><span class="n">injector</span><span class="p">,</span><span class="w"> </span><span class="n">FLAGS_use_navigation_mode</span><span class="p">);</span>
-<span class="w">  </span><span class="n">PlanningConfig</span><span class="w"> </span><span class="n">config</span><span class="p">;</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">ComponentBase</span><span class="o">::</span><span class="n">GetProtoConfig</span><span class="p">(</span><span class="o">&amp;</span><span class="n">config</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">planner</span><span class="o">-&gt;</span><span class="n">Init</span><span class="p">(</span><span class="n">config</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
-
-<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">command_reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node_</span><span class="o">-&gt;</span><span class="n">CreateReader</span><span class="o">&lt;</span><span class="n">PlanningCommand</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">      </span><span class="n">config</span><span class="p">.</span><span class="n">topic_config</span><span class="p">().</span><span class="n">planning_command_topic</span><span class="p">(),</span>
-<span class="w">      </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">OnPlanningCommand</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span><span class="w"> </span><span class="p">});</span>
-<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">trajectory_writer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node_</span><span class="o">-&gt;</span><span class="n">CreateWriter</span><span class="o">&lt;</span><span class="n">ADCTrajectory</span><span class="o">&gt;</span><span class="p">(</span>
-<span class="w">      </span><span class="n">config</span><span class="p">.</span><span class="n">topic_config</span><span class="p">().</span><span class="n">planning_trajectory_topic</span><span class="p">());</span>
-<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">command_reader</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">trajectory_writer</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
-
-<span class="w">  </span><span class="n">injector_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">injector</span><span class="p">);</span>
-<span class="w">  </span><span class="n">planning_base_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">planner</span><span class="p">);</span>
-<span class="w">  </span><span class="n">planning_command_reader_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">command_reader</span><span class="p">);</span>
-<span class="w">  </span><span class="n">planning_writer_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">trajectory_writer</span><span class="p">);</span>
-<span class="w">  </span><span class="n">config_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">config</span><span class="p">);</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>局部 <code class="docutils literal notranslate"><span class="pre">unique_ptr/shared_ptr</span></code> 在失败返回时自动回收，最后一段 move 是提交点。仍需注意 callback 在 Reader 创建后是否可能立刻触发：如果 lambda 捕获的 <code class="docutils literal notranslate"><span class="pre">this</span></code> 依赖尚未提交的成员，就必须先让组件进入明确 Initializing 状态，或把 callback state 独立构造后再注册。</p>
-</section>
-</section>
-<section id="proc">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Proc()</span></code>：冻结一次规划输入视图</a><a class="headerlink" href="#proc" title="Link to this heading"></a></h2>
-<p>一次规划不能在算法执行一半时突然换成新 PlanningCommand。源码通过锁保护共享辅助输入，再组成 <code class="docutils literal notranslate"><span class="pre">local_view_</span></code>。其等价思路是：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">bool</span><span class="w"> </span><span class="nf">PlanningComponent::Proc</span><span class="p">(</span>
-<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">PredictionObstacles</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">prediction</span><span class="p">,</span>
-<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Chassis</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">chassis</span><span class="p">,</span>
-<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">LocalizationEstimate</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">localization</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="n">LocalView</span><span class="w"> </span><span class="n">view</span><span class="p">;</span>
-<span class="w">  </span><span class="n">view</span><span class="p">.</span><span class="n">prediction_obstacles</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prediction</span><span class="p">;</span>
-<span class="w">  </span><span class="n">view</span><span class="p">.</span><span class="n">chassis</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chassis</span><span class="p">;</span>
-<span class="w">  </span><span class="n">view</span><span class="p">.</span><span class="n">localization_estimate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">localization</span><span class="p">;</span>
-<span class="w">  </span><span class="p">{</span>
-<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
-<span class="w">    </span><span class="n">view</span><span class="p">.</span><span class="n">planning_command</span><span class="w"> </span><span class="o">=</span>
-<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">PlanningCommand</span><span class="o">&gt;</span><span class="p">(</span><span class="n">planning_command_</span><span class="p">);</span>
-<span class="w">    </span><span class="n">view</span><span class="p">.</span><span class="n">relative_map</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">MapMsg</span><span class="o">&gt;</span><span class="p">(</span><span class="n">relative_map_</span><span class="p">);</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="w">  </span><span class="n">local_view_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">view</span><span class="p">);</span>
-<span class="w">  </span><span class="c1">// CheckInput -&gt; RunOnce -&gt; publish</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
-<span class="p">}</span>
-</pre></div>
-</div>
-<p>锁区只复制快照，不在锁内运行规划算法。若持锁执行 <code class="docutils literal notranslate"><span class="pre">RunOnce()</span></code>，新的辅助消息可能等待几十毫秒甚至更久，下一周期拿到更陈旧的数据。局部视图还使一次规划内部的输入集合保持一致。</p>
-<p>这里仍不是严格时间同步：三个模板输入和辅助快照可能来自不同时间。组件必须检查 header timestamp、序列和业务超时，不能把“同时放入 LocalView”误解为“同一物理时刻采样”。</p>
-<p><code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 参数中的三个 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 由 Cyber 框架持有，当前函数只是共享只读消息，不应把它们转换成可修改指针。辅助状态不同：callback 后仍会继续改写组件成员，所以代码在锁内复制出本周期私有对象。两类输入看起来都放进 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code>，背后的寿命策略却不同。</p>
-<section id="localview">
-<h3><a class="toc-backref" href="#id24" role="doc-backlink">LocalView 需要携带可验证的时间契约</a><a class="headerlink" href="#localview" title="Link to this heading"></a></h3>
-<p>一次快照至少应能回答每个输入的源时间、接收时间和序号。可把检查规则写成表：</p>
-<table class="docutils align-default">
-<thead>
-<tr class="row-odd"><th class="head"><p>输入</p></th>
-<th class="head"><p>触发/状态</p></th>
-<th class="head text-right"><p>最大年龄</p></th>
-<th class="head"><p>跨输入约束</p></th>
-<th class="head"><p>失效输出</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p>Prediction</p></td>
-<td><p>主触发</p></td>
-<td class="text-right"><p>由规划周期定义</p></td>
-<td><p>与 Localization/Chassis 时间差受限</p></td>
-<td><p>not-ready trajectory</p></td>
-</tr>
-<tr class="row-odd"><td><p>Chassis</p></td>
-<td><p>主输入最新值</p></td>
-<td class="text-right"><p>控制状态阈值</p></td>
-<td><p>gear/speed 与定位时刻近似</p></td>
-<td><p>安全停车/不规划</p></td>
-</tr>
-<tr class="row-even"><td><p>Localization</p></td>
-<td><p>主输入最新值</p></td>
-<td class="text-right"><p>最严格之一</p></td>
-<td><p>pose timestamp 单调</p></td>
-<td><p>not-ready + reason</p></td>
-</tr>
-<tr class="row-odd"><td><p>PlanningCommand</p></td>
-<td><p>辅助状态</p></td>
-<td class="text-right"><p>可按 command 生命周期</p></td>
-<td><p>command ID 与 routing 对应</p></td>
-<td><p>等待新命令</p></td>
-</tr>
-<tr class="row-even"><td><p>TrafficLight/Story</p></td>
-<td><p>辅助状态</p></td>
-<td class="text-right"><p>场景相关</p></td>
-<td><p>map/route 版本匹配</p></td>
-<td><p>忽略陈旧感知或降级</p></td>
-</tr>
-</tbody>
-</table>
-<p>“最大年龄”应来自配置并进入监控，不应散落成魔法常量。回放时还要决定使用消息 header 时间还是回放 Clock；否则同一 Record 在不同墙钟速度下会得到不同过期判断。</p>
-</section>
-</section>
-<section id="id6">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">线程与共享状态地图</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>transport/Reader callback context
-  -&gt; CopyFrom/替换辅助状态
-  -&gt; 更新 timestamp/sequence
-
-Planning CRoutine on Processor
-  -&gt; DataVisitor 取主输入
-  -&gt; 锁内冻结辅助 LocalView
-  -&gt; 锁外 CheckInput + RunOnce
-  -&gt; Writer::Write trajectory/status
-
-shutdown/control thread
-  -&gt; 停 Reader ingress
-  -&gt; 等 callback/CRoutine 退出
-  -&gt; 析构 planner/injector/writer
-</pre></div>
-</div>
-<p>mutex 保护的是一组辅助状态的一致快照，而不是 PlanningBase 的全部状态。若 callback 和 Proc 使用不同锁分别读取 command、map、traffic light，一次 LocalView 可能跨越更新边界；可以接受时要记录各字段版本，不接受时应在同一临界区取得完整快照。</p>
-<p>History、PlanningContext 和 Injector 中的服务也可能跨周期可变。它们通常由规划 CRoutine 单线程推进，比“所有字段都加锁”更容易证明；异步 callback 不应直接修改 Scenario/Frame 内部结构，而应只提交下一周期消费的状态。</p>
-</section>
-<section id="c">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">C++ 设计一：模板输入定义调度协议</a><a class="headerlink" href="#c" title="Link to this heading"></a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">Component&lt;A,</span> <span class="pre">B,</span> <span class="pre">C&gt;</span></code> 不只是函数签名便利。它让框架在编译期知道三种 protobuf 类型，构造对应 DataVisitor，并把类型化 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 传给 Proc。代价是支持的输入数量和组合由模板特化决定，编译时间、错误信息和 ABI 都更复杂。</p>
-<p>设计能力是：用模板表达稳定的类型关系，用非模板 <code class="docutils literal notranslate"><span class="pre">ComponentBase</span></code> 提供动态插件边界。静态安全和运行时装配不是二选一，而是在不同边界同时使用。</p>
-</section>
-<section id="c-reader">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">C++ 设计二：辅助 Reader 的共享状态</a><a class="headerlink" href="#c-reader" title="Link to this heading"></a></h2>
-<p>辅助 Reader callback 与 Proc 可能运行在不同调度上下文。实际模块必须明确这些字段是互斥保护、原子快照，还是由框架保证串行。只看到 <code class="docutils literal notranslate"><span class="pre">CreateReader</span></code> 不足以判定线程安全，要继续追踪 callback executor 和被写字段。</p>
-<p>可改进的通用结构是把每类辅助输入保存为不可变 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;const</span> <span class="pre">T&gt;</span></code> 快照，callback 原子替换，Proc 在开始时一次性加载局部副本。这样一次规划内看到的辅助状态不会中途变化。</p>
-<p>源码选择 <code class="docutils literal notranslate"><span class="pre">CopyFrom</span> <span class="pre">+</span> <span class="pre">mutex</span></code> 的优点是行为直观，protobuf 对象地址稳定；缺点是 callback 和 Proc 快照都可能发生深复制。不可变 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 交换可以减少复制，却会把外部消息对象的寿命延长，并需要明确原子 shared pointer 或 mutex 语义。两种方案没有脱离 payload 大小与更新频率的绝对优劣。</p>
-</section>
-<section id="latest">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">多输入 latest 语义与非严格同步</a><a class="headerlink" href="#latest" title="Link to this heading"></a></h2>
-<p>DataVisitor 的 AllLatest 更接近“主输入到达时取其他输入最新值”。这适合规划低延迟，但可能组合不同时间的 Chassis 与 Localization。Planning 必须依赖 header timestamp、状态估计和超时检查判断数据是否仍可用。</p>
-<p>优秀之处是框架没有强制昂贵的全输入 barrier；取舍是时间一致性责任进入业务模块。</p>
-</section>
-<section id="id7">
-<h2><a class="toc-backref" href="#id29" role="doc-backlink">从组件进入具体规划算法</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
-<p>默认车道规划的主线为：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PlanningComponent::Proc
-  -&gt; CheckInput
-  -&gt; OnLanePlanning::RunOnce
-  -&gt; 初始化 Frame / ReferenceLine
-  -&gt; PublicRoadPlanner::Plan
-  -&gt; ScenarioManager::Update
-  -&gt; selected Scenario::Process
-  -&gt; current Stage::Process
-  -&gt; ordered Task::Execute / Process
-  -&gt; 组合 ADCTrajectory
-</pre></div>
-</div>
-<p>这是 Strategy + State Machine + Pipeline 的组合。<code class="docutils literal notranslate"><span class="pre">PlanningBase</span></code> 在导航模式与车道模式间提供策略边界；ScenarioManager 按当前世界状态选择场景；Scenario 内按 Stage 推进状态；Stage 再按配置顺序运行 Task。</p>
-<p>Task 顺序不是普通容器细节。前一个 Task 产生的 path boundary、reference line 或 speed decision 可能是后一个 Task 的输入；改变配置顺序等于改变算法数据依赖。要扩展新 Task，必须说明它读取和写入 Frame/ReferenceLineInfo 的哪些字段。</p>
-</section>
-<section id="planning-task">
-<h2><a class="toc-backref" href="#id30" role="doc-backlink">Planning Task 的扩展流程</a><a class="headerlink" href="#planning-task" title="Link to this heading"></a></h2>
-<p>新 Task 不应从“复制现有类并改算法”开始，而应先定义数据契约：</p>
-<ol class="arabic simple">
-<li><p>写出输入字段：Frame 中的障碍物、ReferenceLineInfo、PlanningContext 或配置；</p></li>
-<li><p>写出输出字段：path boundary、speed profile、decision 或 debug 信息；</p></li>
-<li><p>标注前置 Task：哪些字段必须已经产生；</p></li>
-<li><p>标注后继 Task：谁会读取本 Task 输出；</p></li>
-<li><p>定义失败语义：跳过、尝试 fallback、终止当前 reference line 还是发布 not-ready；</p></li>
-<li><p>估计复杂度和最大候选规模；</p></li>
-<li><p>最后把 Task 注册并放入对应 Stage 配置顺序。</p></li>
-</ol>
-<p>最小类结构通常是：</p>
-<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SpeedGuardTask</span><span class="w"> </span><span class="k">final</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">Task</span><span class="w"> </span><span class="p">{</span>
+<p>一辆车的前视相机正在以 30 Hz 产生图像。驱动模块要发布帧，感知模块要持续处理，诊断工具偶尔还要观察最新一帧。表面上，这似乎只需要一个 callback：相机得到图像后，直接调用感知函数。</p>
+<p>真正把这段程序变成中间件以后，问题会立刻增多。谁保证 Writer 发出的确实是图像而不是定位消息？谁拥有 callback 指向的对象？一个模块怎样保存不同消息类型的订阅者？Reader 建立之前已经存在的 Writer 如何被发现？关闭时，怎样避免拓扑线程或调度线程再次进入已经析构的对象？</p>
+<p>Cyber RT 的 <code class="docutils literal notranslate"><span class="pre">Node</span></code>、<code class="docutils literal notranslate"><span class="pre">Reader</span></code> 和 <code class="docutils literal notranslate"><span class="pre">Writer</span></code> 正是在回答这些问题。它们不是三个同义的 API 包装器：Node 是命名和 endpoint 创建边界，Reader 是带接收状态与观察语义的长期对象，Writer 是由业务代码自行持有的发送句柄。三者最值得学习的部分，不是函数名，而是模板与虚函数怎样配合、强弱所有权怎样划分，以及创建和关闭为什么必须按特定方向进行。</p>
+<p>本文固定 Apollo 源码提交为 <a class="reference external" href="https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa"><code class="docutils literal notranslate"><span class="pre">d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa</span></code></a>，主要讨论正常部署使用的 reality mode；simulation/intra 分支会在对象工厂出现时对照说明。文中的错误实现与最小复刻均为教学代码，不是 Apollo 上游源码。</p>
+<section id="callback">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">直接 callback 把所有问题藏在一次函数调用里</a><a class="headerlink" href="#callback" title="Link to this heading"></a></h2>
+<p>先从最容易写出的版本开始。下面是故意保留缺陷的<strong>错误示例</strong>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CameraDriver</span><span class="w"> </span><span class="p">{</span>
 <span class="w"> </span><span class="k">public</span><span class="o">:</span>
-<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">Init</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">config_dir</span><span class="p">,</span>
-<span class="w">            </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">name</span><span class="p">,</span>
-<span class="w">            </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">DependencyInjector</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">injector</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">SetCallback</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="p">)</span><span class="o">&gt;</span><span class="w"> </span><span class="n">callback</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">callback_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">callback</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
 
-<span class="w">  </span><span class="n">Status</span><span class="w"> </span><span class="nf">Execute</span><span class="p">(</span><span class="n">Frame</span><span class="o">*</span><span class="w"> </span><span class="n">frame</span><span class="p">,</span>
-<span class="w">                 </span><span class="n">ReferenceLineInfo</span><span class="o">*</span><span class="w"> </span><span class="n">reference_line_info</span><span class="p">)</span><span class="w"> </span><span class="k">override</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">OnFrame</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="w"> </span><span class="n">image</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">callback_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">image</span><span class="p">));</span><span class="w">  </span><span class="c1">// 驱动线程直接进入感知业务</span>
+<span class="w">  </span><span class="p">}</span>
 
 <span class="w"> </span><span class="k">private</span><span class="o">:</span>
-<span class="w">  </span><span class="n">SpeedGuardConfig</span><span class="w"> </span><span class="n">config_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="p">)</span><span class="o">&gt;</span><span class="w"> </span><span class="n">callback_</span><span class="p">;</span>
 <span class="p">};</span>
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">Frame*</span></code> 和 <code class="docutils literal notranslate"><span class="pre">ReferenceLineInfo*</span></code> 是一次规划周期的借用对象，Task 不应把它们保存到下一周期。<code class="docutils literal notranslate"><span class="pre">DependencyInjector</span></code> 可共享跨周期服务，但不能让 Task 通过它偷偷写入没有生命周期协议的全局状态。<code class="docutils literal notranslate"><span class="pre">Status</span></code> 要带可诊断原因，不能只返回 false 让上层猜测。</p>
-<p>测试时先构造最小 Frame/ReferenceLineInfo 验证纯 Task，再把 Task 放进单 Stage，最后才通过完整 PlanningComponent 和 Record 验证。这样失败能定位到算法、流水线配置或 Cyber 接入中的某一层。</p>
+<p>如果一次视觉推理需要 30 ms，<code class="docutils literal notranslate"><span class="pre">OnFrame()</span></code> 所在的驱动或接收线程就有 30 ms 不能处理下一帧。若 callback 保存的是感知对象的裸 <code class="docutils literal notranslate"><span class="pre">this</span></code>，感知模块先析构而相机仍在发帧，下一次调用就是悬空访问。再把定位消息接入同一套接口时，还必须为每种消息复制注册代码，或者退回 <code class="docutils literal notranslate"><span class="pre">void*</span></code> 和运行时强转。</p>
+<p>加一把 mutex 只能防止同时修改 <code class="docutils literal notranslate"><span class="pre">callback_</span></code>，不能回答 callback 在锁内还是锁外执行、析构怎样等待正在运行的函数、跨进程时对象如何序列化。给每个订阅者开一条线程也只是把问题改写为：线程栈要多少内存，队列满了丢谁，几十个传感器和算法是否要创建几十条内核线程。</p>
+<p>因此，第一步不是急着加入调度器，而是先把接口的类型和对象寿命说清楚。只有 endpoint 本身成立，后面的 transport、缓存和协程才有可靠的挂载点。</p>
 </section>
-<section id="id8">
-<h2><a class="toc-backref" href="#id31" role="doc-backlink">输入未就绪时的可解释输出</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
-<p>官方 <code class="docutils literal notranslate"><span class="pre">CheckInput()</span></code> 会检查 localization、chassis、地图以及规划命令等条件。未就绪时，它不是静默跳过，而是构造带 <code class="docutils literal notranslate"><span class="pre">not_ready.reason</span></code> 的轨迹消息，填充 header 并发布，然后终止本周期。</p>
-<p>这种设计让 Control 和监控系统区分“Planning 没有运行”与“Planning 运行了但输入未准备好”。安全系统中，负结果也是协议的一部分。只打日志而不发布状态，会让下游只能等超时猜测故障。</p>
-<p>同理，正常发布轨迹后组件还发布 command execution status，并把轨迹加入 history。输出、反馈和历史是三个不同职责：Control 消费轨迹，命令发起方观察执行状态，规划内部使用历史形成跨周期上下文。</p>
-</section>
-<section id="rerouting-client">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">Rerouting 展示 Client 与共享状态交互</a><a class="headerlink" href="#rerouting-client" title="Link to this heading"></a></h2>
-<p>当 planning context 标记需要重新路由时，组件构造 <code class="docutils literal notranslate"><span class="pre">LaneFollowCommand</span></code>，通过 Cyber Client 异步发出请求，再清除 <code class="docutils literal notranslate"><span class="pre">need_rerouting</span></code>。这里的危险是重复发送和状态竞争：检查、构造请求、发送与清标志应有明确串行上下文或锁。</p>
-<p>若发送失败，直接清除标志可能丢失重试；若不清除，又可能每周期重复发请求。工业实现需要 request id、in-flight 状态、退避和结果回调，而不是单个 bool 承担完整协议。</p>
-</section>
-<section id="id9">
-<h2><a class="toc-backref" href="#id33" role="doc-backlink">DAG 与进程边界的工程作用</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
-<p>Launch 中的 <code class="docutils literal notranslate"><span class="pre">process_name</span></code> 决定组件是否共进程，进而影响 INTRA/SHM/RTPS 路径和故障隔离。Planning 与其他模块共进程可减少传输成本，但一个未捕获异常可能扩大故障域。生产配置应把性能收益和独立重启需求一起评估。</p>
-<p>DAG 还把组件库、类名、配置文件和 Reader 参数绑定成部署契约。ClassLoader 能加载类型并不表示配置兼容；发布包必须让 <code class="docutils literal notranslate"><span class="pre">.so</span></code>、DAG 和 proto 配置来自一致版本。动态插件边界也要求注册宏、符号可见性和基类 ABI 匹配。</p>
-</section>
-<section id="id10">
-<h2><a class="toc-backref" href="#id34" role="doc-backlink">性能预算与数据结构</a><a class="headerlink" href="#id10" title="Link to this heading"></a></h2>
-<p>单周期成本可近似拆为：输入 protobuf 深复制、LocalView 构造、参考线更新、Scenario/Stage/Task 计算、轨迹序列化与发布。规划算法通常远大于 Dispatcher 查表成本，但大消息复制与调试字段也可能显著增加尾延迟。</p>
-<p>History 和 Frame 缓存必须有界，否则长时间运行会线性增长。轨迹点数量决定序列化成本，障碍物数量与候选路径/参考线数量又会放大算法复杂度。性能报告应同时给出障碍物规模、参考线数量、场景、debug 开关和 percentile，而不能只有平均 Proc 时间。</p>
-<p>CRoutine 是协作式任务；一个过长且不 yield 的 Planning Proc 会占住对应 Processor。增加调度线程不能自动解决同一组件的最坏执行时间，也可能带来更多缓存争用。</p>
-<section id="id11">
-<h3><a class="toc-backref" href="#id35" role="doc-backlink">一次周期的预算表</a><a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Tcycle = Tvisitor_fetch
-       + Tsnapshot_copy
-       + Tinput_validation
-       + Tframe/reference_line
-       + Σ(Tscenario_stage_task)
-       + Ttrajectory_build
-       + Tserialize_publish
-</pre></div>
-</div>
-<p>还要单独统计主输入到达至 routine 获得 Processor 的调度等待。若规划目标周期为 100 ms，平均算法 40 ms 不代表安全：障碍物峰值、双 reference line、debug 字段和同 Processor 上其他长 routine 可能把 p99 推过 deadline。</p>
-<p>LocalView 中 protobuf 深复制的成本近似字段总大小；不可变 shared pointer 快照可以减少复制，却会延长消息寿命。History 若保留 H 个 Frame，每帧障碍物/候选轨迹规模为 S，内存主项近似 <code class="docutils literal notranslate"><span class="pre">O(H×S)</span></code>，必须有固定淘汰策略。</p>
-</section>
-</section>
-<section id="id12">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">优秀设计与工程取舍</a><a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
-<p>Apollo Planning 最值得学习的地方，是把“消息何时到达”与“算法怎样规划”隔开。Cyber Component 负责调度和通信，<code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 把本周期输入冻结成稳定视图，<code class="docutils literal notranslate"><span class="pre">PlanningBase</span></code> 再消费这个视图。算法因此不需要在每个 Task 中直接访问 Reader，也不会在一次计算中途突然换输入。</p>
-<p>模板主输入把关键调度契约放进 C++ 类型，错误更早暴露；普通 Reader 则允许低频状态独立更新，避免为了一个交通灯消息重新设计固定模板签名。代价是系统同时存在框架管理的输入和组件自行管理的共享状态，开发者必须自己维护锁、时间戳与关闭顺序。</p>
-<p>Scenario → Stage → Task 的层级让大型规划流程可以配置和替换，但也会把执行顺序分散到 proto、注册表和多个类。它适合算法团队并行开发的生产项目；对只有一种简单策略的小机器人，直接复制整套层级会增加不必要的动态分派和配置复杂度。</p>
-</section>
-<section id="id13">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">缺点与性能边界</a><a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
-<p>大量 protobuf 深复制会增加延迟与内存带宽；多输入 latest 语义不能证明严格同步；动态 DAG、共享库与 proto 必须版本一致；Planning 算法的最坏执行时间仍会占住 CRoutine 所在 Processor。Cyber 提供隔离和调度边界，但不会自动使复杂算法满足实时上界。</p>
-<p>辅助 Reader 使用共享成员和互斥锁，新增状态时容易出现“字段已加入但未纳入同一快照”的错误。<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 能延长消息寿命，却不能保证消息时间一致；锁能排除 data race，也不能证明业务数据来自同一时刻。</p>
-<p>这套结构适合拥有多源感知、复杂场景状态机和离线 Record 回放需求的自动驾驶系统。它不适合资源很小、输入固定、只运行单一局部控制律的控制器；最内层制动与转向安全也不能只依赖普通 Planning 周期和 Cyber 调度。</p>
-</section>
-<section id="id14">
-<h2><a class="toc-backref" href="#id38" role="doc-backlink">可迁移的规划组件方法</a><a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
-<ol class="arabic simple">
-<li><p>将输入按“触发事件”和“持续状态”分类，而不是把所有消息塞进一个 callback；</p></li>
-<li><p>用类型化主输入固定执行签名，辅助输入保存不可变快照并记录源时间；</p></li>
-<li><p>在周期入口一次性冻结输入视图，锁外运行耗时算法；</p></li>
-<li><p>让算法层只依赖 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 和输出值，不直接依赖 Reader、Writer 或 Node；</p></li>
-<li><p>缺失、过期和跨输入时间偏差都形成可发布的状态，而不是简单返回失败；</p></li>
-<li><p>部署文件、注册类名、配置 proto 与共享库作为同一个版本单元发布；</p></li>
-<li><p>用 Record 固化输入，并用 sequence、timestamp 和业务容差验证重放。</p></li>
-</ol>
-</section>
-<section id="id15">
-<h2><a class="toc-backref" href="#id39" role="doc-backlink">最小复刻：构建可回放的规划组件</a><a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
-<p>不要直接复制 Apollo 全部 Planning。可以先实现如下工程：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>mini_planning/
-├── proto/mini_planning.proto
-├── mini_planning_component.h/.cc
-├── mini_planning_base.h/.cc
-├── straight_strategy.cc
-├── safe_stop_strategy.cc
-├── conf/mini_planning.pb.txt
-├── dag/mini_planning.dag
-└── launch/mini_planning.launch
+<section id="endpoint">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">类型化 endpoint 把错误挡在编译期</a><a class="headerlink" href="#endpoint" title="Link to this heading"></a></h2>
+<p>最小的类型化接口可以长这样：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Writer</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">Write</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">message</span><span class="p">);</span>
+<span class="p">};</span>
 
-主输入：Prediction + Chassis + Localization
-辅助输入：PlanningCommand
-输出：MiniTrajectory + PlanningStatus
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Reader</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">Callback</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="p">)</span><span class="o">&gt;</span><span class="p">;</span>
+<span class="p">};</span>
 </pre></div>
 </div>
-<p>开发顺序如下：</p>
+<p><code class="docutils literal notranslate"><span class="pre">Writer&lt;Image&gt;</span></code> 的 <code class="docutils literal notranslate"><span class="pre">Write</span></code> 参数不能传入 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Pose&gt;</span></code>，错误会在编译时出现。模板在这里承担的是类型契约：编译器为实际的 <code class="docutils literal notranslate"><span class="pre">MessageT</span></code> 生成代码，<code class="docutils literal notranslate"><span class="pre">Reader&lt;Image&gt;</span></code> 内部的 Receiver、callback 和缓存也都保持同一种消息类型。</p>
+<p><code class="docutils literal notranslate"><span class="pre">const</span> <span class="pre">std::shared_ptr&lt;MessageT&gt;&amp;</span></code> 又包含两层含义。<code class="docutils literal notranslate"><span class="pre">const</span></code> 修饰的是智能指针句柄，当前函数不能让这个参数改指向另一个对象；它并没有把 <code class="docutils literal notranslate"><span class="pre">MessageT</span></code> 本体变成只读。引用避免仅仅为了传参再增加、减少一次强引用计数，但 endpoint 若要让消息活过当前调用，仍会把 shared pointer 复制进异步结构。</p>
+<p>到这里类型安全有了，新的问题却出现了：一个 Node 同时拥有 <code class="docutils literal notranslate"><span class="pre">Reader&lt;Image&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">Reader&lt;Pose&gt;</span></code> 和 <code class="docutils literal notranslate"><span class="pre">Reader&lt;Chassis&gt;</span></code>，它们是互不相关的模板实例，无法直接放进同一个 <code class="docutils literal notranslate"><span class="pre">vector&lt;Reader&lt;?&gt;&gt;</span></code>。Cyber RT 没有为此放弃模板，而是增加一层非模板运行时接口。</p>
+</section>
+<section id="id1">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">模板负责消息类型，虚函数负责异构生命周期</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>固定提交中的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader_base.h#L46-L145"><code class="docutils literal notranslate"><span class="pre">ReaderBase</span></code></a> 不处理任何具体 payload，只定义所有 Reader 都有的生命周期和查询能力。下面是保持原控制流的<strong>固定提交源码摘录</strong>，省略了注释与若干查询函数：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ReaderBase</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">ReaderBase</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">proto</span><span class="o">::</span><span class="n">RoleAttributes</span><span class="o">&amp;</span><span class="w"> </span><span class="n">role_attr</span><span class="p">)</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">role_attr_</span><span class="p">(</span><span class="n">role_attr</span><span class="p">),</span><span class="w"> </span><span class="n">init_</span><span class="p">(</span><span class="nb">false</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="o">~</span><span class="n">ReaderBase</span><span class="p">()</span><span class="w"> </span><span class="p">{}</span>
+
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">Init</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">Shutdown</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">ClearData</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">Observe</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="nf">Empty</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="nf">PendingQueueSize</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+
+<span class="w">  </span><span class="kt">uint64_t</span><span class="w"> </span><span class="nf">ChannelId</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">role_attr_</span><span class="p">.</span><span class="n">channel_id</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="nf">IsInit</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">init_</span><span class="p">.</span><span class="n">load</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">protected</span><span class="o">:</span>
+<span class="w">  </span><span class="n">proto</span><span class="o">::</span><span class="n">RoleAttributes</span><span class="w"> </span><span class="n">role_attr_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">atomic</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">init_</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p>文件与位置：<code class="docutils literal notranslate"><span class="pre">cyber/node/reader_base.h:46-145</span></code>。具体的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader.h#L69-L227"><code class="docutils literal notranslate"><span class="pre">Reader&lt;MessageT&gt;</span></code></a> 再继承它，保存 <code class="docutils literal notranslate"><span class="pre">CallbackFunc&lt;MessageT&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">Receiver&lt;MessageT&gt;</span></code> 和 <code class="docutils literal notranslate"><span class="pre">Blocker&lt;MessageT&gt;</span></code>。Writer 也采用 <code class="docutils literal notranslate"><span class="pre">WriterBase</span> <span class="pre">&lt;-</span> <span class="pre">Writer&lt;MessageT&gt;</span></code> 两层结构。</p>
+<p>这不是“模板和虚函数二选一”。模板解决编译期消息类型，虚函数解决运行时只知道基类时该调用哪个实现。Node 可以保存 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;ReaderBase&gt;</span></code>，而业务仍得到 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Reader&lt;Image&gt;&gt;</span></code>。通过基类指针调用 <code class="docutils literal notranslate"><span class="pre">Shutdown()</span></code> 时，vptr 再把调用分派到实际 Reader 实现。</p>
+<p>Cyber 的 simulation 分支还在第二层使用继承：<code class="docutils literal notranslate"><span class="pre">IntraReader&lt;MessageT&gt;</span></code> 继承 <code class="docutils literal notranslate"><span class="pre">Reader&lt;MessageT&gt;</span></code>，覆盖 <code class="docutils literal notranslate"><span class="pre">Init/Shutdown/Observe</span></code> 等接口。运行模式在启动后选择实现类，但 <code class="docutils literal notranslate"><span class="pre">MessageT</span></code> 始终没有被擦成 <code class="docutils literal notranslate"><span class="pre">void*</span></code>。</p>
+<p>先把核心关系画出来，后文再逐个填充对象：</p>
+<pre  class="mermaid">
+        classDiagram
+  class Node {
+    -readers_ map~string, shared_ptr~ReaderBase~~
+    -node_channel_impl_ unique_ptr~NodeChannelImpl~
+    +CreateReader~T~() shared_ptr~Reader_T~
+    +CreateWriter~T~() shared_ptr~Writer_T~
+  }
+  class NodeChannelImpl {
+    -node_attr_ RoleAttributes
+    +CreateReader~T~()
+    +CreateWriter~T~()
+  }
+  class ReaderBase {
+    &lt;&lt;runtime interface&gt;&gt;
+    +Init() bool
+    +Shutdown()
+    +Observe()
+  }
+  class Reader_T {
+    &lt;&lt;template&gt;&gt;
+    -reader_func_ CallbackFunc~T~
+    -receiver_ shared_ptr~Receiver_T~
+    -blocker_ shared_ptr~Blocker_T~
+  }
+  class IntraReader_T {
+    &lt;&lt;template&gt;&gt;
+  }
+  class WriterBase {
+    &lt;&lt;runtime interface&gt;&gt;
+    #init_ bool
+  }
+  class Writer_T {
+    &lt;&lt;template&gt;&gt;
+    -transmitter_ shared_ptr~Transmitter_T~
+  }
+  class IntraWriter_T {
+    &lt;&lt;template&gt;&gt;
+  }
+
+  Node *-- NodeChannelImpl
+  Node o-- ReaderBase : strong owners
+  ReaderBase &lt;|-- Reader_T
+  Reader_T &lt;|-- IntraReader_T
+  WriterBase &lt;|-- Writer_T
+  Writer_T &lt;|-- IntraWriter_T
+  Node ..&gt; Writer_T : creates but does not retain
+    </pre><p>图中最容易忽略的是最后一条虚线：Node 创建 Writer，却不拥有 Writer。这个不对称关系会直接决定业务代码怎么写，也决定关闭时由谁负责停止发送。</p>
+</section>
+<section id="node">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Node 是名字与资源边界，不是消息总线</a><a class="headerlink" href="#node" title="Link to this heading"></a></h2>
+<p>公开 API <code class="docutils literal notranslate"><span class="pre">cyber::CreateNode()</span></code> 返回 <code class="docutils literal notranslate"><span class="pre">unique_ptr&lt;Node&gt;</span></code>。固定提交的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/cyber.cc#L28-L38"><code class="docutils literal notranslate"><span class="pre">cyber.cc</span></code></a> 先在 reality mode 检查框架已初始化，再调用 Node 的 private 构造函数：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">&gt;</span><span class="w"> </span><span class="n">CreateNode</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">node_name</span><span class="p">,</span>
+<span class="w">                                 </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">name_space</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">is_reality_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GlobalData</span><span class="o">::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">IsRealityMode</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">is_reality_mode</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">OK</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">AERROR</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;please initialize cyber firstly.&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">&gt;</span><span class="p">(</span><span class="k">new</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">node_name</span><span class="p">,</span><span class="w"> </span><span class="n">name_space</span><span class="p">));</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>private 构造函数让框架保留创建门：独立应用通常独占 Node；Component 内部则把 <code class="docutils literal notranslate"><span class="pre">new</span> <span class="pre">Node</span></code> 放入 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Node&gt;</span></code>。Node 本身没有规定全系统只能用哪种智能指针，关键是 owner 必须覆盖所有 endpoint 的装配期。</p>
+<p>Node 的核心成员位于 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/node.h#L180-L189"><code class="docutils literal notranslate"><span class="pre">cyber/node/node.h:180-189</span></code></a>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">readers_mutex_</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ReaderBase</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">readers_</span><span class="p">;</span>
+
+<span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">NodeChannelImpl</span><span class="o">&gt;</span><span class="w"> </span><span class="n">node_channel_impl_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">unique_ptr</span><span class="o">&lt;</span><span class="n">NodeServiceImpl</span><span class="o">&gt;</span><span class="w"> </span><span class="n">node_service_impl_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">NodeChannelImpl</span></code> 与 <code class="docutils literal notranslate"><span class="pre">NodeServiceImpl</span></code> 是组合对象，分别承接 channel endpoint 与 service/client 的创建逻辑。它们把 Node 从“所有通信模式都知道一点”的大类拆成两个职责。不过 <code class="docutils literal notranslate"><span class="pre">NodeChannelImpl</span></code> 不是传统的 ABI pimpl：它的完整定义和模板实现都在头文件中，作用是职责分离，而不是隐藏类型布局。</p>
+<p>Reader 创建与 Writer 创建在 Node 中有意不对称。下面是 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/node.h#L192-L241"><code class="docutils literal notranslate"><span class="pre">node.h:192-241</span></code></a> 的<strong>固定提交源码摘录</strong>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">Node</span><span class="o">::</span><span class="n">CreateWriter</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">proto</span><span class="o">::</span><span class="n">RoleAttributes</span><span class="o">&amp;</span><span class="w"> </span><span class="n">role_attr</span><span class="p">)</span>
+<span class="w">    </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Writer</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">node_channel_impl_</span><span class="o">-&gt;</span><span class="k">template</span><span class="w"> </span><span class="n">CreateWriter</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">role_attr</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">Node</span><span class="o">::</span><span class="n">CreateReader</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">ReaderConfig</span><span class="o">&amp;</span><span class="w"> </span><span class="n">config</span><span class="p">,</span>
+<span class="w">                        </span><span class="k">const</span><span class="w"> </span><span class="n">CallbackFunc</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">reader_func</span><span class="p">)</span>
+<span class="w">    </span><span class="o">-&gt;</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">cyber</span><span class="o">::</span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lg</span><span class="p">(</span><span class="n">readers_mutex_</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">readers_</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="n">channel_name</span><span class="p">)</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">readers_</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">AWARN</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;Failed to create reader: reader with the same channel already &quot;</span>
+<span class="w">             </span><span class="s">&quot;exists.&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">node_channel_impl_</span><span class="o">-&gt;</span><span class="k">template</span><span class="w"> </span><span class="n">CreateReader</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">config</span><span class="p">,</span><span class="w"> </span><span class="n">reader_func</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reader</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">readers_</span><span class="p">.</span><span class="n">emplace</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">make_pair</span><span class="p">(</span><span class="n">config</span><span class="p">.</span><span class="n">channel_name</span><span class="p">,</span><span class="w"> </span><span class="n">reader</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Writer 路径只是转发并返回。应用必须保存返回的 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Writer&lt;T&gt;&gt;</span></code>；若它只是一个未赋值的临时量，完整表达式结束后 Writer 就会析构。Reader 则以 channel name 为 key 存进 Node 的 map，Node 因而可以统一 <code class="docutils literal notranslate"><span class="pre">Observe</span></code>、<code class="docutils literal notranslate"><span class="pre">ClearData</span></code> 与查询。</p>
+<p>map 的 key 只有 channel name。这意味着同一个 Node 不能为同一 channel 创建第二只 Reader，即使模板类型或 callback 不同。factory 成功以后才插入 map，所以创建失败不会留下一个可查询但未初始化的 Reader。</p>
+<p><code class="docutils literal notranslate"><span class="pre">GetReader&lt;MessageT&gt;()</span></code> 从基类指针执行 <code class="docutils literal notranslate"><span class="pre">dynamic_pointer_cast</span></code>。channel 存在但调用者写错 MessageT 时，cast 返回空指针，不会把另一种模板实例解释成当前类型。这里的 shared pointer cast 不复制 Reader 本体，只在成功时增加同一控制块的强引用计数。</p>
+</section>
+<section id="roleattributes">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">RoleAttributes 把应用配置补成运行时身份</a><a class="headerlink" href="#roleattributes" title="Link to this heading"></a></h2>
+<p>业务只想说“订阅 <code class="docutils literal notranslate"><span class="pre">/camera/front</span></code>，队列深度为 2”。transport 和 service discovery 还需要 host、进程、Node、channel id、消息类型描述和 QoS。<code class="docutils literal notranslate"><span class="pre">NodeChannelImpl::FillInAttr&lt;MessageT&gt;</span></code> 正是配置到运行时对象之间的接缝。</p>
+<p>下面是 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/node_channel_impl.h#L235-L255"><code class="docutils literal notranslate"><span class="pre">cyber/node/node_channel_impl.h:235-255</span></code></a> 的<strong>固定提交源码摘录</strong>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">NodeChannelImpl</span><span class="o">::</span><span class="n">FillInAttr</span><span class="p">(</span><span class="n">proto</span><span class="o">::</span><span class="n">RoleAttributes</span><span class="o">*</span><span class="w"> </span><span class="n">attr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_host_name</span><span class="p">(</span><span class="n">node_attr_</span><span class="p">.</span><span class="n">host_name</span><span class="p">());</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_host_ip</span><span class="p">(</span><span class="n">node_attr_</span><span class="p">.</span><span class="n">host_ip</span><span class="p">());</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_process_id</span><span class="p">(</span><span class="n">node_attr_</span><span class="p">.</span><span class="n">process_id</span><span class="p">());</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_node_name</span><span class="p">(</span><span class="n">node_attr_</span><span class="p">.</span><span class="n">node_name</span><span class="p">());</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_node_id</span><span class="p">(</span><span class="n">node_attr_</span><span class="p">.</span><span class="n">node_id</span><span class="p">());</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">channel_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GlobalData</span><span class="o">::</span><span class="n">RegisterChannel</span><span class="p">(</span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">channel_name</span><span class="p">());</span>
+<span class="w">  </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_channel_id</span><span class="p">(</span><span class="n">channel_id</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">has_message_type</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_message_type</span><span class="p">(</span><span class="n">message</span><span class="o">::</span><span class="n">MessageType</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">());</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">has_proto_desc</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">proto_desc</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="n">message</span><span class="o">::</span><span class="n">GetDescriptorString</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">message_type</span><span class="p">(),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">proto_desc</span><span class="p">);</span>
+<span class="w">    </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">set_proto_desc</span><span class="p">(</span><span class="n">proto_desc</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">has_qos_profile</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">attr</span><span class="o">-&gt;</span><span class="n">mutable_qos_profile</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">CopyFrom</span><span class="p">(</span>
+<span class="w">        </span><span class="n">transport</span><span class="o">::</span><span class="n">QosProfileConf</span><span class="o">::</span><span class="n">QOS_PROFILE_DEFAULT</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">MessageT</span></code> 仍是编译期 C++ 类型；<code class="docutils literal notranslate"><span class="pre">message_type</span></code> 与 <code class="docutils literal notranslate"><span class="pre">proto_desc</span></code> 是给发现、匹配和反射使用的运行时元数据。不能因为 RoleAttributes 里有字符串类型名，就误以为 Reader 的模板类型由字符串在运行时生成。</p>
+<p><code class="docutils literal notranslate"><span class="pre">ReaderConfig</span></code> 还包含两个容易混淆的深度。<code class="docutils literal notranslate"><span class="pre">qos_profile.depth()</span></code> 用来构造 Reader 的 Blocker 历史缓存；<code class="docutils literal notranslate"><span class="pre">pending_queue_size</span></code> 用来构造 DataVisitor 中尚未处理消息的 ring。它们服务不同阶段，调大 QoS depth 不等于扩大 Component 的处理 backlog。</p>
+<p>补齐属性后，工厂才决定具体 endpoint。在 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/node_channel_impl.h#L152-L229"><code class="docutils literal notranslate"><span class="pre">node_channel_impl.h:152-229</span></code></a> 中，reality mode 创建 <code class="docutils literal notranslate"><span class="pre">Reader&lt;MessageT&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">Writer&lt;MessageT&gt;</span></code>，其他模式创建 <code class="docutils literal notranslate"><span class="pre">IntraReader&lt;MessageT&gt;</span></code>/<code class="docutils literal notranslate"><span class="pre">IntraWriter&lt;MessageT&gt;</span></code>，最后统一调用虚 <code class="docutils literal notranslate"><span class="pre">Init()</span></code>。这是 Factory Method 的结果，但正文更重要的是变化点：调用方不因运行模式改变 API，创建逻辑集中处理身份和初始化失败。</p>
+</section>
+<section id="reader-callback">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">一只 Reader 的创建远不止保存 callback</a><a class="headerlink" href="#reader-callback" title="Link to this heading"></a></h2>
+<p>相机 Reader 创建时，第一帧还没有到达，Cyber 已经搭好数据入口、调度任务和发现关系。下面的时序图以 reality mode 为准：</p>
+<pre  class="mermaid">
+        sequenceDiagram
+  participant App as Component / application
+  participant N as Node
+  participant F as NodeChannelImpl
+  participant R as Reader~Image~
+  participant S as Scheduler
+  participant RM as ReceiverManager~Image~
+  participant T as ChannelManager
+
+  App-&gt;&gt;N: CreateReader~Image~(ReaderConfig, callback)
+  activate N
+  N-&gt;&gt;N: lock readers_mutex&lt;br/&gt;reject duplicate channel
+  N-&gt;&gt;F: CreateReader~Image~
+  F-&gt;&gt;F: FillInAttr~Image~
+  F-&gt;&gt;R: make_shared + Init()
+  activate R
+  R-&gt;&gt;R: build callback wrapper&lt;br/&gt;Enqueue then user callback
+  R-&gt;&gt;S: CreateTask(DataVisitor + RoutineFactory)
+  S--&gt;&gt;R: task registered
+  R-&gt;&gt;RM: GetReceiver(role_attr)
+  RM--&gt;&gt;R: shared receiver for type + channel
+  R-&gt;&gt;T: AddChangeListener
+  R-&gt;&gt;T: GetWritersOfChannel
+  R-&gt;&gt;T: Join(ROLE_READER)
+  deactivate R
+  F--&gt;&gt;N: shared_ptr~Reader~
+  N-&gt;&gt;N: readers_[channel] = reader
+  N--&gt;&gt;App: shared_ptr~Reader~
+  deactivate N
+    </pre><p>真实 <code class="docutils literal notranslate"><span class="pre">Reader::Init()</span></code> 位于 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader.h#L259-L315"><code class="docutils literal notranslate"><span class="pre">cyber/node/reader.h:259-315</span></code></a>。下面的<strong>固定提交源码摘录</strong>保留关键控制流：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Init</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">init_</span><span class="p">.</span><span class="n">exchange</span><span class="p">(</span><span class="nb">true</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="p">)</span><span class="o">&gt;</span><span class="w"> </span><span class="n">func</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">reader_func_</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">func</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">Enqueue</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span>
+<span class="w">      </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">reader_func_</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span>
+<span class="w">      </span><span class="c1">// 省略统计采样</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">func</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">](</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">Enqueue</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span>
+<span class="w">    </span><span class="p">};</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">croutine_name_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">role_attr_</span><span class="p">.</span><span class="n">node_name</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;_&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">role_attr_</span><span class="p">.</span><span class="n">channel_name</span><span class="p">();</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">dv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">data</span><span class="o">::</span><span class="n">DataVisitor</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&gt;</span><span class="p">(</span>
+<span class="w">      </span><span class="n">role_attr_</span><span class="p">.</span><span class="n">channel_id</span><span class="p">(),</span><span class="w"> </span><span class="n">pending_queue_size_</span><span class="p">);</span>
+<span class="w">  </span><span class="n">croutine</span><span class="o">::</span><span class="n">RoutineFactory</span><span class="w"> </span><span class="n">factory</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">croutine</span><span class="o">::</span><span class="n">CreateRoutineFactory</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">func</span><span class="p">),</span><span class="w"> </span><span class="n">dv</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">scheduler</span><span class="o">::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">CreateTask</span><span class="p">(</span><span class="n">factory</span><span class="p">,</span><span class="w"> </span><span class="n">croutine_name_</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">init_</span><span class="p">.</span><span class="n">store</span><span class="p">(</span><span class="nb">false</span><span class="p">);</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">receiver_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ReceiverManager</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">GetReceiver</span><span class="p">(</span><span class="n">role_attr_</span><span class="p">);</span>
+<span class="w">  </span><span class="n">role_attr_</span><span class="p">.</span><span class="n">set_id</span><span class="p">(</span><span class="n">receiver_</span><span class="o">-&gt;</span><span class="n">id</span><span class="p">().</span><span class="n">HashValue</span><span class="p">());</span>
+<span class="w">  </span><span class="n">channel_manager_</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">service_discovery</span><span class="o">::</span><span class="n">TopologyManager</span><span class="o">::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">channel_manager</span><span class="p">();</span>
+<span class="w">  </span><span class="n">JoinTheTopology</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>这段代码第一次揭示了线程边界：<code class="docutils literal notranslate"><span class="pre">reader_func_</span></code> 没有直接交给 transport Receiver，而是包进 <code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code>。DataVisitor 收到消息事件后，Scheduler 的 Processor 线程恢复 routine，才执行 <code class="docutils literal notranslate"><span class="pre">Enqueue</span></code> 和用户 callback。lambda 捕获裸 <code class="docutils literal notranslate"><span class="pre">this</span></code>，所以 Reader 关闭时必须先保证对应 task 不会再执行；shared_ptr 本身不会自动修复裸捕获。</p>
+<p><code class="docutils literal notranslate"><span class="pre">init_.exchange(true)</span></code> 是幂等门：已经初始化便直接成功。创建 task 失败时源码把 flag 恢复为 false。局部 Reader 没有插入 Node map，shared pointer 离开作用域后析构。不过 DataVisitor 构造时已向全局 registry 注册弱 buffer 与 notifier，固定实现没有完整的 unregister token；频繁失败或热装载会留下失效登记的遍历成本。</p>
+</section>
+<section id="reader-receiver">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a><a class="headerlink" href="#reader-receiver" title="Link to this heading"></a></h2>
+<p>如果同一进程里有诊断、记录和感知三个订阅者，为每只 Reader 都建立一份 SHM/RTPS 接收端，会重复接收和解析同一消息。Cyber 在 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader_base.h#L199-L224"><code class="docutils literal notranslate"><span class="pre">ReceiverManager&lt;MessageT&gt;::GetReceiver</span></code></a> 中按 channel name 缓存一只 receiver。</p>
+<p>下面是<strong>固定提交源码摘录</strong>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">channel_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">role_attr</span><span class="p">.</span><span class="n">channel_name</span><span class="p">();</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">receiver_map_</span><span class="p">.</span><span class="n">count</span><span class="p">(</span><span class="n">channel_name</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">receiver_map_</span><span class="p">[</span><span class="n">channel_name</span><span class="p">]</span><span class="w"> </span><span class="o">=</span>
+<span class="w">      </span><span class="n">transport</span><span class="o">::</span><span class="n">Transport</span><span class="o">::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">CreateReceiver</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">          </span><span class="n">role_attr</span><span class="p">,</span>
+<span class="w">          </span><span class="p">[](</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">,</span>
+<span class="w">             </span><span class="k">const</span><span class="w"> </span><span class="n">transport</span><span class="o">::</span><span class="n">MessageInfo</span><span class="o">&amp;</span><span class="w"> </span><span class="n">msg_info</span><span class="p">,</span>
+<span class="w">             </span><span class="k">const</span><span class="w"> </span><span class="n">proto</span><span class="o">::</span><span class="n">RoleAttributes</span><span class="o">&amp;</span><span class="w"> </span><span class="n">reader_attr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">data</span><span class="o">::</span><span class="n">DataDispatcher</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">Dispatch</span><span class="p">(</span>
+<span class="w">                </span><span class="n">reader_attr</span><span class="p">.</span><span class="n">channel_id</span><span class="p">(),</span><span class="w"> </span><span class="n">msg</span><span class="p">);</span>
+<span class="w">          </span><span class="p">});</span>
+<span class="p">}</span>
+<span class="k">return</span><span class="w"> </span><span class="n">receiver_map_</span><span class="p">[</span><span class="n">channel_name</span><span class="p">];</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">ReceiverManager&lt;MessageT&gt;</span></code> 本身是模板 singleton，所以 map 的完整 key 可以理解为 <code class="docutils literal notranslate"><span class="pre">MessageT</span> <span class="pre">+</span> <span class="pre">channel_name</span></code>。底层 Receiver 的 listener 不捕获某只 Reader，只把消息按 channel id 交给 <code class="docutils literal notranslate"><span class="pre">DataDispatcher&lt;MessageT&gt;</span></code>。每只 Reader 的 DataVisitor 都有自己的 ring 和读取位置；共享的是 ingress 和 payload 对象，不共享会被某一消费者移动的游标。</p>
+<p>于是同一帧图像可以这样流动：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>shared Receiver&lt;Image&gt;
+  -&gt; DataDispatcher&lt;Image&gt;
+       -&gt; Reader A 的 DataVisitor ring -&gt; Reader A callback
+       -&gt; Reader B 的 DataVisitor ring -&gt; Reader B callback
+       -&gt; Component 的 DataVisitor ring -&gt; Component::Proc
+</pre></div>
+</div>
+<p>每个 ring 槽位复制 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Image&gt;</span></code>，不是复制整幅图像。不同消费者可以独立落后和覆盖旧槽，但最慢者仍可能延长图像对象的寿命。ReceiverManager 的 map 也强持有 receiver，因此 <code class="docutils literal notranslate"><span class="pre">Reader::Shutdown()</span></code> 把自己的 <code class="docutils literal notranslate"><span class="pre">receiver_</span></code> 置空，不代表底层共享 receiver 立刻析构。</p>
+<p>Component 场景还有一个反直觉点：Node map 与 <code class="docutils literal notranslate"><span class="pre">ComponentBase::readers_</span></code> vector 可以同时强持有同一只 Reader；与此同时 Component 又有自己的 DataVisitor task。前者是“一只对象的两个 owner”，后者才是“两条独立消费支路”。</p>
+</section>
+<section id="topology">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">topology 让已有与未来的对端都能建立关系</a><a class="headerlink" href="#topology" title="Link to this heading"></a></h2>
+<p>创建 Receiver 只准备了本地入口，Writer 与 Reader 还要互相发现。<code class="docutils literal notranslate"><span class="pre">Reader::JoinTheTopology()</span></code> 先注册 change listener，再查询当前已经存在的 writers 并逐个 <code class="docutils literal notranslate"><span class="pre">receiver_-&gt;Enable(writer)</span></code>，最后把自身以 <code class="docutils literal notranslate"><span class="pre">ROLE_READER</span></code> 加入 ChannelManager。</p>
+<p>如果顺序反过来，Reader 可能在“查询已有 writer”和“注册未来变化”之间漏掉一次加入事件。固定实现先监听再做快照查询，使已有对端和未来对端都有路径进入。收到 Writer join/leave 变化后，<code class="docutils literal notranslate"><span class="pre">OnChannelChange</span></code> 先核对 role type 和 channel，再调用 receiver Enable/Disable。</p>
+<p>这里的 callback 用：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">bind</span><span class="p">(</span><span class="o">&amp;</span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">OnChannelChange</span><span class="p">,</span>
+<span class="w">          </span><span class="k">this</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">placeholders</span><span class="o">::</span><span class="n">_1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>捕获裸 <code class="docutils literal notranslate"><span class="pre">this</span></code>。因此 <code class="docutils literal notranslate"><span class="pre">LeaveTheTopology()</span></code> 的第一步必须是 <code class="docutils literal notranslate"><span class="pre">RemoveChangeListener(change_conn_)</span></code>。这不是可有可无的清理动作，而是析构安全协议的一部分。</p>
+</section>
+<section id="writer-transmitter">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Writer 由调用者拥有，并把发送委托给 Transmitter</a><a class="headerlink" href="#writer-transmitter" title="Link to this heading"></a></h2>
+<p>Writer 的创建与 Reader 类似：NodeChannelImpl 校验 channel、填充 RoleAttributes、按模式创建具体 Writer 并调用 Init。区别在于 Node 不保留返回值。</p>
+<p>reality mode 的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/writer.h#L130-L150"><code class="docutils literal notranslate"><span class="pre">Writer::Init</span></code></a> 先在 <code class="docutils literal notranslate"><span class="pre">WriterBase::lock_</span></code> 下检查 <code class="docutils literal notranslate"><span class="pre">init_</span></code>，再让 Transport 工厂创建 <code class="docutils literal notranslate"><span class="pre">Transmitter&lt;MessageT&gt;</span></code>。随后设置 endpoint id，取得 ChannelManager 并加入 topology。Writer 的 topology 路径与 Reader 对称：监听 Reader 变化、启用已有 Readers、以 ROLE_WRITER 加入。</p>
+<p>Node 不持有 Writer 的设计让输出 endpoint 与业务对象自然同寿命：Component 通常把 Writer 存成成员，业务的 Init 创建，Component 销毁时释放。代价是 API 调用者必须主动保存它；Node 无法在自己的 map 中统一停止所有 Writer。</p>
+<section id="write">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">两种 Write 的拷贝语义不同</a><a class="headerlink" href="#write" title="Link to this heading"></a></h3>
+<p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/writer.h#L166-L177"><code class="docutils literal notranslate"><span class="pre">cyber/node/writer.h:166-177</span></code></a> 的<strong>固定提交源码摘录</strong>非常短，却值得逐行读：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">Writer</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Write</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">MessageT</span><span class="o">&amp;</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">RETURN_VAL_IF</span><span class="p">(</span><span class="o">!</span><span class="n">WriterBase</span><span class="o">::</span><span class="n">IsInit</span><span class="p">(),</span><span class="w"> </span><span class="nb">false</span><span class="p">);</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">msg_ptr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">Write</span><span class="p">(</span><span class="n">msg_ptr</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">Writer</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Write</span><span class="p">(</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">msg_ptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">RETURN_VAL_IF</span><span class="p">(</span><span class="o">!</span><span class="n">WriterBase</span><span class="o">::</span><span class="n">IsInit</span><span class="p">(),</span><span class="w"> </span><span class="nb">false</span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">transmitter_</span><span class="o">-&gt;</span><span class="n">Transmit</span><span class="p">(</span><span class="n">msg_ptr</span><span class="p">);</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">Write(const</span> <span class="pre">MessageT&amp;)</span></code> 会在堆上创建新 MessageT，并调用拷贝构造；大 protobuf 或图像 wrapper 的成本不能忽略。<code class="docutils literal notranslate"><span class="pre">Write(shared_ptr&lt;MessageT&gt;)</span></code> 不在 Writer wrapper 这一层复制 payload，只把共享所有权交给 Transmitter。它仍不能被称为端到端零拷贝：SHM/RTPS 的序列化、共享块和远端反序列化要另行分析。</p>
+<p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/writer.h#L241-L255"><code class="docutils literal notranslate"><span class="pre">AcquireMessage()</span></code></a> 先请求 transmitter 提供一只消息对象，失败时回退到 <code class="docutils literal notranslate"><span class="pre">make_shared&lt;MessageT&gt;()</span></code>。这个接口为 transport 预分配或 loaned message 留出入口，但是否真正共享底层 payload，仍取决于具体 Transmitter。</p>
+</section>
+</section>
+<section id="id2">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">把一帧图像的所有权和线程完整回放一次</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>现在可以把创建和稳定运行放在同一张账本里。假设业务通过 <code class="docutils literal notranslate"><span class="pre">Writer&lt;Image&gt;::Write(shared_ptr&lt;Image&gt;)</span></code> 发布第 42 帧：</p>
 <ol class="arabic simple">
-<li><p>定义 proto，让输出携带 header、输入 sequence 集合和 status reason；</p></li>
-<li><p>创建 <code class="docutils literal notranslate"><span class="pre">Component&lt;A,</span> <span class="pre">B,</span> <span class="pre">C&gt;</span></code>，<code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 只检查输入并发布固定速度直线轨迹；</p></li>
-<li><p>在 <code class="docutils literal notranslate"><span class="pre">Init()</span></code> 中创建辅助 Reader，锁内复制 command，关闭时先停止 callback ingress；</p></li>
-<li><p>引入 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code>，在锁内冻结状态，在锁外检查年龄和跨输入 skew；</p></li>
-<li><p>抽出 <code class="docutils literal notranslate"><span class="pre">MiniPlanningBase::RunOnce(const</span> <span class="pre">LocalView&amp;,</span> <span class="pre">Output*)</span></code>，确保算法不依赖 Cyber Node；</p></li>
-<li><p>加入正常直线与安全停车两种 Strategy，所有失败出口都产生可解释输出；</p></li>
-<li><p>编写 DAG、config 与 launch，让 library、class、topic 和 proto 形成闭环；</p></li>
-<li><p>最后录制输入 channel，使用确定的回放 Clock 比较相同输入集合下的业务输出。</p></li>
+<li><p>业务线程持有一份 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Image&gt;</span></code>，Writer 检查自身已初始化，把同一 shared pointer 传给 Transmitter。Writer 不修改图像内容，也不在这一层创建副本。</p></li>
+<li><p>transport 根据进程关系走 INTRA、SHM 或 RTPS。INTRA 可能继续共享同一对象；跨进程路径必须经过各自的序列化或共享内存协议，不能把第一步的 shared pointer 地址传给另一个进程。</p></li>
+<li><p>本进程共享 Receiver 把得到的 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Image&gt;</span></code> 交给 DataDispatcher。当前仍是 transport ingress 相关线程；还没有进入 Reader callback。</p></li>
+<li><p>Dispatcher 把 shared pointer 写进各 Reader/Component 私有 ring，再发送 channel 更新事件。每个槽位延长 Image 寿命，payload 不因 fan-out 重复构造。</p></li>
+<li><p>Scheduler 唤醒某个 Processor OS 线程。条件变量通知只使线程有机会变成 runnable，真正何时获得 CPU 仍由 Linux 调度器决定。</p></li>
+<li><p>Processor 恢复 Reader CRoutine，DataVisitor 从 ring 取出 shared pointer，执行捕获 Reader 裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 的 wrapper。<code class="docutils literal notranslate"><span class="pre">Reader::Enqueue</span></code> 将消息写入 Blocker，随后才调用用户 reader_func。</p></li>
+<li><p>callback 返回后局部 shared pointer 释放一份强计数；ring 槽、Blocker、其他 Reader 或 transport 仍可能拥有对象。只有最后一份强引用释放，Image 才析构。</p></li>
 </ol>
-<p>Record 验证不应要求整条 protobuf 字节完全一致，因为时间戳、debug 顺序和浮点末位可能变化。应先确认每次 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 使用相同的 input sequence set，再按轨迹点位置、速度、状态码等字段设置业务容差。输入集合不同属于调度或快照问题，不能归因于算法随机性。</p>
-<p>完成标准是：辅助 callback 与算法没有数据竞争；一次 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 只使用冻结视图；过期输入发布明确原因；算法可以用手工构造的 <code class="docutils literal notranslate"><span class="pre">LocalView</span></code> 测试；Reader/Writer 创建失败不会留下半初始化组件；关闭后没有 callback 或 CRoutine 继续访问已卸载插件；切换 DAG 进程边界不改变业务接口。</p>
+<p>这条链解释了为什么 endpoint 对象关系与消息对象关系必须分开画。Reader 由 Node、Component 和调用方的 shared pointer 管理；Image 则由 Writer、transport、多个 ring 与 callback 的 shared pointer 管理。两个控制块完全不同。</p>
+</section>
+<section id="delete">
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">关闭过程是反向拆除回调边，不是简单 delete</a><a class="headerlink" href="#delete" title="Link to this heading"></a></h2>
+<p>相机停止时，最危险的不是释放内存本身，而是某条线程仍能通过旧 callback 回到 endpoint。Reader 与 Writer 的 Shutdown 都是幂等的，但它们等待的范围不同。</p>
+<pre  class="mermaid">
+        sequenceDiagram
+  participant Owner as lifecycle owner
+  participant Pub as publisher thread
+  participant W as Writer
+  participant Topo as ChannelManager
+  participant R as Reader
+  participant S as Scheduler
+
+  Owner-&gt;&gt;Pub: request stop
+  Pub--&gt;&gt;Owner: join / no more Write
+  Owner-&gt;&gt;W: Shutdown()
+  W-&gt;&gt;W: lock, init_ = false, unlock
+  W-&gt;&gt;Topo: RemoveChangeListener + Leave
+  W-&gt;&gt;W: release transmitter
+
+  Owner-&gt;&gt;R: Shutdown()
+  R-&gt;&gt;R: init_.exchange(false)
+  R-&gt;&gt;Topo: RemoveChangeListener + Leave
+  R-&gt;&gt;R: release local receiver handle
+  R-&gt;&gt;S: RemoveTask(croutine_name)
+  S-&gt;&gt;S: wait until routine is not executing
+  S--&gt;&gt;R: task removed
+  R--&gt;&gt;Owner: safe to destroy Reader
+    </pre><p>Reader 的固定实现位于 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/reader.h#L317-L327"><code class="docutils literal notranslate"><span class="pre">cyber/node/reader.h:317-327</span></code></a>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">MessageT</span><span class="o">&gt;</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">MessageT</span><span class="o">&gt;::</span><span class="n">Shutdown</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">init_</span><span class="p">.</span><span class="n">exchange</span><span class="p">(</span><span class="nb">false</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">LeaveTheTopology</span><span class="p">();</span>
+<span class="w">  </span><span class="n">receiver_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">  </span><span class="n">channel_manager_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">croutine_name_</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">scheduler</span><span class="o">::</span><span class="n">Instance</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">RemoveTask</span><span class="p">(</span><span class="n">croutine_name_</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>析构函数再次调用 Shutdown，atomic exchange 让重复关闭直接返回。先移除 topology listener，保证发现线程不会再通过裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 进入 Reader；再删除 task，Scheduler 策略会等待 CRoutine 不在 Processor 上执行。若用户 callback 永不返回，RemoveTask 也可能永久等待，C++ 没有安全、通用的外部强杀线程方案。</p>
+<p>Writer 的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/node/writer.h#L152-L164"><code class="docutils literal notranslate"><span class="pre">Shutdown</span></code></a> 先在 mutex 下把 <code class="docutils literal notranslate"><span class="pre">init_</span></code> 设为 false，随后锁外退出 topology 并释放 transmitter。这里存在一个必须诚实说明的并发边界：<code class="docutils literal notranslate"><span class="pre">Write()</span></code> 调用 <code class="docutils literal notranslate"><span class="pre">IsInit()</span></code> 时只在检查期间持锁，返回后在锁外解引用 <code class="docutils literal notranslate"><span class="pre">transmitter_</span></code>；并发 Shutdown 可能在两步之间把 transmitter 清空。</p>
+<p>所以固定实现不能支持“任意线程随时 Write，同时另一线程销毁 Writer”这一强契约。生命周期 owner 应先停止并 join 发布线程或定时器，确认不会再调用 Write，然后才 Shutdown/析构 Writer。RAII 能保证作用域结束时调用清理函数，不能自动建立跨线程停止屏障。</p>
+<p><code class="docutils literal notranslate"><span class="pre">Node::DeleteReader(channel)</span></code> 也不是强制删除对象。它只从 Node map erase 一份 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;ReaderBase&gt;</span></code>；调用方或 Component vector 若仍持有 Reader，强计数不为零，对象继续存在。shared ownership 允许句柄独立于 registry 存活，但 API 名称容易让读者误以为立即析构。</p>
+<p>Standalone Node 析构函数体为空，依靠成员析构释放自身 map 与两个 impl。外部保存的 Reader shared pointer 仍可能活过 Node，因此 Node 析构也不是“所有通信已经停止”的全局屏障。Component 路径额外通过 <code class="docutils literal notranslate"><span class="pre">ComponentBase::Shutdown()</span></code> 逐只关闭 readers，再移除 Component task；用户创建的 Writer 通常还需要派生 Component 的 <code class="docutils literal notranslate"><span class="pre">Clear()</span></code> 或外部生命周期逻辑先停止生产者。</p>
+</section>
+<section id="id3">
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">这些选择解决了什么，又留下什么代价</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>Node/Reader/Writer 这组设计的精华在边界而不在模式标签：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>选择</p></th>
+<th class="head"><p>直接收益</p></th>
+<th class="head"><p>代价与适用边界</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>模板 endpoint + 非模板 base</p></td>
+<td><p>payload 强类型，同时允许异构容器和统一生命周期</p></td>
+<td><p>模板实现进入头文件，增加编译时间；类型恢复需要 cast</p></td>
+</tr>
+<tr class="row-odd"><td><p>Node 强持有 Reader、调用方持有 Writer</p></td>
+<td><p>Reader 支持 Node 级 Observe/查询；Writer 与业务输出自然同寿命</p></td>
+<td><p>所有权不对称必须被 API 使用者理解；Node 无法统一停止所有 Writer</p></td>
+</tr>
+<tr class="row-even"><td><p>NodeChannelImpl 集中 factory</p></td>
+<td><p>运行模式和身份填充不污染 Node 门面</p></td>
+<td><p>不是 ABI pimpl；模板仍让编译依赖较宽</p></td>
+</tr>
+<tr class="row-odd"><td><p>每类型/通道共享 Receiver</p></td>
+<td><p>避免重复底层订阅和解析，统一扇出</p></td>
+<td><p>singleton map 延长 Receiver 寿命；热删除不等于立即回收</p></td>
+</tr>
+<tr class="row-even"><td><p>每消费者 DataVisitor ring</p></td>
+<td><p>慢消费者不移动别人的游标</p></td>
+<td><p>fan-out 复制 shared pointer、每消费者占槽位和锁</p></td>
+</tr>
+<tr class="row-odd"><td><p>topology listener + 初始快照</p></td>
+<td><p>覆盖已有和未来对端</p></td>
+<td><p>callback 捕获裸 this，关闭顺序成为正确性条件</p></td>
+</tr>
+<tr class="row-even"><td><p>shared_ptr payload</p></td>
+<td><p>异步阶段易于延长消息寿命</p></td>
+<td><p>原子引用计数有竞争成本；可变 payload 需要额外约束</p></td>
+</tr>
+</tbody>
+</table>
+<p>从模式角度看，NodeChannelImpl 的 CreateReader/CreateWriter 是 Factory Method，ReaderBase/WriterBase 是运行时多态接口，Node 对两个 Impl 使用组合，ChannelManager 的变化通知具有 Observer 特征。但这些名称只能作为分析结果：真正重要的是“运行模式会变化”“Node 需要异构 owner”“对端会动态加入”三个工程变化点。</p>
+<p>对于机器人控制链，还要关注这些边界对时序的影响。<code class="docutils literal notranslate"><span class="pre">Write(const</span> <span class="pre">T&amp;)</span></code> 的堆分配、shared pointer 引用计数、Reader task 的排队、Processor 唤醒都会贡献抖动；pending queue 太深会让控制器处理陈旧样本；共享 Receiver 减少重复解析，却让同 channel 的扇出成本集中到一条 ingress 路径。它们提升了工程可组合性，不等于提供硬实时保证。</p>
+</section>
+<section id="id4">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">一个可运行的最小复刻</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>下面的<strong>教学最小例子</strong>不是 Apollo 源码。它只复刻本文最关键的边界：模板保持消息类型，非模板 base 允许 Node 异构持有 Reader，Node 不拥有 Writer，Reader callback 在 worker 线程执行，关闭先停止 worker 再释放对象。为了让一份文件可以直接运行，它没有实现 service discovery、共享 Receiver、ring 覆盖和多 transport。</p>
+<p>保存为 <code class="docutils literal notranslate"><span class="pre">mini_node.cc</span></code>，在 Linux 上执行：</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>c++<span class="w"> </span>-std<span class="o">=</span>c++17<span class="w"> </span>-O2<span class="w"> </span>-pthread<span class="w"> </span>mini_node.cc<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>./a.out
+</pre></div>
+</div>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;condition_variable&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;functional&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;iostream&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;memory&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;mutex&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;queue&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;string&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;thread&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;unordered_map&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;utility&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;vector&gt;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ReaderBase</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="o">~</span><span class="n">ReaderBase</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">default</span><span class="p">;</span>
+<span class="w">  </span><span class="k">virtual</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">Stop</span><span class="p">()</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Channel</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">Callback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="p">)</span><span class="o">&gt;</span><span class="p">;</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="nf">Subscribe</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">weak_ptr</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lifetime</span><span class="p">,</span><span class="w"> </span><span class="n">Callback</span><span class="w"> </span><span class="n">callback</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">    </span><span class="n">subscribers_</span><span class="p">.</span><span class="n">push_back</span><span class="p">({</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">lifetime</span><span class="p">),</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">callback</span><span class="p">)});</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="nf">Publish</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Callback</span><span class="o">&gt;</span><span class="w"> </span><span class="n">callbacks</span><span class="p">;</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">auto</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">subscribers_</span><span class="p">.</span><span class="n">begin</span><span class="p">();</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="n">subscribers_</span><span class="p">.</span><span class="n">end</span><span class="p">();)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="o">-&gt;</span><span class="n">lifetime</span><span class="p">.</span><span class="n">expired</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">subscribers_</span><span class="p">.</span><span class="n">erase</span><span class="p">(</span><span class="n">it</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">          </span><span class="n">callbacks</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">it</span><span class="o">-&gt;</span><span class="n">callback</span><span class="p">);</span>
+<span class="w">          </span><span class="o">++</span><span class="n">it</span><span class="p">;</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">callback</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">callbacks</span><span class="p">)</span><span class="w"> </span><span class="n">callback</span><span class="p">(</span><span class="n">message</span><span class="p">);</span><span class="w"> </span><span class="c1">// registry 锁外调用</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="k">struct</span><span class="w"> </span><span class="nc">Subscription</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">weak_ptr</span><span class="o">&lt;</span><span class="kt">void</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lifetime</span><span class="p">;</span>
+<span class="w">    </span><span class="n">Callback</span><span class="w"> </span><span class="n">callback</span><span class="p">;</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mu_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Subscription</span><span class="o">&gt;</span><span class="w"> </span><span class="n">subscribers_</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Reader</span><span class="w"> </span><span class="k">final</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">ReaderBase</span><span class="p">,</span>
+<span class="w">                     </span><span class="k">public</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">enable_shared_from_this</span><span class="o">&lt;</span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">using</span><span class="w"> </span><span class="n">Callback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">void</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="p">)</span><span class="o">&gt;</span><span class="p">;</span>
+
+<span class="w">  </span><span class="k">static</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Reader</span><span class="o">&gt;</span><span class="w"> </span><span class="n">Create</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel</span><span class="p">,</span>
+<span class="w">                                        </span><span class="n">Callback</span><span class="w"> </span><span class="n">callback</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Reader</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">        </span><span class="k">new</span><span class="w"> </span><span class="n">Reader</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">channel</span><span class="p">),</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">callback</span><span class="p">)));</span>
+<span class="w">    </span><span class="n">reader</span><span class="o">-&gt;</span><span class="n">Start</span><span class="p">();</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="o">~</span><span class="n">Reader</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Stop</span><span class="p">();</span><span class="w"> </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Stop</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stopped_</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">      </span><span class="n">stopped_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">cv_</span><span class="p">.</span><span class="n">notify_all</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">worker_</span><span class="p">.</span><span class="n">joinable</span><span class="p">())</span><span class="w"> </span><span class="n">worker_</span><span class="p">.</span><span class="n">join</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">Reader</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel</span><span class="p">,</span><span class="w"> </span><span class="n">Callback</span><span class="w"> </span><span class="n">callback</span><span class="p">)</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">channel_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">channel</span><span class="p">)),</span><span class="w"> </span><span class="n">callback_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">callback</span><span class="p">))</span><span class="w"> </span><span class="p">{}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Start</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">weak_ptr</span><span class="o">&lt;</span><span class="n">Reader</span><span class="o">&gt;</span><span class="w"> </span><span class="n">weak</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="o">-&gt;</span><span class="n">shared_from_this</span><span class="p">();</span>
+<span class="w">    </span><span class="n">channel_</span><span class="o">-&gt;</span><span class="n">Subscribe</span><span class="p">(</span><span class="n">weak</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="n">weak</span><span class="p">](</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">auto</span><span class="w"> </span><span class="n">self</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">weak</span><span class="p">.</span><span class="n">lock</span><span class="p">())</span><span class="w"> </span><span class="n">self</span><span class="o">-&gt;</span><span class="n">Enqueue</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">message</span><span class="p">));</span>
+<span class="w">    </span><span class="p">});</span>
+<span class="w">    </span><span class="n">worker_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="kr">thread</span><span class="p">([</span><span class="k">this</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Run</span><span class="p">();</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Enqueue</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stopped_</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">      </span><span class="n">queue_</span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">message</span><span class="p">));</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">cv_</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">message</span><span class="p">;</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">unique_lock</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">        </span><span class="n">cv_</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">lock</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="k">this</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">stopped_</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">queue_</span><span class="p">.</span><span class="n">empty</span><span class="p">();</span><span class="w"> </span><span class="p">});</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stopped_</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">queue_</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="p">;</span><span class="w"> </span><span class="c1">// drain 后退出</span>
+<span class="w">        </span><span class="n">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">queue_</span><span class="p">.</span><span class="n">front</span><span class="p">());</span>
+<span class="w">        </span><span class="n">queue_</span><span class="p">.</span><span class="n">pop</span><span class="p">();</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="n">callback_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">message</span><span class="p">));</span><span class="w"> </span><span class="c1">// 队列锁外执行业务</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">Callback</span><span class="w"> </span><span class="n">callback_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mu_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">condition_variable</span><span class="w"> </span><span class="n">cv_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">queue</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">queue_</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">stopped_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kr">thread</span><span class="w"> </span><span class="n">worker_</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Writer</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">explicit</span><span class="w"> </span><span class="n">Writer</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel</span><span class="p">)</span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">channel_</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">channel</span><span class="p">))</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Write</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">message</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">channel_</span><span class="o">-&gt;</span><span class="n">Publish</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">message</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel_</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Node</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="p">,</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">Callback</span><span class="o">&gt;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">CreateReader</span><span class="p">(</span>
+<span class="w">      </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel</span><span class="p">,</span>
+<span class="w">      </span><span class="n">Callback</span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">callback</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">auto</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Reader</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;::</span><span class="n">Create</span><span class="p">(</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">channel</span><span class="p">),</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">forward</span><span class="o">&lt;</span><span class="n">Callback</span><span class="o">&gt;</span><span class="p">(</span><span class="n">callback</span><span class="p">));</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">readers_</span><span class="p">.</span><span class="n">emplace</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">reader</span><span class="p">).</span><span class="n">second</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="k">nullptr</span><span class="p">;</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">reader</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">class</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Writer</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">CreateWriter</span><span class="p">(</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">channel</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">Writer</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">channel</span><span class="p">));</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="o">~</span><span class="n">Node</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ReaderBase</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">snapshot</span><span class="p">;</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mu_</span><span class="p">);</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">entry</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">readers_</span><span class="p">)</span><span class="w"> </span><span class="n">snapshot</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">entry</span><span class="p">.</span><span class="n">second</span><span class="p">);</span>
+<span class="w">      </span><span class="n">readers_</span><span class="p">.</span><span class="n">clear</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">snapshot</span><span class="p">)</span><span class="w"> </span><span class="n">reader</span><span class="o">-&gt;</span><span class="n">Stop</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mu_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">ReaderBase</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">readers_</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">struct</span><span class="w"> </span><span class="nc">Image</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">sequence</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="p">};</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">channel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">Channel</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;&gt;</span><span class="p">();</span>
+<span class="w">  </span><span class="n">Node</span><span class="w"> </span><span class="n">node</span><span class="p">;</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="n">CreateReader</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="p">(</span>
+<span class="w">      </span><span class="s">&quot;/camera/front&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">channel</span><span class="p">,</span>
+<span class="w">      </span><span class="p">[](</span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">Image</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">image</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">cout</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;process frame &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">image</span><span class="o">-&gt;</span><span class="n">sequence</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="sc">&#39;\n&#39;</span><span class="p">;</span>
+<span class="w">      </span><span class="p">});</span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">writer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="p">.</span><span class="n">CreateWriter</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="p">(</span><span class="n">channel</span><span class="p">);</span><span class="w"> </span><span class="c1">// Node 不保存 Writer</span>
+<span class="w">  </span><span class="n">writer</span><span class="o">-&gt;</span><span class="n">Write</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">Image</span><span class="o">&gt;</span><span class="p">(</span><span class="n">Image</span><span class="p">{</span><span class="mi">42</span><span class="p">}));</span>
+<span class="w">  </span><span class="n">reader</span><span class="o">-&gt;</span><span class="n">Stop</span><span class="p">();</span><span class="w"> </span><span class="c1">// drain 第 42 帧，并 join worker</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>这个版本为了教学使用无界 <code class="docutils literal notranslate"><span class="pre">std::queue</span></code>，生产者长期快于消费者时会无限增长；下一步应替换为固定容量 ring，并明确满时覆盖旧样本还是阻塞生产者。<code class="docutils literal notranslate"><span class="pre">Channel</span></code> 已经用 weak lifetime 清理过期订阅，避免 registry 反向拥有 Reader；<code class="docutils literal notranslate"><span class="pre">Reader::Create</span></code> 则保证 <code class="docutils literal notranslate"><span class="pre">shared_from_this()</span></code> 只在 shared owner 建立以后调用。</p>
+<p>它还刻意让 Node 析构时先在锁内复制 Reader owners、清空 map，再在锁外 Stop。用户 callback 绝不能在 Node registry mutex 内执行，否则 callback 若创建/删除 Reader 会发生自死锁。继续向 Cyber 演进时，可以把每只 Reader 的 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code> 替换成共享 Processor 与 routine，再加入 RoleAttributes、共享 Receiver 和 transport factory；对象边界不需要推倒重来。</p>
+</section>
+<section id="id5">
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">从 endpoint 继续走向完整运行时</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<p>现在 Node、Reader 与 Writer 已经不再只是 API 名称。模板守住消息类型，非模板基类提供异构生命周期，Node 只拥有需要统一观察的 Reader，业务对象拥有 Writer；NodeChannelImpl 把配置补成运行时身份，ReceiverManager 把相同类型与 channel 的 ingress 合并，DataVisitor 再把消息接收与 callback 执行分开。</p>
+<p>这套结构的正确性最终落在关闭顺序上：先停止生产者，再注销 topology callback，随后移除并等待 Reader task，最后释放 endpoint owners。理解这条反向链，才能解释 shared pointer 在哪里有用、哪里无能为力，也才能安全地从最小 typed bus 继续实现 Dispatcher、CRoutine 和 Scheduler。</p>
 </section>
 </section>
 
@@ -2563,8 +3129,8 @@ shutdown/control thread
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="use-component-operations.html" class="btn btn-neutral float-left" title="Cyber RT 使用教程：Component、DAG、Launch 与日常运维" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="../orocos/index.html" class="btn btn-neutral float-right" title="Orocos RTT" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="class-loader-abi.html" class="btn btn-neutral float-left" title="动态组件装载：注册宏、工厂对象与共享库生命周期" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="message-to-proc.html" class="btn btn-neutral float-right" title="完整消息链：从 Receiver 到 Component::Proc()" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

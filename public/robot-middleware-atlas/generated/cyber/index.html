@@ -91,34 +91,34 @@
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id2">第 0 步：先写约束，不急着写类</a></li>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id3">第 2 步：先切出六个最小模块</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id4">第 3 步：先写接口骨架，再决定实现</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id5">第 4 步：数据结构由不变量决定</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">从自动驾驶需求反推组件</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id8">六个功能子系统</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id9">仓库入口与源码问题</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id10">模块依赖顺序</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id11">功能一：部署装配</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id12">功能二：通信与数据分发</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id13">功能三：多输入一致性</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id14">功能四：调度与隔离</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#schema">第 2 步：先切出六个运行时模块与一个 schema 目录</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id3">第 3 步：先写接口骨架，再决定实现</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id4">第 4 步：数据结构由不变量决定</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id5">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id6">从自动驾驶需求反推组件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">六个功能子系统</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id8">仓库入口与源码问题</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id9">模块依赖顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id10">功能一：部署装配</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id11">功能二：通信与数据分发</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id12">功能三：多输入一致性</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id13">功能四：调度与隔离</a></li>
 <li class="toctree-l6"><a class="reference internal" href="architecture-map.html#c">C++ 能力路线</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id15">对象所有权地图</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id16">线程与执行上下文地图</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id17">一条消息的逐层数据动作</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id18">控制面、数据面与执行面的边界</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id19">复杂度和容量的第一张预算表</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id20">源码阅读坐标</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id21">七个连续源码任务</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id22">设计模式与工程代价</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id23">系统级可行性预算</a></li>
-<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id24">从零实现路线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id14">对象所有权地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id15">线程与执行上下文地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id16">一条消息的逐层数据动作</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id17">控制面、数据面与执行面的边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id18">复杂度和容量的第一张预算表</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id19">源码阅读坐标</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id20">七个连续源码任务</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id21">设计模式与工程代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id22">系统级可行性预算</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id23">从零实现路线</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l4"><a class="reference internal" href="#id4">第一条消息之前：装配与动态类型</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id4">第一条消息之前：装配、动态类型与通信端点</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id1">业务类型与运行时类名的双入口</a></li>
 <li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#dag">DAG 的三层部署结构</a></li>
@@ -154,6 +154,26 @@
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id11">性能影响集中在生命周期路径</a></li>
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id12">可复刻的最小插件骨架</a></li>
 <li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="node-reader-writer.html">从一个相机通道设计 Node、Reader 与 Writer</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#callback">直接 callback 把所有问题藏在一次函数调用里</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#endpoint">类型化 endpoint 把错误挡在编译期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id1">模板负责消息类型，虚函数负责异构生命周期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#node">Node 是名字与资源边界，不是消息总线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#roleattributes">RoleAttributes 把应用配置补成运行时身份</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-callback">一只 Reader 的创建远不止保存 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#reader-receiver">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#topology">topology 让已有与未来的对端都能建立关系</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#writer-transmitter">Writer 由调用者拥有，并把发送委托给 Transmitter</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="node-reader-writer.html#write">两种 Write 的拷贝语义不同</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id2">把一帧图像的所有权和线程完整回放一次</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#delete">关闭过程是反向拆除回调边，不是简单 delete</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id3">这些选择解决了什么，又留下什么代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id4">一个可运行的最小复刻</a></li>
+<li class="toctree-l6"><a class="reference internal" href="node-reader-writer.html#id5">从 endpoint 继续走向完整运行时</a></li>
 </ul>
 </li>
 </ul>
@@ -2065,7 +2085,7 @@
 <section id="id1">
 <h2>怎样使用这套课程<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>第一次阅读，请从架构总览开始，先能画出对象、线程、缓存和依赖关系，再沿“装配 → 完整消息链 → 数据面 → 执行面”连续前进。带源码深读时，每到一个对象都记录 owner、所在执行上下文、锁域、消息复制和关闭动作。动手复刻时，则先实现有界 ring 与单 worker，再逐步加入类型擦除、事件闩锁、协程和配置装配；不要从完整框架接口倒推一个不可运行的玩具。</p>
-<p>当前架构入口与调度示范已经按这一标准重构；Node/Reader/Writer、Writer 到 Receiver、独立 Scheduler/Processor 和逆拓扑关闭会沿上述依赖顺序继续补齐。旧 <cite>overview</cite> URL 只作为兼容入口保留，不再与架构总览重复承担第一章。</p>
+<p>源码章节依次进入端点创建、消息主链、数据面、执行面、语言设计与最小复刻。旧 <cite>overview</cite> URL 只作为兼容入口保留；第一次阅读应从架构总览进入。</p>
 </section>
 <section id="id2">
 <h2>源码工程课程<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
@@ -2077,36 +2097,36 @@
 <li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id2">第 0 步：先写约束，不急着写类</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture-map.html#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id3">第 2 步：先切出六个最小模块</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id4">第 3 步：先写接口骨架，再决定实现</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id5">第 4 步：数据结构由不变量决定</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id7">从自动驾驶需求反推组件</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id8">六个功能子系统</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id9">仓库入口与源码问题</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id10">模块依赖顺序</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id11">功能一：部署装配</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id12">功能二：通信与数据分发</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id13">功能三：多输入一致性</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id14">功能四：调度与隔离</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#schema">第 2 步：先切出六个运行时模块与一个 schema 目录</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id3">第 3 步：先写接口骨架，再决定实现</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id4">第 4 步：数据结构由不变量决定</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id5">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id6">从自动驾驶需求反推组件</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id7">六个功能子系统</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id8">仓库入口与源码问题</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id9">模块依赖顺序</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id10">功能一：部署装配</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id11">功能二：通信与数据分发</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id12">功能三：多输入一致性</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id13">功能四：调度与隔离</a></li>
 <li class="toctree-l2"><a class="reference internal" href="architecture-map.html#c">C++ 能力路线</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id15">对象所有权地图</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id16">线程与执行上下文地图</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id17">一条消息的逐层数据动作</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id18">控制面、数据面与执行面的边界</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id19">复杂度和容量的第一张预算表</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id20">源码阅读坐标</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id21">七个连续源码任务</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id22">设计模式与工程代价</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id23">系统级可行性预算</a></li>
-<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id24">从零实现路线</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id14">对象所有权地图</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id15">线程与执行上下文地图</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id16">一条消息的逐层数据动作</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id17">控制面、数据面与执行面的边界</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id18">复杂度和容量的第一张预算表</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id19">源码阅读坐标</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id20">七个连续源码任务</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id21">设计模式与工程代价</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id22">系统级可行性预算</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture-map.html#id23">从零实现路线</a></li>
 </ul>
 </li>
 </ul>
 </div>
 </section>
 <section id="id4">
-<h3>第一条消息之前：装配与动态类型<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<h3>第一条消息之前：装配、动态类型与通信端点<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
@@ -2144,6 +2164,23 @@
 <li class="toctree-l2"><a class="reference internal" href="class-loader-abi.html#id11">性能影响集中在生命周期路径</a></li>
 <li class="toctree-l2"><a class="reference internal" href="class-loader-abi.html#id12">可复刻的最小插件骨架</a></li>
 <li class="toctree-l2"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="node-reader-writer.html">从一个相机通道设计 Node、Reader 与 Writer</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#callback">直接 callback 把所有问题藏在一次函数调用里</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#endpoint">类型化 endpoint 把错误挡在编译期</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#id1">模板负责消息类型，虚函数负责异构生命周期</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#node">Node 是名字与资源边界，不是消息总线</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#roleattributes">RoleAttributes 把应用配置补成运行时身份</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#reader-callback">一只 Reader 的创建远不止保存 callback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#reader-receiver">多只 Reader 共享底层 Receiver，再拥有各自消费状态</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#topology">topology 让已有与未来的对端都能建立关系</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#writer-transmitter">Writer 由调用者拥有，并把发送委托给 Transmitter</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#id2">把一帧图像的所有权和线程完整回放一次</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#delete">关闭过程是反向拆除回调边，不是简单 delete</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#id3">这些选择解决了什么，又留下什么代价</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#id4">一个可运行的最小复刻</a></li>
+<li class="toctree-l2"><a class="reference internal" href="node-reader-writer.html#id5">从 endpoint 继续走向完整运行时</a></li>
 </ul>
 </li>
 </ul>

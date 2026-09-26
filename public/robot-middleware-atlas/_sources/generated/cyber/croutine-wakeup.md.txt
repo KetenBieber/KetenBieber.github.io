@@ -265,7 +265,9 @@ event memory:
 
 把 CRoutine 标成可能 READY 还不够。如果承载它的 Processor 正在 condition variable 上睡眠，必须让 OS 线程重新运行。
 
-Classic 策略的 [`NotifyProcessor()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L163-L181) 在 task map 中找到 CRoutine，调用 `SetUpdateFlag()`，再通知对应 group 的 context。`ClassicContext::Notify()` 增加 wake 计数并 `condition_variable::notify_one()`。
+Classic 策略的 [`NotifyProcessor()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L163-L181) 在 task map 中找到 CRoutine。只有当它观察到 `DATA_WAIT` 或 `IO_WAIT` 时才调用 `SetUpdateFlag()`；无论当前状态如何，随后都会通知对应 group。`ClassicContext::Notify()` 增加 wake 计数并 `condition_variable::notify_one()`。
+
+这里还存在一个必须如实保留的 C++ 并发边界：固定版本的 `state_` 是普通 `RoutineState`，而不是 atomic。通知线程会读取它，Processor/CRoutine 路径会写它；`updated_` 的 atomic 操作只同步 event latch，并不会自动让 `state_` 的并发访问安全。若找不到覆盖这些访问的外层同步，就不能把整套状态机宣称为无 data race；从零实现时应把状态改为原子状态机，或让所有读写都服从同一把锁/同一执行线程协议。
 
 完整调用是：
 
@@ -359,7 +361,7 @@ Processor thread:
 
 [`Processor::BindContext()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L78-L89) 用 `std::call_once` 保证对象只启动一次 `std::thread`。线程进入 `Run()` 后又通过 `syscall(SYS_gettid)` 取得 Linux TID；这里的对象 id、C++ `std::thread::id`、POSIX `pthread_t` 与 Linux TID 是不同命名空间，设置 nice 值时需要的是最后一个。
 
-Classic 策略不是创建一个抽象的“执行器”便结束。它为每个 group 建立共享的 `ClassicContext`，再创建配置数量的 Processor，并把真实线程交给资源控制函数：
+Classic 策略不是创建一个抽象的“执行器”便结束。它在循环中为每个 Processor 创建各自的 `ClassicContext` 实例；同组实例再通过 `ClassicContext` 的静态组表共享优先级队列、锁、条件变量和通知计数。随后 Scheduler 把每只 Processor 的真实线程交给资源控制函数：
 
 ```cpp
 auto ctx = std::make_shared<ClassicContext>(group_name);
