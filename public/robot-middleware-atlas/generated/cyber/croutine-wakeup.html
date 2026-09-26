@@ -633,6 +633,7 @@ window.runMermaid = runMermaid;</script>
 <li class="toctree-l6"><a class="reference internal" href="#id2">第二版：线程池仍然缺少持久任务状态</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#task">Task 的函数、数据与调度身份</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#createroutinefactory-callback"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#condition-variable">先把 condition variable 变成一个可运行的模型</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#id3">最经典的丢唤醒窗口</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#updated"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></li>
 <li class="toctree-l6"><a class="reference internal" href="#id4">把竞态逐步走一遍</a></li>
@@ -2444,28 +2445,32 @@ window.runMermaid = runMermaid;</script>
 <li><p><a class="reference internal" href="#id2" id="id11">第二版：线程池仍然缺少持久任务状态</a></p></li>
 <li><p><a class="reference internal" href="#task" id="id12">Task 的函数、数据与调度身份</a></p></li>
 <li><p><a class="reference internal" href="#createroutinefactory-callback" id="id13"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id14">最经典的丢唤醒窗口</a></p></li>
-<li><p><a class="reference internal" href="#updated" id="id15"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id16">把竞态逐步走一遍</a></p></li>
-<li><p><a class="reference internal" href="#notifyprocessor-os" id="id17"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></p></li>
-<li><p><a class="reference internal" href="#classic-run-queue-vector" id="id18">Classic run queue 实际是持久 vector</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id19">同优先级任务的公平性边界</a></p></li>
-<li><p><a class="reference internal" href="#processor-run-os" id="id20"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a></p>
+<li><p><a class="reference internal" href="#condition-variable" id="id14">先把 condition variable 变成一个可运行的模型</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id15">最经典的丢唤醒窗口</a></p></li>
+<li><p><a class="reference internal" href="#updated" id="id16"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id17">把竞态逐步走一遍</a></p></li>
+<li><p><a class="reference internal" href="#notifyprocessor-os" id="id18"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></p></li>
+<li><p><a class="reference internal" href="#classic-run-queue-vector" id="id19">Classic run queue 实际是持久 vector</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id20">同优先级任务的公平性边界</a></p></li>
+<li><p><a class="reference internal" href="#processor-run-os" id="id21"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a></p>
 <ul>
-<li><p><a class="reference internal" href="#processor" id="id21">一只 Processor 内核线程怎样被创建和绑核</a></p></li>
-<li><p><a class="reference internal" href="#resume-yield" id="id22"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a></p></li>
+<li><p><a class="reference internal" href="#processor" id="id22">一只 Processor 内核线程怎样被创建和绑核</a></p></li>
+<li><p><a class="reference internal" href="#resume-yield" id="id23"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#id6" id="id23">协作式执行的非抢占边界</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id24">四种“优先级”不要混在一起</a></p></li>
-<li><p><a class="reference internal" href="#hz-1-khz" id="id25">100 Hz 与 1 kHz 控制链的调度后果</a></p></li>
-<li><p><a class="reference internal" href="#shutdown-croutine" id="id26">Shutdown 对运行中 CRoutine 的等待</a></p></li>
-<li><p><a class="reference internal" href="#id8" id="id27">手搓最小执行面</a></p></li>
-<li><p><a class="reference internal" href="#id9" id="id28">从局部机制回到完整消息链</a></p></li>
+<li><p><a class="reference internal" href="#id6" id="id24">协作式执行的非抢占边界</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id25">四种“优先级”不要混在一起</a></p></li>
+<li><p><a class="reference internal" href="#hz-1-khz" id="id26">100 Hz 与 1 kHz 控制链的调度后果</a></p></li>
+<li><p><a class="reference internal" href="#shutdown-croutine" id="id27">Shutdown 对运行中 CRoutine 的等待</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id28">手搓最小执行面</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id29">从局部机制回到完整消息链</a></p></li>
 </ul>
 </nav>
 <p>自动驾驶进程里可能同时存在相机感知、点云处理、定位、预测、规划、监控和录制任务。如果每个 Reader 都在消息到达时临时创建线程，线程栈、创建开销和内核调度实体会随消息频率爆炸；如果每个任务永久占一只线程，几十到几百个低占空比任务又会浪费栈空间并增加上下文切换。</p>
 <p>本章不从 Scheduler 的成员变量开始，而是从这个资源分配问题推导执行架构。我们先实现会失败的一任务一线程版本，再引入可复用 worker、任务状态与唤醒谓词，最后对照固定提交中的 <code class="docutils literal notranslate"><span class="pre">RoutineFactory</span> <span class="pre">-&gt;</span> <span class="pre">CRoutine</span> <span class="pre">-&gt;</span> <span class="pre">ProcessorContext</span> <span class="pre">-&gt;</span> <span class="pre">Processor</span></code>。上一章留下的运行时起点是：transport 线程已经把消息写入 <code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>，<code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 已调用 <code class="docutils literal notranslate"><span class="pre">NotifyProcessor(task_id)</span></code>，但业务 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 尚未执行。</p>
+<p>先把本章会反复出现的四个“执行位置”分开。<strong>进程</strong>是拥有独立虚拟地址空间的资源边界；<strong>操作系统线程</strong>是 Linux 可以独立调度的执行实体，拥有内核记录和线程栈；<strong>用户态协程</strong>则是运行时保存的一组寄存器与用户栈，它不能被 Linux 单独调度，只能在承载它的线程上通过 <code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code> 主动切换；<strong>任务</strong>是中间件的逻辑工作，不等于线程，也不等于协程。线程上下文切换要进入内核调度路径，协程切换通常只在用户态保存/恢复寄存器和栈指针，但协程如果执行阻塞系统调用，整只承载线程仍会睡眠。</p>
+<p>消息路径也有两个必须分开的“位置”。<code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code> 是某个消费者的读取视图：它保存自己的 ring 引用和游标，负责在 Processor 恢复后取出消息；<code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 是事件桥：它只把“某个 channel 可能有新数据”转换为 task 通知，不携带图像 payload，也不执行用户 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>。因此，消息到达、状态变为 READY、OS worker 被唤醒和协程恢复，是四个不同事件。后文每跨过一个边界都会重新标出当前线程、对象状态和下一跳。</p>
+<p>消息路径中的 ring 不是“把消息排队后立刻执行”的线程队列，而是固定容量的循环槽：逻辑序号按容量取模，满时按实现策略覆盖旧槽，每个 DataVisitor 持有自己的 cursor。与之不同，Cyber Scheduler 是进程内 C++ 对象，登记并选择 CRoutine、把通知交给 Processor；Linux scheduler 属于内核，决定承载 Processor 的 OS thread 何时获得 CPU，所以 READY 只表示可被选择，并不表示已经运行。</p>
 <section id="id1">
 <h2><a class="toc-backref" href="#id10" role="doc-backlink">第一版：每条消息创建线程</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
 <p>初学者可能先写出下面的<strong>错误示例</strong>：</p>
@@ -2476,10 +2481,12 @@ window.runMermaid = runMermaid;</script>
 <span class="p">}</span>
 </pre></div>
 </div>
-<p>它把业务移出了接收线程，却失去了资源上界。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积；每只线程都需要用户栈和内核调度实体，<code class="docutils literal notranslate"><span class="pre">detach()</span></code> 又让关闭路径无法 join 在途工作。lambda 按值捕获的裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 还可能在 Component 析构后继续访问对象。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。</p>
+<p>这段代码同时暴露了四个 C++/OS 事实。<code class="docutils literal notranslate"><span class="pre">std::thread</span></code> 构造一个可被 Linux 调度的 OS 线程；每次消息都重新申请线程栈和内核线程对象。<code class="docutils literal notranslate"><span class="pre">detach()</span></code> 会放弃当前线程的 join 句柄，调用方无法再等待它结束，所以关闭时没有“在途工作已经清空”的同步点。lambda 是一个编译器生成的函数对象，<code class="docutils literal notranslate"><span class="pre">[this,</span> <span class="pre">image</span> <span class="pre">=</span> <span class="pre">std::move(image)]</span></code> 把裸指针和消息句柄保存进对象；按值保存 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 只会增加消息控制块的引用计数，却不会延长裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 指向的 Component 寿命。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。</p>
+<p>这里的 <strong>RAII</strong>（Resource Acquisition Is Initialization，资源获取即初始化）也值得先说清：把资源绑定到 C++ 对象，在析构函数中释放，是让离开作用域自动触发清理的惯用方式。它能帮助管理一只 joinable thread 或 shared ownership，却不能替代跨线程的停止协议；一个仍在运行的 detached 线程不会因为拥有它的 C++ 对象离开作用域就自动安全停止。</p>
 </section>
 <section id="id2">
 <h2><a class="toc-backref" href="#id11" role="doc-backlink">第二版：线程池仍然缺少持久任务状态</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>std::function 是类型擦除的可调用对象：它把 lambda、函数指针和自定义函数对象统一包装成同一个 void() 接口，让线程池不必知道具体闭包类型。闭包按值捕获的 consumer 与 msg 会随包装对象共同存活，但间接调用可能带来额外分配和动态分派；它仍然没有回答 task 的状态、游标和关闭协议如何保存。</p>
 <p>普通线程池会把每条消息包装成一次性 <code class="docutils literal notranslate"><span class="pre">std::function&lt;void()&gt;</span></code>：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">OnMessage</span><span class="p">(</span><span class="n">MessagePtr</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">pool</span><span class="p">.</span><span class="n">Submit</span><span class="p">([</span><span class="n">consumer</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">msg</span><span class="p">)]</span><span class="w"> </span><span class="p">{</span>
@@ -2619,10 +2626,15 @@ Scheduler::NotifyProcessor(task_id)                 |
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">func_</span></code> 与 <code class="docutils literal notranslate"><span class="pre">context_</span></code> 采用组合：任务拥有要执行的函数和用户态上下文，不需要通过继承为每种消息类型创建新的调度类。消息类型已经在 RoutineFactory 的 lambda 中被擦除，Scheduler 因而只存一种 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;CRoutine&gt;</span></code>。</p>
 <p>两只 atomic flag 解决不同不变量。<code class="docutils literal notranslate"><span class="pre">lock_</span></code> 是执行权，防止两个 Processor 同时 Resume 同一栈；<code class="docutils literal notranslate"><span class="pre">updated_</span></code> 是可合并事件，防止等待边界丢通知。priority、group 和 processor id 支持 Classic 分组扫描与 Choreography 绑定；把调度属性放在 task control block 中，策略无需认识业务 Component。</p>
+<p>这里第一次出现 <code class="docutils literal notranslate"><span class="pre">std::atomic_flag</span></code>，先不要把它当作“更快的 bool”。普通 <code class="docutils literal notranslate"><span class="pre">bool</span></code> 若被一个线程写、另一个线程同时读，且没有 mutex 或原子协议，就会产生 data race；编译器和 CPU 都不必按源码直觉安排这些访问。<code class="docutils literal notranslate"><span class="pre">atomic_flag</span></code> 是标准提供的单比特原子对象：<code class="docutils literal notranslate"><span class="pre">test_and_set()</span></code> 以一个不可分割的读-改-写操作返回旧值并把标志置为 true，<code class="docutils literal notranslate"><span class="pre">clear()</span></code> 把它恢复为 false。于是 <code class="docutils literal notranslate"><span class="pre">lock_</span></code> 可以表达“谁成功取得执行权”，而不是把一个普通布尔值先读后写，给两个 Processor 留出同时通过的窗口。</p>
+<p><strong>内存序</strong>（memory order）描述原子操作与普通内存访问之间允许怎样重排。<code class="docutils literal notranslate"><span class="pre">memory_order_release</span></code> 常用于发布者离开临界区，<code class="docutils literal notranslate"><span class="pre">memory_order_acquire</span></code> 常用于消费者取得同一同步点后读取已发布状态；只有形成匹配的 release/acquire 关系，才可把它当作可见性边界。固定版本的 <code class="docutils literal notranslate"><span class="pre">Acquire()</span></code>/<code class="docutils literal notranslate"><span class="pre">Release()</span></code> 用 acquire/release 保护 <code class="docutils literal notranslate"><span class="pre">lock_</span></code> 的执行所有权，但 <code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的 <code class="docutils literal notranslate"><span class="pre">test_and_set(memory_order_release)</span></code> 本身不是 acquire 读取，不能据此宣称 payload 已发布；消息内容的同步仍由 CacheBuffer 的 mutex 解锁/加锁配对完成。这个区别很重要：原子 flag 解决的是一个状态位的不变式，不会自动让整只对象或消息变成线程安全。</p>
 </section>
 <section id="createroutinefactory-callback">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a><a class="headerlink" href="#createroutinefactory-callback" title="Link to this heading"></a></h2>
 <p>单输入 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory&lt;M0&gt;</span></code></a> 返回一个永不主动结束的循环：</p>
+<p>这里的 <code class="docutils literal notranslate"><span class="pre">RoutineState</span></code> 是协程控制状态，而不是 Linux 线程状态。<code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code> 表示“这只 routine 当前没有可取的数据，下一次要先检查事件”；<code class="docutils literal notranslate"><span class="pre">IO_WAIT</span></code> 表示另一类外部等待；<code class="docutils literal notranslate"><span class="pre">READY</span></code> 表示可以再次被调度；<code class="docutils literal notranslate"><span class="pre">FINISHED</span></code>、<code class="docutils literal notranslate"><span class="pre">SLEEP</span></code> 等值描述结束或暂不运行的边界，固定枚举没有一个可长期观察的 <code class="docutils literal notranslate"><span class="pre">RUNNING</span></code> 值。状态机的意义是让 ProcessorContext 在不理解消息类型的情况下决定“现在能否 Resume”。<code class="docutils literal notranslate"><span class="pre">Yield(state)</span></code> 是 routine 主动把控制权还给 Processor，并把下一次选择所需的状态写回控制对象。</p>
+<p>在进入这个循环前，还要看清 RoutineFactory 的两层类型擦除：CreateRoutineFactory<M> 内部仍按消息类型 M 做编译期检查；交给 Scheduler 时，创建函数被擦成 std::function&lt;std::function&lt;void()&gt;()&gt;，visitor 则擦成 std::shared_ptr<DataVisitorBase>。这样 Scheduler 不必依赖 MessageT，代价是类型信息转移到 factory 和 visitor 的边界。</p>
+<p>注意，固定提交中的 RoutineState 枚举只有 READY、FINISHED、SLEEP、IO_WAIT、DATA_WAIT 等值，没有 RUNNING；协程真正运行时已经占用当前 Processor 的用户态执行权，状态字段主要记录下一次让出控制权后如何被重新选择。</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">CRoutine</span><span class="o">::</span><span class="n">GetCurrentRoutine</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">set_state</span><span class="p">(</span><span class="n">RoutineState</span><span class="o">::</span><span class="n">DATA_WAIT</span><span class="p">);</span>
 
@@ -2639,8 +2651,31 @@ Scheduler::NotifyProcessor(task_id)                 |
 <p>循环顶部先把自身状态设为 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>，然后才调用 <code class="docutils literal notranslate"><span class="pre">TryFetch()</span></code>。有数据时执行业务函数，并以 <code class="docutils literal notranslate"><span class="pre">READY</span></code> 状态 yield，表示可能还有 backlog，可以继续被选择；没有数据时按当前等待状态 yield，让 Processor 去做其他任务或休眠。</p>
 <p>为什么处理一条后不是立刻进入 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>？若 ring 中已有多条消息，保持 READY 可以继续 drain，而不必等待另一个 notify。下一次循环顶部仍会先设等待态、再检查 buffer；确认真的空了才睡。</p>
 </section>
+<section id="condition-variable">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">先把 condition variable 变成一个可运行的模型</a><a class="headerlink" href="#condition-variable" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">std::condition_variable</span></code> 是“线程暂时睡眠，直到共享条件可能改变”的等待原语。它本身不保存消息，也不保证一次通知对应一次任务；真正的状态放在 mutex 保护的普通数据中，等待线程用谓词反复检查：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mutex</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">condition_variable</span><span class="w"> </span><span class="n">cv</span><span class="p">;</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+
+<span class="c1">// worker</span>
+<span class="n">std</span><span class="o">::</span><span class="n">unique_lock</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
+<span class="n">cv</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">lock</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">ready</span><span class="p">;</span><span class="w"> </span><span class="p">});</span>
+<span class="c1">// wait 返回时，lock 已重新持有；业务在锁外执行</span>
+
+<span class="c1">// producer</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex</span><span class="p">);</span>
+<span class="w">  </span><span class="n">ready</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="n">cv</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+</pre></div>
+</div>
+<p>调用 <code class="docutils literal notranslate"><span class="pre">wait</span></code> 时，线程会在同一个原子步骤中释放 mutex 并进入等待；被通知后，它只是变成 <strong>runnable</strong>（可运行），还要重新竞争 mutex，最后由 Linux 调度器决定何时真正获得 CPU。谓词必须放进循环，因为线程可能发生<strong>虚假唤醒</strong>（没有对应业务事件也返回），也可能被通知后发现另一个 worker 已经消费了状态。超时等待只是周期性重查的兜底，不是业务事件计数器。</p>
+<p>因此，<code class="docutils literal notranslate"><span class="pre">notify_one</span></code> 不能单独修复竞态。若 producer 在 consumer 检查之后、真正等待之前写入数据并通知，而“数据非空”没有被保存成可观察的状态，通知就可能没有接收者。Cyber 的 <code class="docutils literal notranslate"><span class="pre">ClassicContext</span></code> 用受 mutex 保护的组通知计数，CRoutine 又用 <code class="docutils literal notranslate"><span class="pre">updated_</span></code> 记录 task 级事件；两个层次分别解决 OS worker 等待和 routine 状态更新。</p>
+</section>
 <section id="id3">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">最经典的丢唤醒窗口</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">最经典的丢唤醒窗口</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
 <p>一个错误实现可能这样写：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>consumer: 检查 queue -&gt; 发现空
 producer: 写入 queue -&gt; notify
@@ -2652,7 +2687,7 @@ consumer: 进入 wait
 <p>Cyber 使用 <code class="docutils literal notranslate"><span class="pre">CRoutine::updated_</span></code> 作为一位 event latch，并配合 RoutineFactory 的顺序关闭窗口。</p>
 </section>
 <section id="updated">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a><a class="headerlink" href="#updated" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a><a class="headerlink" href="#updated" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h#L176-L207"><code class="docutils literal notranslate"><span class="pre">CRoutine</span></code></a> 中，producer 侧 <code class="docutils literal notranslate"><span class="pre">SetUpdateFlag()</span></code> 会 clear atomic flag；scheduler 侧 <code class="docutils literal notranslate"><span class="pre">UpdateState()</span></code> 再通过 <code class="docutils literal notranslate"><span class="pre">test_and_set</span></code> 检查并恢复置位。</p>
 <p>其状态转换核心是：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">updated_</span><span class="p">.</span><span class="n">test_and_set</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">memory_order_release</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
@@ -2668,7 +2703,7 @@ consumer: 进入 wait
 <p>event latch 只有一位，因此 A、B、C 三次更新可能合并成一个“有更新”。消息数量由 ring 保存，flag 只保证 consumer 最终再检查一次。</p>
 </section>
 <section id="id4">
-<h2><a class="toc-backref" href="#id16" role="doc-backlink">把竞态逐步走一遍</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">把竞态逐步走一遍</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <p>最危险时序发生在 routine 已写 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>、但尚未完成 <code class="docutils literal notranslate"><span class="pre">TryFetch()/Yield()</span></code> 时：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Processor/routine                         producer/transport
        |                                        |
@@ -2694,7 +2729,7 @@ event memory:
 <p>只复制其中一半都不够。若 consumer 先 check 再写 DATA_WAIT，即使有 event flag也可能覆盖状态；若没有 event latch，正确顺序仍会在 yield 边界丢掉通知。</p>
 </section>
 <section id="notifyprocessor-os">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a><a class="headerlink" href="#notifyprocessor-os" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a><a class="headerlink" href="#notifyprocessor-os" title="Link to this heading"></a></h2>
 <p>把 CRoutine 标成可能 READY 还不够。如果承载它的 Processor 正在 condition variable 上睡眠，必须让 OS 线程重新运行。</p>
 <p>Classic 策略的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L163-L181"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code></a> 在 task map 中找到 CRoutine。只有当它观察到 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code> 或 <code class="docutils literal notranslate"><span class="pre">IO_WAIT</span></code> 时才调用 <code class="docutils literal notranslate"><span class="pre">SetUpdateFlag()</span></code>；无论当前状态如何，随后都会通知对应 group。<code class="docutils literal notranslate"><span class="pre">ClassicContext::Notify()</span></code> 增加 wake 计数并 <code class="docutils literal notranslate"><span class="pre">condition_variable::notify_one()</span></code>。</p>
 <p>这里还存在一个必须如实保留的 C++ 并发边界：固定版本的 <code class="docutils literal notranslate"><span class="pre">state_</span></code> 是普通 <code class="docutils literal notranslate"><span class="pre">RoutineState</span></code>，而不是 atomic。通知线程会读取它，Processor/CRoutine 路径会写它；<code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的 atomic 操作只同步 event latch，并不会自动让 <code class="docutils literal notranslate"><span class="pre">state_</span></code> 的并发访问安全。若找不到覆盖这些访问的外层同步，就不能把整套状态机宣称为无 data race；从零实现时应把状态改为原子状态机，或让所有读写都服从同一把锁/同一执行线程协议。</p>
@@ -2713,7 +2748,7 @@ event memory:
 <p><code class="docutils literal notranslate"><span class="pre">notify_one()</span></code> 也不是指定“必须唤醒执行这个 task 的某一线程”。Classic group 的多个 Processor 可以等待同一 context，醒来的 worker 再扫描全部 routine 状态。</p>
 </section>
 <section id="classic-run-queue-vector">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">Classic run queue 实际是持久 vector</a><a class="headerlink" href="#classic-run-queue-vector" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">Classic run queue 实际是持久 vector</a><a class="headerlink" href="#classic-run-queue-vector" title="Link to this heading"></a></h2>
 <p>“run queue”容易让人联想到一只只包含 READY task 的队列：任务 ready 时 push，运行后 pop。Classic 并不是这样。</p>
 <p>每个 group 有 20 个优先级槽，每个槽是一只持久的 <code class="docutils literal notranslate"><span class="pre">vector&lt;shared_ptr&lt;CRoutine&gt;&gt;</span></code>。task 加入后无论 READY、WAIT 还是 SLEEP 都留在 vector 中，状态决定当前能否被选择。</p>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/classic_context.cc#L52-L73"><code class="docutils literal notranslate"><span class="pre">ClassicContext::NextRoutine()</span></code></a> 从 19 降到 0 扫描：</p>
@@ -2736,14 +2771,14 @@ event memory:
 <p>找到目标之前，worker 可能扫描许多等待 task。选择成本不是 priority heap 的 <code class="docutils literal notranslate"><span class="pre">O(log</span> <span class="pre">n)</span></code>，而与高优先级和当前优先级中被检查的 routine 数量相关。</p>
 </section>
 <section id="id5">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">同优先级任务的公平性边界</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">同优先级任务的公平性边界</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
 <p>vector 扫描总从头开始，没有从源码看到显式 round-robin 游标，也没有让刚运行的 task 自动移到尾部。</p>
 <p>若同优先级第一只 routine 持续有 backlog，它处理一条后 <code class="docutils literal notranslate"><span class="pre">Yield(READY)</span></code>，下一次扫描仍可能首先遇到它。靠后的 routine 只有在前者暂时不 READY、Acquire 失败或其他 Processor 并行取得前者时更容易被选中。</p>
 <p>这不等于后续 task 必然永远饥饿，因为多个 Processor、callback 执行时间和状态变化都会影响结果；但从结构上不能宣称同优先级天然公平。工业配置应限制持续 READY 的高频 task，必要时分组或使用更明确的 processor 绑定。</p>
 <p>一个需要公平性的自研版本可以维护每优先级的 rotating cursor，或只把 READY task 放进真正的 deque，运行一轮后排到队尾。代价是通知、去重和并发入队状态会复杂得多。</p>
 </section>
 <section id="processor-run-os">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a><a class="headerlink" href="#processor-run-os" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id21" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a><a class="headerlink" href="#processor-run-os" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L40-L62"><code class="docutils literal notranslate"><span class="pre">Processor</span></code></a> 拥有 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code>，主循环不断向 context 请求下一只 routine：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">running_</span><span class="p">.</span><span class="n">load</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">croutine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">context_</span><span class="o">-&gt;</span><span class="n">NextRoutine</span><span class="p">();</span>
@@ -2768,7 +2803,7 @@ Processor thread:
 </div>
 <p>消息对象通过 ring 连接两个线程，不通过调用栈直接跨越。</p>
 <section id="processor">
-<h3><a class="toc-backref" href="#id21" role="doc-backlink">一只 Processor 内核线程怎样被创建和绑核</a><a class="headerlink" href="#processor" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id22" role="doc-backlink">一只 Processor 内核线程怎样被创建和绑核</a><a class="headerlink" href="#processor" title="Link to this heading"></a></h3>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L78-L89"><code class="docutils literal notranslate"><span class="pre">Processor::BindContext()</span></code></a> 用 <code class="docutils literal notranslate"><span class="pre">std::call_once</span></code> 保证对象只启动一次 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code>。线程进入 <code class="docutils literal notranslate"><span class="pre">Run()</span></code> 后又通过 <code class="docutils literal notranslate"><span class="pre">syscall(SYS_gettid)</span></code> 取得 Linux TID；这里的对象 id、C++ <code class="docutils literal notranslate"><span class="pre">std::thread::id</span></code>、POSIX <code class="docutils literal notranslate"><span class="pre">pthread_t</span></code> 与 Linux TID 是不同命名空间，设置 nice 值时需要的是最后一个。</p>
 <p>Classic 策略不是创建一个抽象的“执行器”便结束。它在循环中为每个 Processor 创建各自的 <code class="docutils literal notranslate"><span class="pre">ClassicContext</span></code> 实例；同组实例再通过 <code class="docutils literal notranslate"><span class="pre">ClassicContext</span></code> 的静态组表共享优先级队列、锁、条件变量和通知计数。随后 Scheduler 把每只 Processor 的真实线程交给资源控制函数：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">ClassicContext</span><span class="o">&gt;</span><span class="p">(</span><span class="n">group_name</span><span class="p">);</span>
@@ -2783,21 +2818,34 @@ Processor thread:
 <p>affinity 只限制“可以在哪些 CPU 上运行”，不保证“何时运行”。普通 <code class="docutils literal notranslate"><span class="pre">SCHED_OTHER</span></code> 仍由 Linux 公平调度并用 nice 值影响权重；<code class="docutils literal notranslate"><span class="pre">SCHED_FIFO</span></code>/<code class="docutils literal notranslate"><span class="pre">SCHED_RR</span></code> 使用实时优先级，设置通常还需要相应权限。固定版本的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/common/pin_thread.cc#L75-L95"><code class="docutils literal notranslate"><span class="pre">SetSchedPolicy</span></code></a> 没有把这些系统调用的失败可靠地反馈给配置方，因此 conf 写了 FIFO 不能证明内核已经接受。工程验收必须检查返回值或进程运行态；错误的实时配置还可能让低优先级 housekeeping 线程饥饿。</p>
 </section>
 <section id="resume-yield">
-<h3><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a><a class="headerlink" href="#resume-yield" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id23" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a><a class="headerlink" href="#resume-yield" title="Link to this heading"></a></h3>
+<p>普通函数只能从入口一路运行到返回；如果要在 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 中间暂停而稍后从原位置继续，就必须保存“下一次从哪里继续”以及那次调用仍需要的栈帧。最小的教学模型可以写成：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">UserContext</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kt">void</span><span class="o">*</span><span class="w"> </span><span class="n">stack_pointer</span><span class="p">;</span><span class="w">       </span><span class="c1">// 当前用户栈顶</span>
+<span class="w">  </span><span class="kt">void</span><span class="o">*</span><span class="w"> </span><span class="n">instruction_point</span><span class="p">;</span><span class="w">   </span><span class="c1">// 下次恢复的位置</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kt">uint64_t</span><span class="w"> </span><span class="n">callee_saved</span><span class="p">[</span><span class="mi">8</span><span class="p">];</span><span class="w">  </span><span class="c1">// ABI 要求保留的寄存器</span>
+<span class="p">};</span>
+
+<span class="kt">void</span><span class="w"> </span><span class="nf">Resume</span><span class="p">(</span><span class="n">UserContext</span><span class="o">*</span><span class="w"> </span><span class="n">next</span><span class="p">);</span><span class="w">  </span><span class="c1">// 保存当前 context，恢复 next</span>
+<span class="kt">void</span><span class="w"> </span><span class="nf">Yield</span><span class="p">(</span><span class="n">UserContext</span><span class="o">*</span><span class="w"> </span><span class="n">main</span><span class="p">);</span><span class="w">   </span><span class="c1">// 保存 routine，恢复 Processor 主栈</span>
+</pre></div>
+</div>
+<p>这不是完整可运行的汇编实现，但先固定了对象边界：context 保存寄存器和栈，不保存消息，也不决定哪个 task 优先。操作系统线程切换还会改变内核调度实体、地址空间/线程状态和调度队列；用户态协程切换只在同一线程中交换用户栈与寄存器，因此通常更轻，却也无法绕过阻塞系统调用。</p>
 <p>固定版本的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/routine_context.h#L29-L49"><code class="docutils literal notranslate"><span class="pre">RoutineContext</span></code></a> 内嵌 2 MiB 栈数组和保存的栈指针。不能笼统说“协程栈一定很小”：对象会占用相应虚拟地址空间，实际物理驻留还取决于触页，对新页的首次访问可能产生 page fault。</p>
 <p><code class="docutils literal notranslate"><span class="pre">Resume()</span></code> 设置当前线程的 <code class="docutils literal notranslate"><span class="pre">thread_local</span> <span class="pre">current_routine_</span></code>，然后把 Processor 主栈与 routine 栈交给 <code class="docutils literal notranslate"><span class="pre">SwapContext</span></code>；<code class="docutils literal notranslate"><span class="pre">Yield()</span></code> 反向交换。x86-64 的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/swap_x86_64.S"><code class="docutils literal notranslate"><span class="pre">swap_x86_64.S</span></code></a> 保存 ABI 要求跨调用保持的寄存器，交换 <code class="docutils literal notranslate"><span class="pre">%rsp</span></code> 后用 <code class="docutils literal notranslate"><span class="pre">ret</span></code> 进入先前保存的执行点。这里没有系统调用，也没有让内核重新选择线程，但仍有保存寄存器、改变栈工作集和 cache 行为的成本。</p>
 <p><code class="docutils literal notranslate"><span class="pre">thread_local</span></code> 仍属于 Processor 线程，并不会自动变成 coroutine-local。若一只 CRoutine 在 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 中执行阻塞 <code class="docutils literal notranslate"><span class="pre">read</span></code>、<code class="docutils literal notranslate"><span class="pre">recv</span></code> 或长时间 <code class="docutils literal notranslate"><span class="pre">sleep</span></code>，内核阻塞的是整只 Processor，挂在同一线程上的其他 CRoutine 也无法运行。由此可以看出，协程减少线程数量，并没有消除对业务代码“短、可返回、避免无界阻塞”的约束。</p>
+<p>thread_local 的语义是每个 OS thread 各有一份同名实例，而不是每个 coroutine 一份；因此 current_routine_ 保存的是当前 Processor 线程正在运行的 routine。若同一线程先后 Resume 两个 coroutine，它们会覆盖同一份 TLS；若 routine 在系统调用中阻塞，整个承载线程仍会被阻塞。</p>
 </section>
 </section>
 <section id="id6">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink">协作式执行的非抢占边界</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">协作式执行的非抢占边界</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <p>进入 <code class="docutils literal notranslate"><span class="pre">CRoutine::Resume()</span></code> 后，当前 Processor 一直执行这只 routine，直到它 <code class="docutils literal notranslate"><span class="pre">Yield()</span></code> 回主栈。对 Component task 而言，Yield 位于用户 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 返回之后。</p>
 <p>所以一个执行 20 ms 的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 会占住 Processor 约 20 ms。即使期间更高 Cyber priority 的 routine 变成 READY，同一 worker 也不能从任意 C++ 指令位置安全夺回控制权。</p>
 <p>这就是合作式调度：task 在约定边界主动让出，而不是由 Cyber scheduler 进行指令级抢占。Linux 仍可抢占整个 Processor OS 线程去运行其他 OS 线程，但那不是 Cyber routine 之间的抢占。</p>
 <p>优点是 routine 切换点清楚，不需要每个 callback 一只内核线程；缺点是 callback 最坏执行时间和阻塞行为直接决定同组任务的长尾。</p>
 </section>
 <section id="id7">
-<h2><a class="toc-backref" href="#id24" role="doc-backlink">四种“优先级”不要混在一起</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">四种“优先级”不要混在一起</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
 <p>机器人系统里至少有四个层次：</p>
 <ol class="arabic simple">
 <li><p>应用语义优先级：控制指令是否比日志或可视化重要；</p></li>
@@ -2810,7 +2858,7 @@ Processor thread:
 <p>Choreography 策略能把指定 task 放到更明确的 Processor context，减少与无关组件共享扫描和执行时间；它仍要求 OS policy 实际设置成功，并要求该 Processor 上的 callback 合作式返回。</p>
 </section>
 <section id="hz-1-khz">
-<h2><a class="toc-backref" href="#id25" role="doc-backlink">100 Hz 与 1 kHz 控制链的调度后果</a><a class="headerlink" href="#hz-1-khz" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">100 Hz 与 1 kHz 控制链的调度后果</a><a class="headerlink" href="#hz-1-khz" title="Link to this heading"></a></h2>
 <p>100 Hz 控制周期是 10 ms。若同一 Processor 上另一只 callback 尚余 3 ms 才返回，新任务即使已经完成 transport、Fill 和 notify，也先承担这 3 ms 非抢占等待，再加 CV wake、run queue 扫描和自身计算。</p>
 <p>1 kHz 周期只有 1 ms。同样的固定开销占比扩大十倍，偶发 allocator 慢路、page fault、mutex contention 或一次 1 ms 以上 callback 都可能跨周期。</p>
 <p>端到端 callback 启动可拆成：</p>
@@ -2828,13 +2876,13 @@ Processor thread:
 <p>对关键控制链，常见结构选择是独立 group/CPU、很小的 input queue、短而不阻塞的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>、预热内存、确认 OS policy/affinity 系统调用成功，并把日志、录制和可视化放到其他 group。</p>
 </section>
 <section id="shutdown-croutine">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">Shutdown 对运行中 CRoutine 的等待</a><a class="headerlink" href="#shutdown-croutine" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">Shutdown 对运行中 CRoutine 的等待</a><a class="headerlink" href="#shutdown-croutine" title="Link to this heading"></a></h2>
 <p>Scheduler 删除一只 routine 时，不能在它正在 Processor 栈上执行 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 的同时释放对象。<code class="docutils literal notranslate"><span class="pre">Acquire()</span></code> flag 除了防止双 worker 重入，也让删除路径知道 task 是否仍在运行。</p>
 <p>Classic 删除会先从 task id map 擦除并 Stop，再在 run queue 写锁下等待 <code class="docutils literal notranslate"><span class="pre">Acquire()</span></code> 成功，随后才移除对应 shared pointer。正在执行的 Processor 在 <code class="docutils literal notranslate"><span class="pre">Resume()</span></code> 返回后调用 <code class="docutils literal notranslate"><span class="pre">Release()</span></code>，删除线程才可能继续。</p>
 <p>这避免 callback 使用已析构 DataVisitor 或 Component，却带来一个边界：永不返回的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 会让 shutdown 永远等待。C++ 没有安全通用的方法从外部杀死任意线程栈，业务代码必须自行设计取消点和有限等待。</p>
 </section>
 <section id="id8">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">手搓最小执行面</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">手搓最小执行面</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
 <p>在已有 ring、Dispatcher 和 Notifier 后，最小 task 可以先不用真正 stackful coroutine，而用显式状态机：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">TaskState</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Ready</span><span class="p">,</span><span class="w"> </span><span class="n">DataWait</span><span class="p">,</span><span class="w"> </span><span class="n">Running</span><span class="p">,</span><span class="w"> </span><span class="n">Stopped</span><span class="w"> </span><span class="p">};</span>
 
@@ -2846,7 +2894,7 @@ Processor thread:
 <span class="p">};</span>
 </pre></div>
 </div>
-<p>producer 写数据后把 <code class="docutils literal notranslate"><span class="pre">updated=true</span></code> 并通知 condition variable。worker 醒来，在 mutex 保护的 task 列表中找 runnable task，CAS 把它从 Ready 改为 Running，执行一次 <code class="docutils literal notranslate"><span class="pre">step()</span></code>，再根据是否还有数据决定 Ready 或 DataWait。</p>
+<p>producer 写数据后把 <code class="docutils literal notranslate"><span class="pre">updated=true</span></code> 并通知 condition variable。worker 醒来，在 mutex 保护的 task 列表中找 runnable task。若不用这把 mutex，也可以用 CAS（compare-and-swap：只有“当前值仍等于预期值”时才原子地改成新值）把它从 Ready 改为 Running；本例刻意先使用 mutex，让“检查、取得执行权、修改状态”这组三步更容易验证。执行一次 <code class="docutils literal notranslate"><span class="pre">step()</span></code> 后，再根据是否还有数据决定 Ready 或 DataWait。</p>
 <p>实现时应写出四个不变量：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>1. 同一 task 不得被两个 worker 同时执行
 2. buffer 非空后，task 最终必须再检查一次
@@ -2934,7 +2982,7 @@ Processor thread:
 <p>公平策略也应单独设计。若用 ready deque，就明确入队去重和轮转；若用持久 task vector，就明确扫描复杂度与 starvation 边界。priority、OS affinity 和实时 policy 最后再加，因为它们不能修复错误的唤醒协议。</p>
 </section>
 <section id="id9">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">从局部机制回到完整消息链</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">从局部机制回到完整消息链</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <p>现在所有局部机制已经有了位置：DAG 创建对象，DataVisitor 拥有 ring，Dispatcher 写数据，Notifier 传播事件，event latch 防止丢唤醒，Classic 选择 routine，Processor 恢复协程。</p>
 <p>下一章不再引入新的核心对象，而是选一条消息把这些部件完整组装起来，并对 INTRA、SHM、RTPS 的线程和复制点做对照。读者此时看到 <code class="docutils literal notranslate"><span class="pre">Receiver</span> <span class="pre">-&gt;</span> <span class="pre">Dispatcher</span> <span class="pre">-&gt;</span> <span class="pre">Buffer</span> <span class="pre">-&gt;</span> <span class="pre">Notifier</span> <span class="pre">-&gt;</span> <span class="pre">Scheduler</span> <span class="pre">-&gt;</span> <span class="pre">Processor</span> <span class="pre">-&gt;</span> <span class="pre">Proc</span></code>，每个箭头都已经有具体数据结构和状态机支撑。</p>
 </section>

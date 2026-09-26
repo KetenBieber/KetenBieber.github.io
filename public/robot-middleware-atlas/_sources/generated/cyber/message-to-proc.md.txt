@@ -10,6 +10,8 @@
 
 本章跟随这一帧数据从 transport callback 一直走到 `Component::Proc()`。即使没有阅读前面的专题，也可以把本文当作一条完整入口；ring、Dispatcher、Notifier、协程和 Scheduler 都会在它们真正出现的位置解释。
 
+这里的 transport 是把进程内对象、共享内存字节或网络报文送进当前进程的传输层；callback 是传输库在自己的调用上下文中反向调用的一段函数，而不是一只新线程。`Component::Proc()` 则是框架最终进入业务算法的虚函数入口。两者之间加入的 ring 是固定容量、反复复用槽位的环形缓存：它让接收方先把数据安置下来，再由另一条执行线程处理。
+
 如果只看 Cyber RT 暴露给业务层的接口，很容易形成一个过于简单的印象：Reader 收到消息，框架调用 `Component::Proc()`，链路到此结束。本章不再把中间类当成第一次出现的名词，而是检查它们组装后是否形成一条闭合的数据、线程和生命周期路径。
 
 真正决定运行时行为的问题却藏在这句话中间：消息由哪个线程收进来，为什么不会直接在接收线程里执行 `Proc()`，数据存在哪里，谁把协程变成可运行状态，调度器又在什么时候选中它？这些问题会直接决定一次感知—规划—控制链路的排队延迟、抖动和数据年龄。
@@ -24,7 +26,7 @@ void CameraReceiver::OnMessage(std::shared_ptr<Image> image) {
 }
 ```
 
-单看功能，这段代码完全合理：消息到了，就调用业务函数。问题出现在运行环境。假设 `OnMessage()` 运行在 RTPS 接收线程，而一次视觉推理耗时 30 ms，那么这 30 ms 内同一线程不能继续接收其他消息；底层 socket 缓冲继续积压，其他 channel 也可能被拖慢。如果 `Proc()` 又等待磁盘、服务调用或互斥锁，网络线程甚至会无限期阻塞。
+单看功能，这段代码完全合理：消息到了，就调用业务函数。问题出现在运行环境。RTPS 是 Cyber 跨主机通信使用的发布订阅协议路径，它的 listener callback 由通信库的接收执行上下文调用。假设 `OnMessage()` 正运行在这条接收路径上，而一次视觉推理耗时 30 ms，那么这 30 ms 内同一执行上下文不能继续完成后续接收工作；底层 socket 缓冲继续积压，其他 channel 也可能被拖慢。如果 `Proc()` 又等待磁盘、服务调用或互斥锁，网络接收路径甚至会无限期阻塞。
 
 再开一个线程也不能自动解决：每条消息创建线程会产生线程栈、内核对象和调度开销；固定线程池则必须回答队列是否有界、满了丢谁、哪个任务优先、关闭时怎样等待在途任务。这些问题正是中间件运行时存在的理由。
 
@@ -40,7 +42,7 @@ Cyber RT 选择把链路拆成两部分：接收线程只完成解析、缓存�
 
 第 42 帧不会作为函数参数一路穿过所有这些对象。数据路径把 `shared_ptr<Frame>` 放进缓存；通知路径只携带“某个 channel 更新了”的事件；协程被调度后再从自己的 DataVisitor 取出帧。这种分离正是全文的主线。每进入一层，都可以问三个相同的问题：第 42 帧现在存在哪里，当前是哪条线程，下一步由谁唤醒谁。
 
-本文固定在 Apollo 仓库提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，沿正常部署使用的 reality mode 追踪单输入 `Component<M0>`：Reader 建立数据入口，但业务 `func` 不作为 Reader callback 直接执行，而是另建组件 task 交给 Cyber scheduler。为了回答这个问题，真正需要进入的源码空间只有六组目录：`component`、`node`、`transport`、`data`、`croutine` 和 `scheduler`。
+本文固定在 Apollo 仓库提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，沿正常部署使用的 reality mode 追踪单输入 `Component<M0>`。这里的 reality mode 是相对于 Cyber 仿真运行分支的正常运行路径：Reader 建立数据入口，但业务 `func` 不作为 Reader callback 直接执行，而是另建组件 task 交给 Cyber scheduler。为了回答这个问题，真正需要进入的源码空间只有六组目录：`component`、`node`、`transport`、`data`、`croutine` 和 `scheduler`。
 
 ## 先把整条链放进脑中
 

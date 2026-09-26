@@ -8,13 +8,15 @@
 
 上一章已经建立了对象图：Component 初始化时创建 Reader、DataVisitor 和 CRoutine，DataVisitor 内部有一只有界缓存。现在先不追完整消息链，只拆这只缓存。
 
+如果直接从本章开始，可以先把四个对象压缩成一句话：Component 是业务对象，Reader 是 channel 的进程内读端，DataVisitor 保存“这个消费者读到哪里”的私有视图，CRoutine 是 Scheduler 以后会恢复执行的逻辑任务。`pending_queue_size` 是 Reader/Component 输入配置中的逻辑消息容量；它限制这只 DataVisitor 最多保留多少条待处理历史，而不是操作系统 socket 缓冲大小。
+
 这样安排有一个明确原因。后面读到 `DataDispatcher::Dispatch()`、`DataVisitor::TryFetch()` 和 scheduler wakeup 时，所有逻辑都建立在“数据已经怎样存进缓存”之上。如果连 `pending_queue_size` 的准确语义都不知道，就无法判断慢消费者会积压、阻塞、丢旧还是丢新，也无法评估控制器拿到的数据有多老。
 
 本文继续固定 Apollo 提交 [`d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa`](https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa)，只阅读三个最小单元：`CacheBuffer`、`ChannelBuffer::Fetch()` 和 `DataVisitor::TryFetch()`。
 
 ## callback 之前的数据暂存边界
 
-transport 线程收到一条消息时，Cyber 的 Processor 可能正在执行另一个组件。若接收线程直接等待 Processor，慢算法会反压 transport；若只发一个“有消息”事件却不保存 payload，Processor 醒来后又无数据可读。
+transport 线程收到一条消息时，Cyber 的 Processor 可能正在执行另一个组件。这里 producer 指产生并写入消息的一侧，consumer 指稍后读取消息的一侧，payload 就是实际消息内容。若接收线程直接等待 Processor，慢算法会把等待向上游传播，也就是对 transport 形成反压；若只发一个“有消息”事件却不保存 payload，Processor 醒来后又无数据可读。
 
 因此数据与唤醒必须分离：
 
@@ -49,6 +51,8 @@ bool Full() const {
 ```
 
 如果 DAG 写 `pending_queue_size = 3`，`vector` 会有 4 个槽位，但可保留消息上限仍是 3。多出的一个位置用来区分满和空。
+
+环形缓冲不是会不断增长的队列，而是一段固定数组：逻辑序号走到末尾后通过取模重新使用前面的物理槽。这种结构避免稳态扩容，但槽位被复用前必须先定义旧消息如何淘汰。
 
 这是环形缓冲常见技巧。如果只有两个取模后的下标，当 `head == tail` 时既可能表示“什么都没有”，也可能表示“刚好绕一圈写满”。保留一个逻辑空位后，两个状态便能区分。
 

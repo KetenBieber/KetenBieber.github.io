@@ -10,6 +10,12 @@
 
 本章不从 Scheduler 的成员变量开始，而是从这个资源分配问题推导执行架构。我们先实现会失败的一任务一线程版本，再引入可复用 worker、任务状态与唤醒谓词，最后对照固定提交中的 `RoutineFactory -> CRoutine -> ProcessorContext -> Processor`。上一章留下的运行时起点是：transport 线程已经把消息写入 `CacheBuffer`，`DataNotifier` 已调用 `NotifyProcessor(task_id)`，但业务 `Proc()` 尚未执行。
 
+先把本章会反复出现的四个“执行位置”分开。**进程**是拥有独立虚拟地址空间的资源边界；**操作系统线程**是 Linux 可以独立调度的执行实体，拥有内核记录和线程栈；**用户态协程**则是运行时保存的一组寄存器与用户栈，它不能被 Linux 单独调度，只能在承载它的线程上通过 `Resume/Yield` 主动切换；**任务**是中间件的逻辑工作，不等于线程，也不等于协程。线程上下文切换要进入内核调度路径，协程切换通常只在用户态保存/恢复寄存器和栈指针，但协程如果执行阻塞系统调用，整只承载线程仍会睡眠。
+
+消息路径也有两个必须分开的“位置”。`DataVisitor` 是某个消费者的读取视图：它保存自己的 ring 引用和游标，负责在 Processor 恢复后取出消息；`DataNotifier` 是事件桥：它只把“某个 channel 可能有新数据”转换为 task 通知，不携带图像 payload，也不执行用户 `Proc()`。因此，消息到达、状态变为 READY、OS worker 被唤醒和协程恢复，是四个不同事件。后文每跨过一个边界都会重新标出当前线程、对象状态和下一跳。
+
+消息路径中的 ring 不是“把消息排队后立刻执行”的线程队列，而是固定容量的循环槽：逻辑序号按容量取模，满时按实现策略覆盖旧槽，每个 DataVisitor 持有自己的 cursor。与之不同，Cyber Scheduler 是进程内 C++ 对象，登记并选择 CRoutine、把通知交给 Processor；Linux scheduler 属于内核，决定承载 Processor 的 OS thread 何时获得 CPU，所以 READY 只表示可被选择，并不表示已经运行。
+
 ## 第一版：每条消息创建线程
 
 初学者可能先写出下面的**错误示例**：
@@ -22,9 +28,13 @@ void OnMessage(std::shared_ptr<const Image> image) {
 }
 ```
 
-它把业务移出了接收线程，却失去了资源上界。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积；每只线程都需要用户栈和内核调度实体，`detach()` 又让关闭路径无法 join 在途工作。lambda 按值捕获的裸 `this` 还可能在 Component 析构后继续访问对象。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。
+这段代码同时暴露了四个 C++/OS 事实。`std::thread` 构造一个可被 Linux 调度的 OS 线程；每次消息都重新申请线程栈和内核线程对象。`detach()` 会放弃当前线程的 join 句柄，调用方无法再等待它结束，所以关闭时没有“在途工作已经清空”的同步点。lambda 是一个编译器生成的函数对象，`[this, image = std::move(image)]` 把裸指针和消息句柄保存进对象；按值保存 `shared_ptr` 只会增加消息控制块的引用计数，却不会延长裸 `this` 指向的 Component 寿命。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。
+
+这里的 **RAII**（Resource Acquisition Is Initialization，资源获取即初始化）也值得先说清：把资源绑定到 C++ 对象，在析构函数中释放，是让离开作用域自动触发清理的惯用方式。它能帮助管理一只 joinable thread 或 shared ownership，却不能替代跨线程的停止协议；一个仍在运行的 detached 线程不会因为拥有它的 C++ 对象离开作用域就自动安全停止。
 
 ## 第二版：线程池仍然缺少持久任务状态
+
+std::function 是类型擦除的可调用对象：它把 lambda、函数指针和自定义函数对象统一包装成同一个 void() 接口，让线程池不必知道具体闭包类型。闭包按值捕获的 consumer 与 msg 会随包装对象共同存活，但间接调用可能带来额外分配和动态分派；它仍然没有回答 task 的状态、游标和关闭协议如何保存。
 
 普通线程池会把每条消息包装成一次性 `std::function<void()>`：
 
@@ -169,9 +179,19 @@ std::string group_name_;
 
 两只 atomic flag 解决不同不变量。`lock_` 是执行权，防止两个 Processor 同时 Resume 同一栈；`updated_` 是可合并事件，防止等待边界丢通知。priority、group 和 processor id 支持 Classic 分组扫描与 Choreography 绑定；把调度属性放在 task control block 中，策略无需认识业务 Component。
 
+这里第一次出现 `std::atomic_flag`，先不要把它当作“更快的 bool”。普通 `bool` 若被一个线程写、另一个线程同时读，且没有 mutex 或原子协议，就会产生 data race；编译器和 CPU 都不必按源码直觉安排这些访问。`atomic_flag` 是标准提供的单比特原子对象：`test_and_set()` 以一个不可分割的读-改-写操作返回旧值并把标志置为 true，`clear()` 把它恢复为 false。于是 `lock_` 可以表达“谁成功取得执行权”，而不是把一个普通布尔值先读后写，给两个 Processor 留出同时通过的窗口。
+
+**内存序**（memory order）描述原子操作与普通内存访问之间允许怎样重排。`memory_order_release` 常用于发布者离开临界区，`memory_order_acquire` 常用于消费者取得同一同步点后读取已发布状态；只有形成匹配的 release/acquire 关系，才可把它当作可见性边界。固定版本的 `Acquire()`/`Release()` 用 acquire/release 保护 `lock_` 的执行所有权，但 `updated_` 的 `test_and_set(memory_order_release)` 本身不是 acquire 读取，不能据此宣称 payload 已发布；消息内容的同步仍由 CacheBuffer 的 mutex 解锁/加锁配对完成。这个区别很重要：原子 flag 解决的是一个状态位的不变式，不会自动让整只对象或消息变成线程安全。
+
 ## `CreateRoutineFactory` 生成的不是一次性 callback
 
 单输入 [`CreateRoutineFactory<M0>`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70) 返回一个永不主动结束的循环：
+
+这里的 `RoutineState` 是协程控制状态，而不是 Linux 线程状态。`DATA_WAIT` 表示“这只 routine 当前没有可取的数据，下一次要先检查事件”；`IO_WAIT` 表示另一类外部等待；`READY` 表示可以再次被调度；`FINISHED`、`SLEEP` 等值描述结束或暂不运行的边界，固定枚举没有一个可长期观察的 `RUNNING` 值。状态机的意义是让 ProcessorContext 在不理解消息类型的情况下决定“现在能否 Resume”。`Yield(state)` 是 routine 主动把控制权还给 Processor，并把下一次选择所需的状态写回控制对象。
+
+在进入这个循环前，还要看清 RoutineFactory 的两层类型擦除：CreateRoutineFactory<M> 内部仍按消息类型 M 做编译期检查；交给 Scheduler 时，创建函数被擦成 std::function<std::function<void()>()>，visitor 则擦成 std::shared_ptr<DataVisitorBase>。这样 Scheduler 不必依赖 MessageT，代价是类型信息转移到 factory 和 visitor 的边界。
+
+注意，固定提交中的 RoutineState 枚举只有 READY、FINISHED、SLEEP、IO_WAIT、DATA_WAIT 等值，没有 RUNNING；协程真正运行时已经占用当前 Processor 的用户态执行权，状态字段主要记录下一次让出控制权后如何被重新选择。
 
 ```cpp
 for (;;) {
@@ -191,6 +211,32 @@ for (;;) {
 循环顶部先把自身状态设为 `DATA_WAIT`，然后才调用 `TryFetch()`。有数据时执行业务函数，并以 `READY` 状态 yield，表示可能还有 backlog，可以继续被选择；没有数据时按当前等待状态 yield，让 Processor 去做其他任务或休眠。
 
 为什么处理一条后不是立刻进入 `DATA_WAIT`？若 ring 中已有多条消息，保持 READY 可以继续 drain，而不必等待另一个 notify。下一次循环顶部仍会先设等待态、再检查 buffer；确认真的空了才睡。
+
+## 先把 condition variable 变成一个可运行的模型
+
+`std::condition_variable` 是“线程暂时睡眠，直到共享条件可能改变”的等待原语。它本身不保存消息，也不保证一次通知对应一次任务；真正的状态放在 mutex 保护的普通数据中，等待线程用谓词反复检查：
+
+```cpp
+std::mutex mutex;
+std::condition_variable cv;
+bool ready = false;
+
+// worker
+std::unique_lock<std::mutex> lock(mutex);
+cv.wait(lock, [&] { return ready; });
+// wait 返回时，lock 已重新持有；业务在锁外执行
+
+// producer
+{
+  std::lock_guard<std::mutex> lock(mutex);
+  ready = true;
+}
+cv.notify_one();
+```
+
+调用 `wait` 时，线程会在同一个原子步骤中释放 mutex 并进入等待；被通知后，它只是变成 **runnable**（可运行），还要重新竞争 mutex，最后由 Linux 调度器决定何时真正获得 CPU。谓词必须放进循环，因为线程可能发生**虚假唤醒**（没有对应业务事件也返回），也可能被通知后发现另一个 worker 已经消费了状态。超时等待只是周期性重查的兜底，不是业务事件计数器。
+
+因此，`notify_one` 不能单独修复竞态。若 producer 在 consumer 检查之后、真正等待之前写入数据并通知，而“数据非空”没有被保存成可观察的状态，通知就可能没有接收者。Cyber 的 `ClassicContext` 用受 mutex 保护的组通知计数，CRoutine 又用 `updated_` 记录 task 级事件；两个层次分别解决 OS worker 等待和 routine 状态更新。
 
 ## 最经典的丢唤醒窗口
 
@@ -378,11 +424,28 @@ affinity 只限制“可以在哪些 CPU 上运行”，不保证“何时运行
 
 ### `Resume/Yield`：换用户栈，不换内核线程
 
+普通函数只能从入口一路运行到返回；如果要在 `Proc()` 中间暂停而稍后从原位置继续，就必须保存“下一次从哪里继续”以及那次调用仍需要的栈帧。最小的教学模型可以写成：
+
+```cpp
+struct UserContext {
+  void* stack_pointer;       // 当前用户栈顶
+  void* instruction_point;   // 下次恢复的位置
+  std::uint64_t callee_saved[8];  // ABI 要求保留的寄存器
+};
+
+void Resume(UserContext* next);  // 保存当前 context，恢复 next
+void Yield(UserContext* main);   // 保存 routine，恢复 Processor 主栈
+```
+
+这不是完整可运行的汇编实现，但先固定了对象边界：context 保存寄存器和栈，不保存消息，也不决定哪个 task 优先。操作系统线程切换还会改变内核调度实体、地址空间/线程状态和调度队列；用户态协程切换只在同一线程中交换用户栈与寄存器，因此通常更轻，却也无法绕过阻塞系统调用。
+
 固定版本的 [`RoutineContext`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/routine_context.h#L29-L49) 内嵌 2 MiB 栈数组和保存的栈指针。不能笼统说“协程栈一定很小”：对象会占用相应虚拟地址空间，实际物理驻留还取决于触页，对新页的首次访问可能产生 page fault。
 
 `Resume()` 设置当前线程的 `thread_local current_routine_`，然后把 Processor 主栈与 routine 栈交给 `SwapContext`；`Yield()` 反向交换。x86-64 的 [`swap_x86_64.S`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/swap_x86_64.S) 保存 ABI 要求跨调用保持的寄存器，交换 `%rsp` 后用 `ret` 进入先前保存的执行点。这里没有系统调用，也没有让内核重新选择线程，但仍有保存寄存器、改变栈工作集和 cache 行为的成本。
 
 `thread_local` 仍属于 Processor 线程，并不会自动变成 coroutine-local。若一只 CRoutine 在 `Proc()` 中执行阻塞 `read`、`recv` 或长时间 `sleep`，内核阻塞的是整只 Processor，挂在同一线程上的其他 CRoutine 也无法运行。由此可以看出，协程减少线程数量，并没有消除对业务代码“短、可返回、避免无界阻塞”的约束。
+
+thread_local 的语义是每个 OS thread 各有一份同名实例，而不是每个 coroutine 一份；因此 current_routine_ 保存的是当前 Processor 线程正在运行的 routine。若同一线程先后 Resume 两个 coroutine，它们会覆盖同一份 TLS；若 routine 在系统调用中阻塞，整个承载线程仍会被阻塞。
 
 ## 协作式执行的非抢占边界
 
@@ -455,7 +518,7 @@ struct Task {
 };
 ```
 
-producer 写数据后把 `updated=true` 并通知 condition variable。worker 醒来，在 mutex 保护的 task 列表中找 runnable task，CAS 把它从 Ready 改为 Running，执行一次 `step()`，再根据是否还有数据决定 Ready 或 DataWait。
+producer 写数据后把 `updated=true` 并通知 condition variable。worker 醒来，在 mutex 保护的 task 列表中找 runnable task。若不用这把 mutex，也可以用 CAS（compare-and-swap：只有“当前值仍等于预期值”时才原子地改成新值）把它从 Ready 改为 Running；本例刻意先使用 mutex，让“检查、取得执行权、修改状态”这组三步更容易验证。执行一次 `step()` 后，再根据是否还有数据决定 Ready 或 DataWait。
 
 实现时应写出四个不变量：
 

@@ -275,6 +275,7 @@
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#id2">第二版：线程池仍然缺少持久任务状态</a></li>
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#task">Task 的函数、数据与调度身份</a></li>
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#createroutinefactory-callback"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#condition-variable">先把 condition variable 变成一个可运行的模型</a></li>
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#id3">最经典的丢唤醒窗口</a></li>
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#updated"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></li>
 <li class="toctree-l6"><a class="reference internal" href="croutine-wakeup.html#id4">把竞态逐步走一遍</a></li>
@@ -2102,7 +2103,8 @@
 </ul>
 </nav>
 <p>单输入组件只需要回答一个问题：下一条消息是否已经到达。多输入组件面对的是另一类问题：定位、底盘、预测、规划等输入以不同频率到达时，哪几条消息应当组成一次 <code class="docutils literal notranslate"><span class="pre">Proc(m0,</span> <span class="pre">m1,</span> <span class="pre">...)</span></code> 调用。</p>
-<p>Cyber RT 没有在这一层实现严格的时间戳同步器。它采用的是“主输入触发，辅助输入取最新值”的 <code class="docutils literal notranslate"><span class="pre">AllLatest</span></code> 策略。这个选择代码量不大，却同时决定了组件触发频率、数据新鲜度、锁顺序、内存分配和算法能够假设的时间关系。</p>
+<p>这里 Component 是由 Cyber 管理生命周期的业务对象，<code class="docutils literal notranslate"><span class="pre">Proc(...)</span></code> 是框架凑齐一组输入后调用的业务虚函数。所谓“组成一组”不是把 protobuf 字段合并成新消息，而是决定本次调用分别使用每条 channel 的哪一个 <code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code>。</p>
+<p>Cyber RT 没有在这一层实现严格的时间戳同步器。严格同步会按消息携带的采样时间寻找同一时刻或给定时间窗内的组合；<code class="docutils literal notranslate"><span class="pre">AllLatest</span></code> 则采用“主输入触发，辅助输入取最新值”的 sample-and-hold（采样并保持）策略：主输入到来时冻结当时可见的辅助指针，之后即使辅助输入更新，本次参数组也不改变。这个选择代码量不大，却同时决定了组件触发频率、数据新鲜度、锁顺序、内存分配和算法能够假设的时间关系。</p>
 <p>本文继续固定 Apollo 提交 <a class="reference external" href="https://github.com/ApolloAuto/apollo/tree/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa"><code class="docutils literal notranslate"><span class="pre">d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa</span></code></a>，从二输入组件开始，逐层拆开 <code class="docutils literal notranslate"><span class="pre">Component&lt;M0,</span> <span class="pre">M1&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">DataVisitor&lt;M0,</span> <span class="pre">M1&gt;</span></code>、<code class="docutils literal notranslate"><span class="pre">AllLatest&lt;M0,</span> <span class="pre">M1&gt;</span></code> 和底层 <code class="docutils literal notranslate"><span class="pre">ChannelBuffer</span></code>。</p>
 <section id="id1">
 <h2><a class="toc-backref" href="#id11" role="doc-backlink">多输入组件的运行目标</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
@@ -2244,7 +2246,7 @@ t1: M1#51 到达
 t2: task 获得 CPU
 </pre></div>
 </div>
-<p>Cyber RT 保存的是 <code class="docutils literal notranslate"><span class="pre">tuple(M0#10,</span> <span class="pre">当</span> <span class="pre">t0</span> <span class="pre">最新的</span> <span class="pre">M1#50)</span></code>。如果等到 t2 才读取辅助缓存，得到的会是 <code class="docutils literal notranslate"><span class="pre">M1#51</span></code>。前者更接近“主消息到达时的系统快照”，不会让调度排队时间偷偷改变配对结果。</p>
+<p>Cyber RT 保存的是 <code class="docutils literal notranslate"><span class="pre">tuple(M0#10,</span> <span class="pre">当</span> <span class="pre">t0</span> <span class="pre">最新的</span> <span class="pre">M1#50)</span></code>。如果等到 t2 才读取辅助缓存，得到的会是 <code class="docutils literal notranslate"><span class="pre">M1#51</span></code>。这里的“快照”指在一个确定时刻保存一组消息指针，使本次 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 看到的组合不再随缓存更新而变化。它是一种采样语义，不是把消息体深复制一份；因此前者更接近“主消息到达时的系统快照”，不会让调度排队时间偷偷改变配对结果。</p>
 </section>
 <section id="setfusioncallback">
 <h2><a class="toc-backref" href="#id17" role="doc-backlink">SetFusionCallback 构成缓存层扩展点</a><a class="headerlink" href="#setfusioncallback" title="Link to this heading"></a></h2>

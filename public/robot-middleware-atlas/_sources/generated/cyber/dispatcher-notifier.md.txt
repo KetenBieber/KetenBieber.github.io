@@ -8,7 +8,9 @@
 
 上一章把 `CacheBuffer` 和 consumer cursor 拆到槽位级别。现在 producer 已经有一枚 `shared_ptr<Message>`，系统也已经有多只 DataVisitor buffer。新的问题是：怎样把这枚消息交给所有相关缓存，又怎样通知对应任务？
 
-最直接的实现似乎是 `channel -> vector<Reader*>`，循环调用每个 Reader 的 callback。但这会把数据分发、业务对象寿命和执行线程绑在一起：Reader 销毁时 registry 容易留下悬空指针；callback 可能在 transport 线程中做任意耗时工作；同一 channel 的 Component、Reader Observe 和其他订阅者也难以拥有独立队列。
+这里 producer 是当前正在分发消息的一侧；consumer cursor 是每个消费者自己的逻辑读取序号。`shared_ptr<Message>` 是带共享引用计数的对象句柄，复制句柄通常不深复制 Message。registry 是“channel 标识到订阅对象”的登记表，fan-out 则表示一条输入向多只消费者缓存扇出。后文的 singleton 只是进程内统一访问这张表的实例，并不意味着跨进程共享。
+
+最直接的实现似乎是 `channel -> vector<Reader*>`，循环调用每个 Reader 的 callback。但这会把数据分发、业务对象寿命和执行线程绑在一起：Reader 销毁时 registry 容易留下悬空指针；callback 可能在 transport 线程中做任意耗时工作；同一 channel 的 Component、Reader Observe 和其他订阅者也难以拥有独立队列。这里 `Observe()` 是由调用方主动刷新并读取 Reader 历史视图的接口，与消息到达后自动运行 callback 是两种消费节奏。
 
 Cyber 用两层解耦解决这个问题：`DataDispatcher<T>` 只把消息写入缓存，`DataNotifier` 只传播“有更新”的事件。Reader 与 Component 都不会被这两个进程级 singleton 直接拥有。
 
@@ -57,7 +59,7 @@ DataNotifier registry:   channel_id -> event callbacks
 
 `DataDispatcher<T>::Instance()` 中的 `T` 是消息 C++ 类型。`DataDispatcher<PointCloud>` 与 `DataDispatcher<LocalizationEstimate>` 是两个不同的模板实例，各自有自己的 singleton 状态。
 
-模板在这里解决类型擦除问题。每只 buffer 直接保存 `shared_ptr<T>`，`Dispatch()` 不需要把消息转换成 `void*`，也不需要在运行时检查 type id。编译器为每种实际使用的 `T` 生成类型正确的代码。
+模板在这里避免了把消息类型擦除成 `void*`。每只 buffer 直接保存 `shared_ptr<T>`，`Dispatch()` 不需要在运行时恢复类型或检查 type id；编译器会为每种实际使用的 `T` 生成类型正确的代码。真正的“类型擦除”会出现在 Scheduler 把不同消息签名包装成统一无参任务的边界，不能与这里的模板分区混为一谈。
 
 代价是同一逻辑机制会为多个消息类型实例化，增加二进制体积；跨动态库使用模板 singleton 时也必须保证链接与符号可见性一致。源码阅读时要记住：“全局唯一”是相对一个模板类型和进程而言，不是所有消息共用一张表。
 
