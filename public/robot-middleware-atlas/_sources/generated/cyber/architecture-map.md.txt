@@ -16,6 +16,31 @@ Cyber RT 适合自动驾驶和类似的多传感器计算流水线：组件通�
 
 它不自动保证传感器严格时间同步、业务命令恰好一次、算法 WCET 或硬实时调度。SHM 也不等于整条链零复制；协程减少线程数但不抢占长时间 Proc；录制输入不自动消除墙钟、随机数和外部设备带来的非确定性。
 
+下面先把用户代码、中间件和 Linux 放进一张可维护的分层图。箭头表示一次消息处理会穿过的主要边界，不表示所有模块都只能单向调用：
+
+:::{mermaid}
+flowchart TB
+  APP[业务 Component<br/>Init 与 Proc]
+  API[Node / Reader / Writer<br/>类型化 public API]
+  CTRL[mainboard / DAG / ClassLoader<br/>装配与生命周期]
+  DATA[DataDispatcher / CacheBuffer / DataVisitor<br/>数据面]
+  EXEC[DataNotifier / Scheduler / CRoutine / Processor<br/>执行面]
+  TRANS[INTRA / SHM / RTPS<br/>传输适配]
+  OS[Linux<br/>进程 线程 调度 futex mmap socket dlopen]
+
+  CTRL --> APP
+  APP --> API
+  API --> TRANS
+  TRANS --> DATA
+  DATA --> EXEC
+  EXEC --> APP
+  CTRL --> EXEC
+  TRANS --> OS
+  EXEC --> OS
+:::
+
+这张图里最关键的是环而不是层数：Component 通过 API 声明通信，transport 把外部数据交给 data，data 只保存消息并发事件，execution 最后再次进入 Component。mainboard 则在第一条消息前创建整个环，并在关闭时按反方向拆除它。
+
 ## 第 0 步：先写约束，不急着写类
 
 源码作者首先面对的不是类图，而是五条互相冲突的约束：
@@ -73,6 +98,30 @@ mini_cyber/
 依赖只能向内收敛：`api` 可以调用 data/transport，transport 只能把消息交给 data，data 可以发布无类型事件给 execution；execution 不应反向包含具体 protobuf 类型，业务 Component 也不应 include SHM 或 RTPS 实现头。这样替换 transport 不会改业务，替换 scheduler 不会改缓存。
 
 映射到固定源码，公开门面主要位于 `cyber/node/`，传输适配位于 `cyber/transport/`，缓存和分发位于 `cyber/data/`，执行面跨 `cyber/croutine/` 与 `cyber/scheduler/`，装配入口则位于 `cyber/mainboard/`、`cyber/component/` 和 `cyber/class_loader/`。目录不是分类标签，而是编译依赖防火墙。
+
+:::{mermaid}
+flowchart LR
+  MB[mainboard] --> CL[class_loader]
+  MB --> COMP[component]
+  CL --> COMP
+  COMP --> NODE[node]
+  COMP --> DATA[data]
+  COMP --> SCHED[scheduler]
+  NODE --> TRANS[transport]
+  NODE --> DATA
+  DATA --> CROUTINE[croutine]
+  DATA --> SCHED
+  SCHED --> CROUTINE
+  TRANS --> DATA
+  TRANS --> TOPO[service_discovery]
+  NODE --> TOPO
+  PROTO[proto 配置] --> MB
+  PROTO --> COMP
+  PROTO --> TRANS
+  PROTO --> SCHED
+:::
+
+这张依赖图对应源码 include 与对象创建关系。它也暴露出需要警惕的环形风险：运行时数据最终会回调 Component，但编译依赖不应让 transport 反向 include 具体 Component；因此回调、模板和类型擦除承担了跨边界连接。
 
 ## 第 3 步：先写接口骨架，再决定实现
 
@@ -212,6 +261,43 @@ DAG/Launch
 
 这条顺序解释章节为什么必须从装配进入通信，再进入缓存、融合和调度。只单独解释 `CRoutine` 或 SHM，读者无法知道它们在完整系统中解决哪一段问题。
 
+:::{mermaid}
+sequenceDiagram
+  participant MB as mainboard
+  participant MC as ModuleController
+  participant C as ComponentM0
+  participant R as ReaderM0
+  participant W as WriterT
+  participant HT as HybridTransmitterT
+  participant RX as Receiver
+  participant DD as DataDispatcherM0
+  participant DV as DataVisitorM0
+  participant S as Scheduler
+  participant P as Processor
+
+  MB->>MC: LoadAll(DagConfig)
+  MC->>C: CreateClassObj + Initialize
+  C->>R: CreateReader(reader_cfg)
+  C->>W: CreateWriter(output_cfg)
+  C->>DV: create component visitor
+  C->>S: CreateTask(RoutineFactory)
+  R->>RX: ReceiverManager.GetReceiver
+  W->>HT: Init -> CreateTransmitter
+  Note over W,HT: topology change enables mode for each matched Reader
+  C->>W: Write(shared_ptr msg)
+  W->>HT: Transmit(msg)
+  HT->>RX: selected INTRA / SHM / RTPS path
+  RX->>DD: Dispatch(channel_id, msg)
+  DD->>DV: Fill shared_ptr into CacheBuffer
+  DD->>S: notifier callback -> NotifyProcessor
+  S-->>P: condition variable notify
+  P->>S: NextRoutine
+  P->>DV: Resume -> TryFetch
+  DV-->>C: Process(msg) -> Proc(msg)
+:::
+
+时序图把启动期与稳定期接在一起：Reader、Writer、visitor 和 task 都在第一条消息之前创建。固定版本的 `Writer::Write(shared_ptr)` 进入 `transmitter_->Transmit`；`HybridTransmitter` 根据 topology 中对端与本端的主机、进程关系启用 INTRA、SHM 或 RTPS transmitter，并在发送时遍历已经初始化的 mode 实例。图中的 `selected path` 是对三种不同线程/复制路径的折叠，不表示存在一个叫作 selected 的源码对象。消息到达后，payload 停在 CacheBuffer，跨线程传播的是事件和 task identity；Processor 恢复 routine 后才再次读取 payload。后续纵向示范文章会给每个箭头补上源码、锁、所有权和失败路径。
+
 ## 功能一：部署装配
 
 功能目标是让算法类由配置选择，而不把所有组件静态写进 main。DAG 给出动态库、类名、实例与 Reader；ClassLoader 用字符串工厂创建派生类；ModuleController 保存装载批次和关闭顺序。
@@ -257,6 +343,37 @@ Transport callback 只负责投递与通知，Processor 所在线程才执行 `P
 
 理解组件名还不够，必须知道谁让谁活着：
 
+:::{mermaid}
+classDiagram
+  class ComponentBase
+  class ComponentM0
+  class Node
+  class ReaderM0
+  class DataVisitorM0
+  class ChannelBufferM0
+  class CacheBufferMsgPtr
+  class DataDispatcherM0
+  class CRoutine
+  class Scheduler
+  class ProcessorContext
+  class Processor
+
+  ComponentBase <|-- ComponentM0
+  ComponentM0 *-- Node
+  Node o-- ReaderM0
+  ComponentM0 *-- DataVisitorM0
+  ReaderM0 *-- DataVisitorM0 : Reader 支路
+  DataVisitorM0 *-- ChannelBufferM0
+  ChannelBufferM0 *-- CacheBufferMsgPtr
+  DataDispatcherM0 ..> CacheBufferMsgPtr : weak_ptr registry
+  Scheduler o-- CRoutine : shared_ptr
+  CRoutine --> DataVisitorM0 : closure 强持有
+  Processor *-- ProcessorContext
+  ProcessorContext o-- CRoutine : run queue
+:::
+
+图中的菱形只表达本章需要讨论的主要寿命关系，不代表每个成员都直接按值存放。例如 Scheduler 与策略 context 会通过多张表共同持有 CRoutine；Dispatcher 对 CacheBuffer 则明确只是弱观察。初始化和关闭专题会继续核对每条边由哪个成员或 closure 实现。
+
 | 对象 | 直接所有者 | 被谁共享或借用 | 关闭约束 |
 |---|---|---|---|
 | Component 实例 | ModuleController/装载记录 | Scheduler routine 捕获业务回调 | 先移除任务和 Reader，再析构组件 |
@@ -271,21 +388,44 @@ Transport callback 只负责投递与通知，Processor 所在线程才执行 `P
 
 ## 线程与执行上下文地图
 
-```text
-mainboard 主线程
-  装载 DAG、创建组件、等待退出
-
-transport/dispatcher 线程
-  收包、反序列化、Dispatch、Notify
-  不运行 Component::Proc
-
-Processor OS 线程
-  Scheduler 选择 CRoutine
-  CRoutine 调用 DataVisitor::TryFetch 和 Component::Proc
-
-Topology/monitor/record 线程
-  维护发现、统计和持久化
-```
+:::{mermaid}
+flowchart LR
+  subgraph PROC[一个 Cyber 进程]
+    subgraph MAIN[mainboard 主线程]
+      LOAD[装载 DAG 与 Component]
+    end
+    subgraph RXTH[transport / dispatcher 线程]
+      RX[收包或读取 SHM block]
+      DIS[反序列化 / Dispatch / Notify]
+      RX --> DIS
+    end
+    subgraph PTH[Processor Linux 线程]
+      WAIT[Context Wait / NextRoutine]
+      SW[SwapContext]
+      WAIT --> SW
+      subgraph USTACK[CRoutine 独立用户栈]
+        FETCH[DataVisitor TryFetch]
+        PROC_CB[Component Proc]
+        FETCH --> PROC_CB
+      end
+      SW -->|Resume| FETCH
+      PROC_CB -->|Yield| SW
+    end
+    subgraph AUX[拓扑 / monitor / record 线程]
+      OBS[发现 统计 持久化]
+    end
+    RING[(每消费者 CacheBuffer)]
+    DIS -->|shared_ptr 与锁| RING
+    DIS -.->|event / cv notify| WAIT
+    RING -->|恢复后读取| FETCH
+  end
+  subgraph KERNEL[Linux 内核]
+    KS[线程调度 futex socket mmap]
+  end
+  RXTH --> KS
+  PTH --> KS
+  AUX --> KS
+:::
 
 这张图解释了“线程安全”必须具体到边界。Transport 线程会和关闭线程并发操作 listener；Processor 线程会和配置/监控线程并发读取状态；同一 Component 的 `Proc()` 是否串行，则取决于它创建的 routine 和 Scheduler 配置，不能只看 Component 类本身。
 

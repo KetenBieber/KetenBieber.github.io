@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>任务唤醒与执行：从 event latch 到 Processor &mdash; Robot Middleware Source Tutorials</title>
+  <title>从一任务一线程到 Cyber Scheduler：任务、协程与 Processor &mdash; Robot Middleware Source Tutorials</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
@@ -21,11 +21,369 @@
       <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../../_static/copybutton.js?v=6dbb43f8"></script>
       <script src="../../_static/translations.js?v=beaddf03"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../genindex.html" />
     <link rel="search" title="搜索" href="../../search.html" />
-    <link rel="next" title="完整消息链：从 Receiver 到 Component::Proc()" href="message-to-proc.html" />
-    <link rel="prev" title="进程内数据分发：Dispatcher、弱引用与 Notifier" href="dispatcher-notifier.html" /> 
+    <link rel="next" title="Cyber RT 的 C++ 类型系统：静态消息类型与动态组件运行时" href="cpp-type-runtime.html" />
+    <link rel="prev" title="多输入组件：DataVisitor 与 AllLatest 的消息组合语义" href="multi-input-fusion.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -84,248 +442,275 @@
 <ul class="current">
 <li class="toctree-l1 current"><a class="reference internal" href="../../industrial.html">工业级中间件</a><ul class="current">
 <li class="toctree-l2 current"><a class="reference internal" href="index.html">Apollo Cyber RT</a><ul class="current">
-<li class="toctree-l3"><a class="reference internal" href="index.html#id1">统一学习路径</a></li>
-<li class="toctree-l3 current"><a class="reference internal" href="index.html#id2">源码解读</a><ul class="current">
-<li class="toctree-l4"><a class="reference internal" href="overview.html">Cyber RT 全景：机器人系统中的组件运行时</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id1">Cyber RT 的四项核心职责</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id2">典型 Cyber RT 进程结构</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#apollo-planning-control">Apollo 中的 Planning 与 Control 组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#messagechannel-component">Message、Channel 与 Component</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#dag">DAG 的运行时装配语义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#nodereader-writer">Node、Reader 与 Writer 的协作关系</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id3">数据面与执行面的分离</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#intrashm-rtps">INTRA、SHM 与 RTPS 的部署边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#croutine-scheduler">CRoutine 与 Scheduler 的执行模型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id4">Cyber RT 的工程优势</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id5">复杂度代价与能力边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id6">适用场景与不适用场景</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id7">仓库地图：每个目录在整条因果链中的位置</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#id8">从宏观到源码的阅读顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="overview.html#cyber-like">最小 Cyber-like 运行时的实现起点</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="architecture-map.html">从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id2">第 0 步：先写约束，不急着写类</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id3">第 2 步：先切出六个最小模块</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id4">第 3 步：先写接口骨架，再决定实现</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id5">第 4 步：数据结构由不变量决定</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id7">从自动驾驶需求反推组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id8">六个功能子系统</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id9">仓库入口与源码问题</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id10">模块依赖顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id11">功能一：部署装配</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id12">功能二：通信与数据分发</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id13">功能三：多输入一致性</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id14">功能四：调度与隔离</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#c">C++ 能力路线</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id15">对象所有权地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id16">线程与执行上下文地图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id17">一条消息的逐层数据动作</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id18">控制面、数据面与执行面的边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id19">复杂度和容量的第一张预算表</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id20">源码阅读坐标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id21">七个连续源码任务</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id22">设计模式与工程代价</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id23">系统级可行性预算</a></li>
-<li class="toctree-l5"><a class="reference internal" href="architecture-map.html#id24">从零实现路线</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id1">业务类型与运行时类名的双入口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#dag">DAG 的三层部署结构</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#mainboard-modulecontroller"><code class="docutils literal notranslate"><span class="pre">mainboard</span></code> 把配置交给 <code class="docutils literal notranslate"><span class="pre">ModuleController</span></code></a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#loadmodule"><code class="docutils literal notranslate"><span class="pre">LoadModule()</span></code> 的装载与实例化流程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#initialize-init"><code class="docutils literal notranslate"><span class="pre">Initialize()</span></code> 与业务 <code class="docutils literal notranslate"><span class="pre">Init()</span></code> 不是同一个函数</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#callback">callback 的弱所有权设计</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#component-node">Component 与 Node 的所有权边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#node-createreader"><code class="docutils literal notranslate"><span class="pre">Node::CreateReader()</span></code> 建立的运行时对象</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id2">第一条消息到来前的对象图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id3">初始化失败与局部回滚</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id4">与初始化镜像的关闭顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id5">装配配置对机器人运行的影响</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id6">自行实现装配层时的核心不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html#id7">从对象装配过渡到消息运行</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="class-loader-abi.html">动态组件装载：注册宏、工厂对象与共享库生命周期</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id2">动态装载解决部署期组合</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id3">三层类型边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#componentbase-abi">ComponentBase 是插件 ABI</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id4">注册宏把派生类绑定到共同基类</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id5">工厂层完成派生类型擦除</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#classloader-shared-ptr">ClassLoader 将裸对象升级为受控 shared_ptr</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id6">活对象计数保护库代码寿命</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id7">删除对象必须早于卸载代码</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#modulecontroller">ModuleController 是装载批次的所有者</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#raii">初始化失败的 RAII 回滚</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id8">安全关闭是初始化的逆拓扑</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#weak-ptr">回调捕获采用 weak_ptr</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id9">并发卸载需要状态机</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id10">字符串工厂的错误模型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id11">性能影响集中在生命周期路径</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id12">可复刻的最小插件骨架</a></li>
-<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="pending-queue-ring.html">有界消息缓存：<code class="docutils literal notranslate"><span class="pre">pending_queue_size=3</span></code> 的精确语义</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#callback">callback 之前的数据暂存边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#size-1"><code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">+</span> <span class="pre">1</span></code> 环形缓冲的不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#std-vector-t"><code class="docutils literal notranslate"><span class="pre">std::vector&lt;T&gt;</span></code> 的存储与构造成本</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#fill"><code class="docutils literal notranslate"><span class="pre">Fill()</span></code> 的三条路</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id1">用 4 个物理槽手算 5 条消息</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#channelbuffer-fetch"><code class="docutils literal notranslate"><span class="pre">ChannelBuffer::Fetch()</span></code> 的非破坏性读取</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#latest">首次读取的 latest 语义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id2">慢消费者的溢出恢复</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id3">读写两侧的锁边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id4">时间和空间复杂度只是第一层性能结论</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#queue-depth">queue depth 与控制数据年龄</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id5">与其他四种队列语义比较</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#ring">最小 ring 实现及其不变量</a></li>
-<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html#id6">从存储语义过渡到消息分发</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="multi-input-fusion.html">多输入组件：DataVisitor 与 AllLatest 的消息组合语义</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id1">多输入组件的运行目标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#component-datavisitor">从 Component 模板到 DataVisitor 模板</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#nulltype">固定输入上限与 NullType 特化</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#datavisitor">DataVisitor 组合每个消费者的私有视图</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id2">主输入决定唤醒边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#alllatest">AllLatest 在写入主缓存时创建快照</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#setfusioncallback">SetFusionCallback 构成缓存层扩展点</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#fusion">Fusion 接口只负责读取已固化的参数组</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#shared-ptr-tuple">shared_ptr tuple 的所有权含义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id3">锁的获取顺序与临界区范围</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id4">AllLatest 的时间语义边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id5">初始缺数与连续覆盖</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id6">复杂度与容量模型</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id7">设计优势</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id8">设计限制</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id9">可复刻的最小实现</a></li>
-<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html#id10">从多输入组合继续进入调度链</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="dispatcher-notifier.html">进程内数据分发：Dispatcher、弱引用与 Notifier</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#datavisitor"><code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code> 的双重注册</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#singleton">按消息类型实例化的模板 singleton</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#registry-key-value-fan-out">registry 的 key/value 与 fan-out 结构</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#weak-ptr"><code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 表达“不拥有订阅者”</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#dispatch"><code class="docutils literal notranslate"><span class="pre">Dispatch()</span></code> 的每一步</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id1">Dispatch 运行在哪个线程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#buffer">每只 buffer 独立加锁的粒度选择</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#atomichashmap-value"><code class="docutils literal notranslate"><span class="pre">AtomicHashMap</span></code> 并没有让整个 value 自动线程安全</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#weak-entry">过期 weak entry 的长期扫描成本</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#channel-task">从 channel 更新到 task 事件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id2">可合并通知与持久数据</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id3">Dispatch 的结构性成本</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id4">从控制系统看这种分发语义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id5">最小 Dispatcher/Notifier 接口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html#id6">从数据分发过渡到任务唤醒</a></li>
-</ul>
-</li>
-<li class="toctree-l4 current"><a class="current reference internal" href="#">任务唤醒与执行：从 event latch 到 Processor</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="#task">Task 的函数、数据与调度身份</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#createroutinefactory-callback"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id1">最经典的丢唤醒窗口</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#updated"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id2">把竞态逐步走一遍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#notifyprocessor-os"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#classic-run-queue-vector">Classic run queue 实际是持久 vector</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id3">同优先级任务的公平性边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#processor-run-os"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id4">协作式执行的非抢占边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id5">四种“优先级”不要混在一起</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#hz-1-khz">100 Hz 与 1 kHz 控制链的调度后果</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#shutdown-croutine">Shutdown 对运行中 CRoutine 的等待</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id6">手搓最小执行面</a></li>
-<li class="toctree-l5"><a class="reference internal" href="#id7">从局部机制回到完整消息链</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="message-to-proc.html">完整消息链：从 Receiver 到 <code class="docutils literal notranslate"><span class="pre">Component::Proc()</span></code></a><ul>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id1">朴素的直接回调为何不够</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id2">先把整条链放进脑中</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id3">初始化阶段已经把两条消费支路装好了</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#c-shared-ptrweak-ptr-lambda">C++ 所有权：<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code>、<code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 与 lambda 捕获</a></li>
-</ul>
-</li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#transport-receiver">Transport Receiver 不是最终回调执行者</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#intra">INTRA：发送调用栈上的同步扇出</a></li>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#shm-dispatcher">SHM：共享内存接收线程先解析，再进入 Dispatcher</a></li>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#rtps-listener">RTPS：listener 线程承担字符串复制和反序列化</a></li>
-</ul>
-</li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#datadispatcher-channel"><code class="docutils literal notranslate"><span class="pre">DataDispatcher</span></code>：按 channel 把一个对象扇出到多只缓存</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#cachebuffer"><code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>：有界、覆盖最旧项，而且落后时跳到最新项</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#datanotifier"><code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 传的是事件，不是消息</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id4">防止在“检查为空”和“进入休眠”之间丢通知</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#cpu">从通知到 CPU 执行还隔着操作系统调度</a></li>
-</ul>
-</li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#processor-proc-os"><code class="docutils literal notranslate"><span class="pre">Processor</span></code> 才是 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 所在的 OS 线程</a><ul>
-<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id5">协程和线程不是同一种调度对象</a></li>
-</ul>
-</li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#classic-scheduler-priority">Classic scheduler 的 priority 不是抢占式实时调度</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id6">有界内存下的过载与丢数据语义</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id7">关闭时，先阻止新业务，再拆接收与任务</a></li>
-<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html#id8">从完整消息链提取运行时设计</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="cpp-type-runtime.html">Cyber RT 的 C++ 类型系统：静态消息类型与动态组件运行时</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#id1">静态层与动态层的接缝</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#componentbase"><code class="docutils literal notranslate"><span class="pre">ComponentBase</span></code> 提供非模板插件边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#component-m"><code class="docutils literal notranslate"><span class="pre">Component&lt;M...&gt;</span></code> 将消息类型带入整条链</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#id2">私有虚函数仍然可以被派生类覆盖</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#overridefinal"><code class="docutils literal notranslate"><span class="pre">override</span></code>、<code class="docutils literal notranslate"><span class="pre">final</span></code> 与接口演化</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#node-createreader-t"><code class="docutils literal notranslate"><span class="pre">Node::CreateReader&lt;T&gt;</span></code> 将类型继续传给通信层</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#singleton">模板 singleton 的真实作用域</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#routinefactory"><code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code> 在类型化数据与无参调度之间做类型擦除</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#lambda">lambda 捕获同时定义行为与所有权</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#enable-shared-from-this"><code class="docutils literal notranslate"><span class="pre">enable_shared_from_this</span></code> 的前置条件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#shared-ptr"><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 扇出不等于端到端零拷贝</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#unique-ptrshared-ptr-weak-ptr"><code class="docutils literal notranslate"><span class="pre">unique_ptr</span></code>、<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 与 <code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 的职责分配</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#deleter">自定义 deleter 将内存释放与库寿命连接起来</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#raii">RAII 将错误路径变成正常析构路径</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#mutex-atomic">mutex 与 atomic 处理的是不同一致性问题</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#id3">编译期安全、运行时弹性与可调试性的三角取舍</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#c">面向新中间件的 C++ 结构建议</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html#id4">最小复刻的分层代码骨架</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="cpp-implementation-lab.html">Cyber RT C++ 连续实现：从消息入口到 Component::Proc</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#id1">先确定最小功能与非目标</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#id2">第一层：类型化消息与类型擦除边界</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#reader-transport">第二层：Reader 将 transport 与消费缓存分开</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#notifier">第三层：Notifier 只传递“可能有工作”</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#dispatcher-listener">第四层：Dispatcher 在锁外执行 Listener</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#id3">第五层：把类型恢复点连接到组件</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#croutine">第六层：工作循环承担 CRoutine 的最小职责</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#id4">关闭协议</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#cyber-rt">从最小版扩展到 Cyber RT</a></li>
-<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html#id5">实现完成标准</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="design-recap.html">设计复盘：Cyber RT 的分层逻辑与可复用能力</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id1">先用三张图重建全貌</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#transport">分离 transport 与业务执行，解决的是故障传播</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id2">数据与事件分离，解决的是唤醒合并</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#buffer-producer">每个消费者独立 buffer，换来隔离也增加 producer 成本</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#weak-ptr-registry"><code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 是生命周期工具，不是 registry 清理工具</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#overwrite-oldest">有界 overwrite-oldest 体现“状态优先”</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#wcet">协程减少线程数量，却没有消除 WCET</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#dag">DAG 与动态库把选择推迟到部署期</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id3">从变化点推导设计模式</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id4">性能分析应沿路径分账</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id5">面向新实现的改进方向</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id6">从零实现的推荐顺序</a></li>
-<li class="toctree-l5"><a class="reference internal" href="design-recap.html#id7">完整理解 Cyber RT 的能力边界</a></li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#id1">怎样使用这套课程</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="index.html#id2">源码工程课程</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="index.html#id3">从空目录建立系统全貌</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="architecture-map.html">从空目录设计 Cyber RT：模块骨架、源码地图与运行时架构</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id1">使用场景与系统边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id2">第 0 步：先写约束，不急着写类</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#callback">第 1 步：直接 callback 能运行，但不能成为中间件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id3">第 2 步：先切出六个最小模块</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id4">第 3 步：先写接口骨架，再决定实现</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id5">第 4 步：数据结构由不变量决定</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id6">第 5 步：直到 callback 必须隔离时才引入线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id7">从自动驾驶需求反推组件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id8">六个功能子系统</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id9">仓库入口与源码问题</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id10">模块依赖顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id11">功能一：部署装配</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id12">功能二：通信与数据分发</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id13">功能三：多输入一致性</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id14">功能四：调度与隔离</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#c">C++ 能力路线</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id15">对象所有权地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id16">线程与执行上下文地图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id17">一条消息的逐层数据动作</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id18">控制面、数据面与执行面的边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id19">复杂度和容量的第一张预算表</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id20">源码阅读坐标</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id21">七个连续源码任务</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id22">设计模式与工程代价</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id23">系统级可行性预算</a></li>
+<li class="toctree-l6"><a class="reference internal" href="architecture-map.html#id24">从零实现路线</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="index.html#id3">使用教程</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id4">第一条消息之前：装配与动态类型</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="dag-to-component.html">启动与装配：从 DAG 到 Component 实例</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id1">业务类型与运行时类名的双入口</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#dag">DAG 的三层部署结构</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#mainboard-modulecontroller"><code class="docutils literal notranslate"><span class="pre">mainboard</span></code> 把配置交给 <code class="docutils literal notranslate"><span class="pre">ModuleController</span></code></a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#loadmodule"><code class="docutils literal notranslate"><span class="pre">LoadModule()</span></code> 的装载与实例化流程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#initialize-init"><code class="docutils literal notranslate"><span class="pre">Initialize()</span></code> 与业务 <code class="docutils literal notranslate"><span class="pre">Init()</span></code> 不是同一个函数</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#callback">callback 的弱所有权设计</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#component-node">Component 与 Node 的所有权边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#node-createreader"><code class="docutils literal notranslate"><span class="pre">Node::CreateReader()</span></code> 建立的运行时对象</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id2">第一条消息到来前的对象图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id3">初始化失败与局部回滚</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id4">与初始化镜像的关闭顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id5">装配配置对机器人运行的影响</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id6">自行实现装配层时的核心不变量</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dag-to-component.html#id7">从对象装配过渡到消息运行</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="class-loader-abi.html">动态组件装载：注册宏、工厂对象与共享库生命周期</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id2">动态装载解决部署期组合</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id3">三层类型边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#componentbase-abi">ComponentBase 是插件 ABI</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id4">注册宏把派生类绑定到共同基类</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id5">工厂层完成派生类型擦除</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#classloader-shared-ptr">ClassLoader 将裸对象升级为受控 shared_ptr</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id6">活对象计数保护库代码寿命</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id7">删除对象必须早于卸载代码</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#modulecontroller">ModuleController 是装载批次的所有者</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#raii">初始化失败的 RAII 回滚</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id8">安全关闭是初始化的逆拓扑</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#weak-ptr">回调捕获采用 weak_ptr</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id9">并发卸载需要状态机</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id10">字符串工厂的错误模型</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id11">性能影响集中在生命周期路径</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id12">可复刻的最小插件骨架</a></li>
+<li class="toctree-l6"><a class="reference internal" href="class-loader-abi.html#id13">插件系统的设计结论</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id5">沿消息走完全程</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="message-to-proc.html">完整消息链：从 Receiver 到 <code class="docutils literal notranslate"><span class="pre">Component::Proc()</span></code></a><ul>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id1">朴素的直接回调为何不够</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id2">先把整条链放进脑中</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id3">初始化阶段已经把两条消费支路装好了</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#c-shared-ptrweak-ptr-lambda">C++ 所有权：<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code>、<code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 与 lambda 捕获</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#transport-receiver">Transport Receiver 不是最终回调执行者</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#intra">INTRA：发送调用栈上的同步扇出</a></li>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#shm-dispatcher">SHM：共享内存接收线程先解析，再进入 Dispatcher</a></li>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#rtps-listener">RTPS：listener 线程承担字符串复制和反序列化</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#datadispatcher-channel"><code class="docutils literal notranslate"><span class="pre">DataDispatcher</span></code>：按 channel 把一个对象扇出到多只缓存</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#cachebuffer"><code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>：有界、覆盖最旧项，而且落后时跳到最新项</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#datanotifier"><code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 传的是事件，不是消息</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id4">防止在“检查为空”和“进入休眠”之间丢通知</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#cpu">从通知到 CPU 执行还隔着操作系统调度</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#processor-proc-os"><code class="docutils literal notranslate"><span class="pre">Processor</span></code> 才是 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 所在的 OS 线程</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="message-to-proc.html#id5">协程和线程不是同一种调度对象</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#classic-scheduler-priority">Classic scheduler 的 priority 不是抢占式实时调度</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id6">有界内存下的过载与丢数据语义</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id7">关闭时，先阻止新业务，再拆接收与任务</a></li>
+<li class="toctree-l6"><a class="reference internal" href="message-to-proc.html#id8">从完整消息链提取运行时设计</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id6">数据面：缓存、分发与多输入快照</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="pending-queue-ring.html">有界消息缓存：<code class="docutils literal notranslate"><span class="pre">pending_queue_size=3</span></code> 的精确语义</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#callback">callback 之前的数据暂存边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#size-1"><code class="docutils literal notranslate"><span class="pre">size</span> <span class="pre">+</span> <span class="pre">1</span></code> 环形缓冲的不变量</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#std-vector-t"><code class="docutils literal notranslate"><span class="pre">std::vector&lt;T&gt;</span></code> 的存储与构造成本</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#fill"><code class="docutils literal notranslate"><span class="pre">Fill()</span></code> 的三条路</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id1">用 4 个物理槽手算 5 条消息</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#channelbuffer-fetch"><code class="docutils literal notranslate"><span class="pre">ChannelBuffer::Fetch()</span></code> 的非破坏性读取</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#latest">首次读取的 latest 语义</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id2">慢消费者的溢出恢复</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id3">读写两侧的锁边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id4">时间和空间复杂度只是第一层性能结论</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#queue-depth">queue depth 与控制数据年龄</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id5">与其他四种队列语义比较</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#ring">最小 ring 实现及其不变量</a></li>
+<li class="toctree-l6"><a class="reference internal" href="pending-queue-ring.html#id6">从存储语义过渡到消息分发</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="dispatcher-notifier.html">进程内数据分发：Dispatcher、弱引用与 Notifier</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#datavisitor"><code class="docutils literal notranslate"><span class="pre">DataVisitor</span></code> 的双重注册</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#singleton">按消息类型实例化的模板 singleton</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#registry-key-value-fan-out">registry 的 key/value 与 fan-out 结构</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#weak-ptr"><code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 表达“不拥有订阅者”</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#dispatch"><code class="docutils literal notranslate"><span class="pre">Dispatch()</span></code> 的每一步</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id1">Dispatch 运行在哪个线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#buffer">每只 buffer 独立加锁的粒度选择</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#atomichashmap-value"><code class="docutils literal notranslate"><span class="pre">AtomicHashMap</span></code> 并没有让整个 value 自动线程安全</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#weak-entry">过期 weak entry 的长期扫描成本</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#channel-task">从 channel 更新到 task 事件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id2">可合并通知与持久数据</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id3">Dispatch 的结构性成本</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id4">从控制系统看这种分发语义</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id5">最小 Dispatcher/Notifier 接口</a></li>
+<li class="toctree-l6"><a class="reference internal" href="dispatcher-notifier.html#id6">从数据分发过渡到任务唤醒</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="multi-input-fusion.html">多输入组件：DataVisitor 与 AllLatest 的消息组合语义</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id1">多输入组件的运行目标</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#component-datavisitor">从 Component 模板到 DataVisitor 模板</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#nulltype">固定输入上限与 NullType 特化</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#datavisitor">DataVisitor 组合每个消费者的私有视图</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id2">主输入决定唤醒边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#alllatest">AllLatest 在写入主缓存时创建快照</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#setfusioncallback">SetFusionCallback 构成缓存层扩展点</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#fusion">Fusion 接口只负责读取已固化的参数组</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#shared-ptr-tuple">shared_ptr tuple 的所有权含义</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id3">锁的获取顺序与临界区范围</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id4">AllLatest 的时间语义边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id5">初始缺数与连续覆盖</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id6">复杂度与容量模型</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id7">设计优势</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id8">设计限制</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id9">可复刻的最小实现</a></li>
+<li class="toctree-l6"><a class="reference internal" href="multi-input-fusion.html#id10">从多输入组合继续进入调度链</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l4 current"><a class="reference internal" href="index.html#croutinescheduler-processor">执行面：CRoutine、Scheduler 与 Processor</a><ul class="current">
+<li class="toctree-l5 current"><a class="current reference internal" href="#">从一任务一线程到 Cyber Scheduler：任务、协程与 Processor</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="#id1">第一版：每条消息创建线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id2">第二版：线程池仍然缺少持久任务状态</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#task">Task 的函数、数据与调度身份</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#createroutinefactory-callback"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id3">最经典的丢唤醒窗口</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#updated"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id4">把竞态逐步走一遍</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#notifyprocessor-os"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#classic-run-queue-vector">Classic run queue 实际是持久 vector</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id5">同优先级任务的公平性边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#processor-run-os"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a><ul>
+<li class="toctree-l7"><a class="reference internal" href="#processor">一只 Processor 内核线程怎样被创建和绑核</a></li>
+<li class="toctree-l7"><a class="reference internal" href="#resume-yield"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a></li>
+</ul>
+</li>
+<li class="toctree-l6"><a class="reference internal" href="#id6">协作式执行的非抢占边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id7">四种“优先级”不要混在一起</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#hz-1-khz">100 Hz 与 1 kHz 控制链的调度后果</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#shutdown-croutine">Shutdown 对运行中 CRoutine 的等待</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id8">手搓最小执行面</a></li>
+<li class="toctree-l6"><a class="reference internal" href="#id9">从局部机制回到完整消息链</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id7">语言设计、最小复刻与工程复盘</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="cpp-type-runtime.html">Cyber RT 的 C++ 类型系统：静态消息类型与动态组件运行时</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#id1">静态层与动态层的接缝</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#componentbase"><code class="docutils literal notranslate"><span class="pre">ComponentBase</span></code> 提供非模板插件边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#component-m"><code class="docutils literal notranslate"><span class="pre">Component&lt;M...&gt;</span></code> 将消息类型带入整条链</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#id2">私有虚函数仍然可以被派生类覆盖</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#overridefinal"><code class="docutils literal notranslate"><span class="pre">override</span></code>、<code class="docutils literal notranslate"><span class="pre">final</span></code> 与接口演化</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#node-createreader-t"><code class="docutils literal notranslate"><span class="pre">Node::CreateReader&lt;T&gt;</span></code> 将类型继续传给通信层</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#singleton">模板 singleton 的真实作用域</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#routinefactory"><code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code> 在类型化数据与无参调度之间做类型擦除</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#lambda">lambda 捕获同时定义行为与所有权</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#enable-shared-from-this"><code class="docutils literal notranslate"><span class="pre">enable_shared_from_this</span></code> 的前置条件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#shared-ptr"><code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 扇出不等于端到端零拷贝</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#unique-ptrshared-ptr-weak-ptr"><code class="docutils literal notranslate"><span class="pre">unique_ptr</span></code>、<code class="docutils literal notranslate"><span class="pre">shared_ptr</span></code> 与 <code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 的职责分配</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#deleter">自定义 deleter 将内存释放与库寿命连接起来</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#raii">RAII 将错误路径变成正常析构路径</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#mutex-atomic">mutex 与 atomic 处理的是不同一致性问题</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#id3">编译期安全、运行时弹性与可调试性的三角取舍</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#c">面向新中间件的 C++ 结构建议</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-type-runtime.html#id4">最小复刻的分层代码骨架</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="cpp-implementation-lab.html">Cyber RT C++ 连续实现：从消息入口到 Component::Proc</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#id1">先确定最小功能与非目标</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#id2">第一层：类型化消息与类型擦除边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#reader-transport">第二层：Reader 将 transport 与消费缓存分开</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#notifier">第三层：Notifier 只传递“可能有工作”</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#dispatcher-listener">第四层：Dispatcher 在锁外执行 Listener</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#id3">第五层：把类型恢复点连接到组件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#croutine">第六层：工作循环承担 CRoutine 的最小职责</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#id4">关闭协议</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#cyber-rt">从最小版扩展到 Cyber RT</a></li>
+<li class="toctree-l6"><a class="reference internal" href="cpp-implementation-lab.html#id5">实现完成标准</a></li>
+</ul>
+</li>
+<li class="toctree-l5"><a class="reference internal" href="design-recap.html">设计复盘：Cyber RT 的分层逻辑与可复用能力</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id1">先用三张图重建全貌</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#transport">分离 transport 与业务执行，解决的是故障传播</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id2">数据与事件分离，解决的是唤醒合并</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#buffer-producer">每个消费者独立 buffer，换来隔离也增加 producer 成本</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#weak-ptr-registry"><code class="docutils literal notranslate"><span class="pre">weak_ptr</span></code> 是生命周期工具，不是 registry 清理工具</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#overwrite-oldest">有界 overwrite-oldest 体现“状态优先”</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#wcet">协程减少线程数量，却没有消除 WCET</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#dag">DAG 与动态库把选择推迟到部署期</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id3">从变化点推导设计模式</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id4">性能分析应沿路径分账</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id5">面向新实现的改进方向</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id6">从零实现的推荐顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="design-recap.html#id7">完整理解 Cyber RT 的能力边界</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="index.html#id8">旧总览兼容入口</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="overview.html">Cyber RT 全景：机器人系统中的组件运行时</a><ul>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id1">Cyber RT 的四项核心职责</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id2">典型 Cyber RT 进程结构</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#apollo-planning-control">Apollo 中的 Planning 与 Control 组件</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#messagechannel-component">Message、Channel 与 Component</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#dag">DAG 的运行时装配语义</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#nodereader-writer">Node、Reader 与 Writer 的协作关系</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id3">数据面与执行面的分离</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#intrashm-rtps">INTRA、SHM 与 RTPS 的部署边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#croutine-scheduler">CRoutine 与 Scheduler 的执行模型</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id4">Cyber RT 的工程优势</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id5">复杂度代价与能力边界</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id6">适用场景与不适用场景</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id7">仓库地图：每个目录在整条因果链中的位置</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#id8">从宏观到源码的阅读顺序</a></li>
+<li class="toctree-l6"><a class="reference internal" href="overview.html#cyber-like">最小 Cyber-like 运行时的实现起点</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="index.html#id9">实际开发与生产案例</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="use-environment.html">Cyber RT 使用教程：环境、构建与诊断基线</a><ul>
 <li class="toctree-l5"><a class="reference internal" href="use-environment.html#id1">环境分层</a></li>
 <li class="toctree-l5"><a class="reference internal" href="use-environment.html#id2">验证源码与工具</a></li>
@@ -2020,7 +2405,7 @@
       <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
           <li class="breadcrumb-item"><a href="../../industrial.html">工业级中间件</a></li>
           <li class="breadcrumb-item"><a href="index.html">Apollo Cyber RT</a></li>
-      <li class="breadcrumb-item active">任务唤醒与执行：从 event latch 到 Processor</li>
+      <li class="breadcrumb-item active">从一任务一线程到 Cyber Scheduler：任务、协程与 Processor</li>
       <li class="wy-breadcrumbs-aside">
             <a href="../../_sources/generated/cyber/croutine-wakeup.md.txt" rel="nofollow"> 查看页面源码</a>
       </li>
@@ -2030,31 +2415,107 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="event-latch-processor">
-<h1>任务唤醒与执行：从 event latch 到 Processor<a class="headerlink" href="#event-latch-processor" title="Link to this heading"></a></h1>
+  <section id="cyber-scheduler-processor">
+<h1>从一任务一线程到 Cyber Scheduler：任务、协程与 Processor<a class="headerlink" href="#cyber-scheduler-processor" title="Link to this heading"></a></h1>
 <nav class="contents local" id="contents">
 <p class="topic-title">Contents</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#task" id="id8">Task 的函数、数据与调度身份</a></p></li>
-<li><p><a class="reference internal" href="#createroutinefactory-callback" id="id9"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></p></li>
-<li><p><a class="reference internal" href="#id1" id="id10">最经典的丢唤醒窗口</a></p></li>
-<li><p><a class="reference internal" href="#updated" id="id11"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></p></li>
-<li><p><a class="reference internal" href="#id2" id="id12">把竞态逐步走一遍</a></p></li>
-<li><p><a class="reference internal" href="#notifyprocessor-os" id="id13"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></p></li>
-<li><p><a class="reference internal" href="#classic-run-queue-vector" id="id14">Classic run queue 实际是持久 vector</a></p></li>
-<li><p><a class="reference internal" href="#id3" id="id15">同优先级任务的公平性边界</a></p></li>
-<li><p><a class="reference internal" href="#processor-run-os" id="id16"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a></p></li>
-<li><p><a class="reference internal" href="#id4" id="id17">协作式执行的非抢占边界</a></p></li>
-<li><p><a class="reference internal" href="#id5" id="id18">四种“优先级”不要混在一起</a></p></li>
-<li><p><a class="reference internal" href="#hz-1-khz" id="id19">100 Hz 与 1 kHz 控制链的调度后果</a></p></li>
-<li><p><a class="reference internal" href="#shutdown-croutine" id="id20">Shutdown 对运行中 CRoutine 的等待</a></p></li>
-<li><p><a class="reference internal" href="#id6" id="id21">手搓最小执行面</a></p></li>
-<li><p><a class="reference internal" href="#id7" id="id22">从局部机制回到完整消息链</a></p></li>
+<li><p><a class="reference internal" href="#id1" id="id10">第一版：每条消息创建线程</a></p></li>
+<li><p><a class="reference internal" href="#id2" id="id11">第二版：线程池仍然缺少持久任务状态</a></p></li>
+<li><p><a class="reference internal" href="#task" id="id12">Task 的函数、数据与调度身份</a></p></li>
+<li><p><a class="reference internal" href="#createroutinefactory-callback" id="id13"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a></p></li>
+<li><p><a class="reference internal" href="#id3" id="id14">最经典的丢唤醒窗口</a></p></li>
+<li><p><a class="reference internal" href="#updated" id="id15"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a></p></li>
+<li><p><a class="reference internal" href="#id4" id="id16">把竞态逐步走一遍</a></p></li>
+<li><p><a class="reference internal" href="#notifyprocessor-os" id="id17"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a></p></li>
+<li><p><a class="reference internal" href="#classic-run-queue-vector" id="id18">Classic run queue 实际是持久 vector</a></p></li>
+<li><p><a class="reference internal" href="#id5" id="id19">同优先级任务的公平性边界</a></p></li>
+<li><p><a class="reference internal" href="#processor-run-os" id="id20"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a></p>
+<ul>
+<li><p><a class="reference internal" href="#processor" id="id21">一只 Processor 内核线程怎样被创建和绑核</a></p></li>
+<li><p><a class="reference internal" href="#resume-yield" id="id22"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#id6" id="id23">协作式执行的非抢占边界</a></p></li>
+<li><p><a class="reference internal" href="#id7" id="id24">四种“优先级”不要混在一起</a></p></li>
+<li><p><a class="reference internal" href="#hz-1-khz" id="id25">100 Hz 与 1 kHz 控制链的调度后果</a></p></li>
+<li><p><a class="reference internal" href="#shutdown-croutine" id="id26">Shutdown 对运行中 CRoutine 的等待</a></p></li>
+<li><p><a class="reference internal" href="#id8" id="id27">手搓最小执行面</a></p></li>
+<li><p><a class="reference internal" href="#id9" id="id28">从局部机制回到完整消息链</a></p></li>
 </ul>
 </nav>
-<p>上一章结束时，transport 线程已经做完两件事：消息写入 <code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>，<code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 调用了 <code class="docutils literal notranslate"><span class="pre">Scheduler::NotifyProcessor(task_id)</span></code>。但业务 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 仍未执行。</p>
+<p>自动驾驶进程里可能同时存在相机感知、点云处理、定位、预测、规划、监控和录制任务。如果每个 Reader 都在消息到达时临时创建线程，线程栈、创建开销和内核调度实体会随消息频率爆炸；如果每个任务永久占一只线程，几十到几百个低占空比任务又会浪费栈空间并增加上下文切换。</p>
+<p>本章不从 Scheduler 的成员变量开始，而是从这个资源分配问题推导执行架构。我们先实现会失败的一任务一线程版本，再引入可复用 worker、任务状态与唤醒谓词，最后对照固定提交中的 <code class="docutils literal notranslate"><span class="pre">RoutineFactory</span> <span class="pre">-&gt;</span> <span class="pre">CRoutine</span> <span class="pre">-&gt;</span> <span class="pre">ProcessorContext</span> <span class="pre">-&gt;</span> <span class="pre">Processor</span></code>。上一章留下的运行时起点是：transport 线程已经把消息写入 <code class="docutils literal notranslate"><span class="pre">CacheBuffer</span></code>，<code class="docutils literal notranslate"><span class="pre">DataNotifier</span></code> 已调用 <code class="docutils literal notranslate"><span class="pre">NotifyProcessor(task_id)</span></code>，但业务 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 尚未执行。</p>
+<section id="id1">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">第一版：每条消息创建线程</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>初学者可能先写出下面的<strong>错误示例</strong>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">OnMessage</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="k">const</span><span class="w"> </span><span class="n">Image</span><span class="o">&gt;</span><span class="w"> </span><span class="n">image</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="kr">thread</span><span class="p">([</span><span class="k">this</span><span class="p">,</span><span class="w"> </span><span class="n">image</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">image</span><span class="p">)]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">component_</span><span class="o">-&gt;</span><span class="n">Proc</span><span class="p">(</span><span class="n">image</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}).</span><span class="n">detach</span><span class="p">();</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>它把业务移出了接收线程，却失去了资源上界。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积；每只线程都需要用户栈和内核调度实体，<code class="docutils literal notranslate"><span class="pre">detach()</span></code> 又让关闭路径无法 join 在途工作。lambda 按值捕获的裸 <code class="docutils literal notranslate"><span class="pre">this</span></code> 还可能在 Component 析构后继续访问对象。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。</p>
+</section>
+<section id="id2">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">第二版：线程池仍然缺少持久任务状态</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>普通线程池会把每条消息包装成一次性 <code class="docutils literal notranslate"><span class="pre">std::function&lt;void()&gt;</span></code>：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">void</span><span class="w"> </span><span class="nf">OnMessage</span><span class="p">(</span><span class="n">MessagePtr</span><span class="w"> </span><span class="n">msg</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">pool</span><span class="p">.</span><span class="n">Submit</span><span class="p">([</span><span class="n">consumer</span><span class="p">,</span><span class="w"> </span><span class="n">msg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">msg</span><span class="p">)]</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">consumer</span><span class="o">-&gt;</span><span class="n">Proc</span><span class="p">(</span><span class="n">msg</span><span class="p">);</span>
+<span class="w">  </span><span class="p">});</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>它限制了内核线程数，却让 ready queue 同时拥有任务和 payload。高频 channel 会产生大量 closure 与引用计数操作；同一组件可能被多个 worker 并发重入；队列满时还必须决定阻塞接收线程、丢任务还是丢消息。更重要的是，消息已经存在 DataVisitor 的有界 ring 中，再把 payload 复制进执行队列会建立第二套容量和丢弃语义。</p>
+<p>Cyber 因而采用持久任务：ring 保存“有多少数据”，CRoutine 保存“从哪里继续执行”，scheduler 只管理“哪只任务可能可运行”。一次通知不携带 payload，只让既有 task 再检查自己的 DataVisitor。</p>
 <p>这一章回答执行面的核心问题：task id 怎样找到一只 CRoutine，休眠中的 worker 怎样被唤醒，为什么“检查队列为空”和“准备睡眠”之间不会丢事件，Classic scheduler 又怎样选择最终运行的 routine。</p>
 <p>先给出本章边界：消息 payload 已经留在 ring 中，后续调度链不再搬运它。调度器只传播 task identity 和 runnable state，直到 Processor 恢复协程，DataVisitor 才重新从 ring 取出 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;Message&gt;</span></code>。</p>
+<p>从零设计时，可以由四个问题推导四种对象：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>工程问题</p></th>
+<th class="head"><p>推导出的对象</p></th>
+<th class="head"><p>固定源码对应</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>业务函数和读取位置怎样长期绑定</p></td>
+<td><p>task/routine</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code>、<code class="docutils literal notranslate"><span class="pre">CRoutine</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>谁保存 READY、WAIT、SLEEP 等状态</p></td>
+<td><p>task control block</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CRoutine::state_</span></code>、<code class="docutils literal notranslate"><span class="pre">updated_</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>谁从许多任务中选择下一只</p></td>
+<td><p>scheduling context</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ClassicContext</span></code>、<code class="docutils literal notranslate"><span class="pre">ChoreographyContext</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>谁真正占用 CPU</p></td>
+<td><p>worker</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Processor</span></code> 内的 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<pre  class="mermaid">
+        flowchart LR
+  DV[DataVisitor&lt;br/&gt;payload 与 cursor]
+  RF[RoutineFactory&lt;br/&gt;类型化函数变成无参循环]
+  CR[CRoutine&lt;br/&gt;栈 上下文 状态 task id]
+  PC[ProcessorContext&lt;br/&gt;持久 run queue 与选择策略]
+  P[Processor&lt;br/&gt;OS std::thread]
+  PROC[Component Proc]
+
+  DV --&gt; RF
+  RF --&gt; CR
+  CR --&gt; PC
+  P --&gt; PC
+  P --&gt; CR
+  CR --&gt; DV
+  CR --&gt; PROC
+    </pre><p>这组边界刻意把“做什么”和“用哪只线程做”拆开。CRoutine 是逻辑任务，不是线程；Processor 是执行资源，不保存消息；ProcessorContext 是策略与等待位置，不理解 protobuf 类型；DataVisitor 保存数据，却不决定自己何时获得 CPU。</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>DataNotifier callback                         Processor OS thread
       |                                             |
       v                                             |
@@ -2074,8 +2535,32 @@ Scheduler::NotifyProcessor(task_id)                 |
                                       Component::Process/Proc()
 </pre></div>
 </div>
+<pre  class="mermaid">
+        sequenceDiagram
+  participant T as transport thread
+  participant N as DataNotifier
+  participant S as SchedulerClassic
+  participant C as ClassicContext
+  participant P as Processor OS thread
+  participant R as CRoutine
+  participant D as DataVisitor
+
+  T-&gt;&gt;N: Notify(channel_id)
+  N-&gt;&gt;S: NotifyProcessor(task_id)
+  S-&gt;&gt;R: SetUpdateFlag
+  S-&gt;&gt;C: Notify(group)
+  C--&gt;&gt;P: condition_variable notify_one
+  P-&gt;&gt;C: NextRoutine
+  C-&gt;&gt;R: Acquire + UpdateState
+  P-&gt;&gt;R: Resume
+  R-&gt;&gt;D: TryFetch
+  D--&gt;&gt;R: shared_ptr message
+  R-&gt;&gt;R: Component Proc
+  R--&gt;&gt;P: Yield
+    </pre><p>同一条垂直线不等于同一线程。左侧通知链在 transport 线程同步运行；<code class="docutils literal notranslate"><span class="pre">notify_one</span></code> 之后，右侧 Processor 何时继续由 Linux 调度器决定；<code class="docutils literal notranslate"><span class="pre">Resume</span></code> 才从 Processor 主栈切到 CRoutine 栈。</p>
+</section>
 <section id="task">
-<h2><a class="toc-backref" href="#id8" role="doc-backlink">Task 的函数、数据与调度身份</a><a class="headerlink" href="#task" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Task 的函数、数据与调度身份</a><a class="headerlink" href="#task" title="Link to this heading"></a></h2>
 <p>Component 初始化时已经构造 <code class="docutils literal notranslate"><span class="pre">RoutineFactory</span></code>。Factory 中有两样东西：一段未来要运行的函数，以及与该函数配套的 DataVisitor。</p>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/scheduler.cc#L37-L69"><code class="docutils literal notranslate"><span class="pre">Scheduler::CreateTask()</span></code></a> 把它变成调度对象：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">func</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">factory</span><span class="p">.</span><span class="n">create_routine</span><span class="p">();</span>
@@ -2098,9 +2583,25 @@ Scheduler::NotifyProcessor(task_id)                 |
 <p><code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 持有 <code class="docutils literal notranslate"><span class="pre">func</span></code>，而 <code class="docutils literal notranslate"><span class="pre">func</span></code> 的 lambda 又按值持有 DataVisitor。Scheduler 的 task map 和策略 run queue 持有 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;CRoutine&gt;</span></code>。于是 task 存活期间，DataVisitor、读取游标和 CacheBuffer 也会存活。</p>
 <p>task id 是调度身份，不是线程 id。多只 CRoutine 可以由同一 Processor 线程轮流执行；同一只 CRoutine 也不是永远绑定在创建它的线程上，具体约束由 scheduling policy 和 context 决定。</p>
 <p>创建顺序同样重要：<code class="docutils literal notranslate"><span class="pre">DispatchTask(cr)</span></code> 先让策略认识这只 routine，随后才注册按 task id 唤醒它的 callback。这样第一个 notifier 事件到来时，scheduler 已经有目标对象可查。</p>
+<p>真实 <code class="docutils literal notranslate"><span class="pre">CRoutine</span></code> 不是只有一个 callback。固定提交的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h"><code class="docutils literal notranslate"><span class="pre">cyber/croutine/croutine.h</span></code></a> 把一只可调度任务所需的状态集中在同一对象中：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// 固定提交源码摘录：省略 getter/setter</span>
+<span class="n">RoutineFunc</span><span class="w"> </span><span class="n">func_</span><span class="p">;</span>
+<span class="n">RoutineState</span><span class="w"> </span><span class="n">state_</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">RoutineContext</span><span class="o">&gt;</span><span class="w"> </span><span class="n">context_</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">atomic_flag</span><span class="w"> </span><span class="n">lock_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ATOMIC_FLAG_INIT</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">atomic_flag</span><span class="w"> </span><span class="n">updated_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ATOMIC_FLAG_INIT</span><span class="p">;</span>
+<span class="kt">bool</span><span class="w"> </span><span class="n">force_stop_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">processor_id_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">-1</span><span class="p">;</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">priority_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="kt">uint64_t</span><span class="w"> </span><span class="n">id_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">group_name_</span><span class="p">;</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">func_</span></code> 与 <code class="docutils literal notranslate"><span class="pre">context_</span></code> 采用组合：任务拥有要执行的函数和用户态上下文，不需要通过继承为每种消息类型创建新的调度类。消息类型已经在 RoutineFactory 的 lambda 中被擦除，Scheduler 因而只存一种 <code class="docutils literal notranslate"><span class="pre">shared_ptr&lt;CRoutine&gt;</span></code>。</p>
+<p>两只 atomic flag 解决不同不变量。<code class="docutils literal notranslate"><span class="pre">lock_</span></code> 是执行权，防止两个 Processor 同时 Resume 同一栈；<code class="docutils literal notranslate"><span class="pre">updated_</span></code> 是可合并事件，防止等待边界丢通知。priority、group 和 processor id 支持 Classic 分组扫描与 Choreography 绑定；把调度属性放在 task control block 中，策略无需认识业务 Component。</p>
 </section>
 <section id="createroutinefactory-callback">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a><a class="headerlink" href="#createroutinefactory-callback" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory</span></code> 生成的不是一次性 callback</a><a class="headerlink" href="#createroutinefactory-callback" title="Link to this heading"></a></h2>
 <p>单输入 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/routine_factory.h#L50-L70"><code class="docutils literal notranslate"><span class="pre">CreateRoutineFactory&lt;M0&gt;</span></code></a> 返回一个永不主动结束的循环：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="n">CRoutine</span><span class="o">::</span><span class="n">GetCurrentRoutine</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">set_state</span><span class="p">(</span><span class="n">RoutineState</span><span class="o">::</span><span class="n">DATA_WAIT</span><span class="p">);</span>
@@ -2118,8 +2619,8 @@ Scheduler::NotifyProcessor(task_id)                 |
 <p>循环顶部先把自身状态设为 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>，然后才调用 <code class="docutils literal notranslate"><span class="pre">TryFetch()</span></code>。有数据时执行业务函数，并以 <code class="docutils literal notranslate"><span class="pre">READY</span></code> 状态 yield，表示可能还有 backlog，可以继续被选择；没有数据时按当前等待状态 yield，让 Processor 去做其他任务或休眠。</p>
 <p>为什么处理一条后不是立刻进入 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>？若 ring 中已有多条消息，保持 READY 可以继续 drain，而不必等待另一个 notify。下一次循环顶部仍会先设等待态、再检查 buffer；确认真的空了才睡。</p>
 </section>
-<section id="id1">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">最经典的丢唤醒窗口</a><a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<section id="id3">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">最经典的丢唤醒窗口</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
 <p>一个错误实现可能这样写：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>consumer: 检查 queue -&gt; 发现空
 producer: 写入 queue -&gt; notify
@@ -2131,7 +2632,7 @@ consumer: 进入 wait
 <p>Cyber 使用 <code class="docutils literal notranslate"><span class="pre">CRoutine::updated_</span></code> 作为一位 event latch，并配合 RoutineFactory 的顺序关闭窗口。</p>
 </section>
 <section id="updated">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a><a class="headerlink" href="#updated" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">updated_</span></code> 的命名比布尔值更绕</a><a class="headerlink" href="#updated" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h#L176-L207"><code class="docutils literal notranslate"><span class="pre">CRoutine</span></code></a> 中，producer 侧 <code class="docutils literal notranslate"><span class="pre">SetUpdateFlag()</span></code> 会 clear atomic flag；scheduler 侧 <code class="docutils literal notranslate"><span class="pre">UpdateState()</span></code> 再通过 <code class="docutils literal notranslate"><span class="pre">test_and_set</span></code> 检查并恢复置位。</p>
 <p>其状态转换核心是：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">updated_</span><span class="p">.</span><span class="n">test_and_set</span><span class="p">(</span><span class="n">std</span><span class="o">::</span><span class="n">memory_order_release</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
@@ -2146,8 +2647,8 @@ consumer: 进入 wait
 <p><code class="docutils literal notranslate"><span class="pre">atomic_flag</span></code> 保证多个线程同时修改这一位状态时不会发生普通数据竞争。固定源码的 <code class="docutils literal notranslate"><span class="pre">test_and_set(std::memory_order_release)</span></code> 没有 acquire 语义，不能用它证明 scheduler 看见了 producer 此前写入的 payload；payload 的发布与读取由 CacheBuffer mutex 的解锁/加锁配对建立同步。这个 flag 只保存事件状态。若把 ring 换成无锁结构，就必须另行设计 acquire/release 配对，不能照搬这里的内存序。</p>
 <p>event latch 只有一位，因此 A、B、C 三次更新可能合并成一个“有更新”。消息数量由 ring 保存，flag 只保证 consumer 最终再检查一次。</p>
 </section>
-<section id="id2">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">把竞态逐步走一遍</a><a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<section id="id4">
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">把竞态逐步走一遍</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
 <p>最危险时序发生在 routine 已写 <code class="docutils literal notranslate"><span class="pre">DATA_WAIT</span></code>、但尚未完成 <code class="docutils literal notranslate"><span class="pre">TryFetch()/Yield()</span></code> 时：</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Processor/routine                         producer/transport
        |                                        |
@@ -2173,7 +2674,7 @@ event memory:
 <p>只复制其中一半都不够。若 consumer 先 check 再写 DATA_WAIT，即使有 event flag也可能覆盖状态；若没有 event latch，正确顺序仍会在 yield 边界丢掉通知。</p>
 </section>
 <section id="notifyprocessor-os">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a><a class="headerlink" href="#notifyprocessor-os" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code> 实际还要唤醒 OS 线程</a><a class="headerlink" href="#notifyprocessor-os" title="Link to this heading"></a></h2>
 <p>把 CRoutine 标成可能 READY 还不够。如果承载它的 Processor 正在 condition variable 上睡眠，必须让 OS 线程重新运行。</p>
 <p>Classic 策略的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L163-L181"><code class="docutils literal notranslate"><span class="pre">NotifyProcessor()</span></code></a> 在 task map 中找到 CRoutine，调用 <code class="docutils literal notranslate"><span class="pre">SetUpdateFlag()</span></code>，再通知对应 group 的 context。<code class="docutils literal notranslate"><span class="pre">ClassicContext::Notify()</span></code> 增加 wake 计数并 <code class="docutils literal notranslate"><span class="pre">condition_variable::notify_one()</span></code>。</p>
 <p>完整调用是：</p>
@@ -2191,7 +2692,7 @@ event memory:
 <p><code class="docutils literal notranslate"><span class="pre">notify_one()</span></code> 也不是指定“必须唤醒执行这个 task 的某一线程”。Classic group 的多个 Processor 可以等待同一 context，醒来的 worker 再扫描全部 routine 状态。</p>
 </section>
 <section id="classic-run-queue-vector">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">Classic run queue 实际是持久 vector</a><a class="headerlink" href="#classic-run-queue-vector" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">Classic run queue 实际是持久 vector</a><a class="headerlink" href="#classic-run-queue-vector" title="Link to this heading"></a></h2>
 <p>“run queue”容易让人联想到一只只包含 READY task 的队列：任务 ready 时 push，运行后 pop。Classic 并不是这样。</p>
 <p>每个 group 有 20 个优先级槽，每个槽是一只持久的 <code class="docutils literal notranslate"><span class="pre">vector&lt;shared_ptr&lt;CRoutine&gt;&gt;</span></code>。task 加入后无论 READY、WAIT 还是 SLEEP 都留在 vector 中，状态决定当前能否被选择。</p>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/classic_context.cc#L52-L73"><code class="docutils literal notranslate"><span class="pre">ClassicContext::NextRoutine()</span></code></a> 从 19 降到 0 扫描：</p>
@@ -2213,15 +2714,15 @@ event memory:
 <p><code class="docutils literal notranslate"><span class="pre">Acquire()</span></code> 是另一只原子 flag，用来防止两个 Processor 同时执行同一 CRoutine。拿不到就跳过；拿到以后先调用前面解释的 <code class="docutils literal notranslate"><span class="pre">UpdateState()</span></code>，再判断是否 READY。</p>
 <p>找到目标之前，worker 可能扫描许多等待 task。选择成本不是 priority heap 的 <code class="docutils literal notranslate"><span class="pre">O(log</span> <span class="pre">n)</span></code>，而与高优先级和当前优先级中被检查的 routine 数量相关。</p>
 </section>
-<section id="id3">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">同优先级任务的公平性边界</a><a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<section id="id5">
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">同优先级任务的公平性边界</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
 <p>vector 扫描总从头开始，没有从源码看到显式 round-robin 游标，也没有让刚运行的 task 自动移到尾部。</p>
 <p>若同优先级第一只 routine 持续有 backlog，它处理一条后 <code class="docutils literal notranslate"><span class="pre">Yield(READY)</span></code>，下一次扫描仍可能首先遇到它。靠后的 routine 只有在前者暂时不 READY、Acquire 失败或其他 Processor 并行取得前者时更容易被选中。</p>
 <p>这不等于后续 task 必然永远饥饿，因为多个 Processor、callback 执行时间和状态变化都会影响结果；但从结构上不能宣称同优先级天然公平。工业配置应限制持续 READY 的高频 task，必要时分组或使用更明确的 processor 绑定。</p>
 <p>一个需要公平性的自研版本可以维护每优先级的 rotating cursor，或只把 READY task 放进真正的 deque，运行一轮后排到队尾。代价是通知、去重和并发入队状态会复杂得多。</p>
 </section>
 <section id="processor-run-os">
-<h2><a class="toc-backref" href="#id16" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a><a class="headerlink" href="#processor-run-os" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Processor::Run()</span></code> 才进入真正 OS 线程</a><a class="headerlink" href="#processor-run-os" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L40-L62"><code class="docutils literal notranslate"><span class="pre">Processor</span></code></a> 拥有 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code>，主循环不断向 context 请求下一只 routine：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="n">running_</span><span class="p">.</span><span class="n">load</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">croutine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">context_</span><span class="o">-&gt;</span><span class="n">NextRoutine</span><span class="p">();</span>
@@ -2245,16 +2746,37 @@ Processor thread:
 </pre></div>
 </div>
 <p>消息对象通过 ring 连接两个线程，不通过调用栈直接跨越。</p>
+<section id="processor">
+<h3><a class="toc-backref" href="#id21" role="doc-backlink">一只 Processor 内核线程怎样被创建和绑核</a><a class="headerlink" href="#processor" title="Link to this heading"></a></h3>
+<p><a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L78-L89"><code class="docutils literal notranslate"><span class="pre">Processor::BindContext()</span></code></a> 用 <code class="docutils literal notranslate"><span class="pre">std::call_once</span></code> 保证对象只启动一次 <code class="docutils literal notranslate"><span class="pre">std::thread</span></code>。线程进入 <code class="docutils literal notranslate"><span class="pre">Run()</span></code> 后又通过 <code class="docutils literal notranslate"><span class="pre">syscall(SYS_gettid)</span></code> 取得 Linux TID；这里的对象 id、C++ <code class="docutils literal notranslate"><span class="pre">std::thread::id</span></code>、POSIX <code class="docutils literal notranslate"><span class="pre">pthread_t</span></code> 与 Linux TID 是不同命名空间，设置 nice 值时需要的是最后一个。</p>
+<p>Classic 策略不是创建一个抽象的“执行器”便结束。它为每个 group 建立共享的 <code class="docutils literal notranslate"><span class="pre">ClassicContext</span></code>，再创建配置数量的 Processor，并把真实线程交给资源控制函数：</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">auto</span><span class="w"> </span><span class="n">ctx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">ClassicContext</span><span class="o">&gt;</span><span class="p">(</span><span class="n">group_name</span><span class="p">);</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">processor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">Processor</span><span class="o">&gt;</span><span class="p">();</span>
+<span class="n">processor</span><span class="o">-&gt;</span><span class="n">BindContext</span><span class="p">(</span><span class="n">ctx</span><span class="p">);</span>
+<span class="n">SetSchedAffinity</span><span class="p">(</span><span class="n">processor</span><span class="o">-&gt;</span><span class="n">Thread</span><span class="p">(),</span><span class="w"> </span><span class="n">cpuset</span><span class="p">,</span><span class="w"> </span><span class="n">affinity</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="n">SetSchedPolicy</span><span class="p">(</span><span class="n">processor</span><span class="o">-&gt;</span><span class="n">Thread</span><span class="p">(),</span><span class="w"> </span><span class="n">processor_policy</span><span class="p">,</span>
+<span class="w">               </span><span class="n">processor_prio</span><span class="p">,</span><span class="w"> </span><span class="n">processor</span><span class="o">-&gt;</span><span class="n">Tid</span><span class="p">());</span>
+</pre></div>
+</div>
+<p>上面是依据固定源码 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L82-L109"><code class="docutils literal notranslate"><span class="pre">scheduler_classic.cc</span></code></a> 删节的真实代码。完整实现中的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/common/pin_thread.cc#L52-L72"><code class="docutils literal notranslate"><span class="pre">SetSchedAffinity</span></code></a> 调用 <code class="docutils literal notranslate"><span class="pre">pthread_setaffinity_np</span></code>：<code class="docutils literal notranslate"><span class="pre">range</span></code> 给线程一个可运行 CPU 集合，<code class="docutils literal notranslate"><span class="pre">1to1</span></code> 按 Processor 序号选择单核。绑的是承载协程的 Linux 线程；线程上的所有 CRoutine 随它一起受约束。</p>
+<p>affinity 只限制“可以在哪些 CPU 上运行”，不保证“何时运行”。普通 <code class="docutils literal notranslate"><span class="pre">SCHED_OTHER</span></code> 仍由 Linux 公平调度并用 nice 值影响权重；<code class="docutils literal notranslate"><span class="pre">SCHED_FIFO</span></code>/<code class="docutils literal notranslate"><span class="pre">SCHED_RR</span></code> 使用实时优先级，设置通常还需要相应权限。固定版本的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/common/pin_thread.cc#L75-L95"><code class="docutils literal notranslate"><span class="pre">SetSchedPolicy</span></code></a> 没有把这些系统调用的失败可靠地反馈给配置方，因此 conf 写了 FIFO 不能证明内核已经接受。工程验收必须检查返回值或进程运行态；错误的实时配置还可能让低优先级 housekeeping 线程饥饿。</p>
 </section>
-<section id="id4">
-<h2><a class="toc-backref" href="#id17" role="doc-backlink">协作式执行的非抢占边界</a><a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<section id="resume-yield">
+<h3><a class="toc-backref" href="#id22" role="doc-backlink"><code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code>：换用户栈，不换内核线程</a><a class="headerlink" href="#resume-yield" title="Link to this heading"></a></h3>
+<p>固定版本的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/routine_context.h#L29-L49"><code class="docutils literal notranslate"><span class="pre">RoutineContext</span></code></a> 内嵌 2 MiB 栈数组和保存的栈指针。不能笼统说“协程栈一定很小”：对象会占用相应虚拟地址空间，实际物理驻留还取决于触页，对新页的首次访问可能产生 page fault。</p>
+<p><code class="docutils literal notranslate"><span class="pre">Resume()</span></code> 设置当前线程的 <code class="docutils literal notranslate"><span class="pre">thread_local</span> <span class="pre">current_routine_</span></code>，然后把 Processor 主栈与 routine 栈交给 <code class="docutils literal notranslate"><span class="pre">SwapContext</span></code>；<code class="docutils literal notranslate"><span class="pre">Yield()</span></code> 反向交换。x86-64 的 <a class="reference external" href="https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/swap_x86_64.S"><code class="docutils literal notranslate"><span class="pre">swap_x86_64.S</span></code></a> 保存 ABI 要求跨调用保持的寄存器，交换 <code class="docutils literal notranslate"><span class="pre">%rsp</span></code> 后用 <code class="docutils literal notranslate"><span class="pre">ret</span></code> 进入先前保存的执行点。这里没有系统调用，也没有让内核重新选择线程，但仍有保存寄存器、改变栈工作集和 cache 行为的成本。</p>
+<p><code class="docutils literal notranslate"><span class="pre">thread_local</span></code> 仍属于 Processor 线程，并不会自动变成 coroutine-local。若一只 CRoutine 在 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 中执行阻塞 <code class="docutils literal notranslate"><span class="pre">read</span></code>、<code class="docutils literal notranslate"><span class="pre">recv</span></code> 或长时间 <code class="docutils literal notranslate"><span class="pre">sleep</span></code>，内核阻塞的是整只 Processor，挂在同一线程上的其他 CRoutine 也无法运行。由此可以看出，协程减少线程数量，并没有消除对业务代码“短、可返回、避免无界阻塞”的约束。</p>
+</section>
+</section>
+<section id="id6">
+<h2><a class="toc-backref" href="#id23" role="doc-backlink">协作式执行的非抢占边界</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
 <p>进入 <code class="docutils literal notranslate"><span class="pre">CRoutine::Resume()</span></code> 后，当前 Processor 一直执行这只 routine，直到它 <code class="docutils literal notranslate"><span class="pre">Yield()</span></code> 回主栈。对 Component task 而言，Yield 位于用户 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 返回之后。</p>
 <p>所以一个执行 20 ms 的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 会占住 Processor 约 20 ms。即使期间更高 Cyber priority 的 routine 变成 READY，同一 worker 也不能从任意 C++ 指令位置安全夺回控制权。</p>
 <p>这就是合作式调度：task 在约定边界主动让出，而不是由 Cyber scheduler 进行指令级抢占。Linux 仍可抢占整个 Processor OS 线程去运行其他 OS 线程，但那不是 Cyber routine 之间的抢占。</p>
 <p>优点是 routine 切换点清楚，不需要每个 callback 一只内核线程；缺点是 callback 最坏执行时间和阻塞行为直接决定同组任务的长尾。</p>
 </section>
-<section id="id5">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">四种“优先级”不要混在一起</a><a class="headerlink" href="#id5" title="Link to this heading"></a></h2>
+<section id="id7">
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">四种“优先级”不要混在一起</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
 <p>机器人系统里至少有四个层次：</p>
 <ol class="arabic simple">
 <li><p>应用语义优先级：控制指令是否比日志或可视化重要；</p></li>
@@ -2267,7 +2789,7 @@ Processor thread:
 <p>Choreography 策略能把指定 task 放到更明确的 Processor context，减少与无关组件共享扫描和执行时间；它仍要求 OS policy 实际设置成功，并要求该 Processor 上的 callback 合作式返回。</p>
 </section>
 <section id="hz-1-khz">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">100 Hz 与 1 kHz 控制链的调度后果</a><a class="headerlink" href="#hz-1-khz" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id25" role="doc-backlink">100 Hz 与 1 kHz 控制链的调度后果</a><a class="headerlink" href="#hz-1-khz" title="Link to this heading"></a></h2>
 <p>100 Hz 控制周期是 10 ms。若同一 Processor 上另一只 callback 尚余 3 ms 才返回，新任务即使已经完成 transport、Fill 和 notify，也先承担这 3 ms 非抢占等待，再加 CV wake、run queue 扫描和自身计算。</p>
 <p>1 kHz 周期只有 1 ms。同样的固定开销占比扩大十倍，偶发 allocator 慢路、page fault、mutex contention 或一次 1 ms 以上 callback 都可能跨周期。</p>
 <p>端到端 callback 启动可拆成：</p>
@@ -2285,13 +2807,13 @@ Processor thread:
 <p>对关键控制链，常见结构选择是独立 group/CPU、很小的 input queue、短而不阻塞的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code>、预热内存、确认 OS policy/affinity 系统调用成功，并把日志、录制和可视化放到其他 group。</p>
 </section>
 <section id="shutdown-croutine">
-<h2><a class="toc-backref" href="#id20" role="doc-backlink">Shutdown 对运行中 CRoutine 的等待</a><a class="headerlink" href="#shutdown-croutine" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">Shutdown 对运行中 CRoutine 的等待</a><a class="headerlink" href="#shutdown-croutine" title="Link to this heading"></a></h2>
 <p>Scheduler 删除一只 routine 时，不能在它正在 Processor 栈上执行 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 的同时释放对象。<code class="docutils literal notranslate"><span class="pre">Acquire()</span></code> flag 除了防止双 worker 重入，也让删除路径知道 task 是否仍在运行。</p>
 <p>Classic 删除会先从 task id map 擦除并 Stop，再在 run queue 写锁下等待 <code class="docutils literal notranslate"><span class="pre">Acquire()</span></code> 成功，随后才移除对应 shared pointer。正在执行的 Processor 在 <code class="docutils literal notranslate"><span class="pre">Resume()</span></code> 返回后调用 <code class="docutils literal notranslate"><span class="pre">Release()</span></code>，删除线程才可能继续。</p>
 <p>这避免 callback 使用已析构 DataVisitor 或 Component，却带来一个边界：永不返回的 <code class="docutils literal notranslate"><span class="pre">Proc()</span></code> 会让 shutdown 永远等待。C++ 没有安全通用的方法从外部杀死任意线程栈，业务代码必须自行设计取消点和有限等待。</p>
 </section>
-<section id="id6">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">手搓最小执行面</a><a class="headerlink" href="#id6" title="Link to this heading"></a></h2>
+<section id="id8">
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">手搓最小执行面</a><a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
 <p>在已有 ring、Dispatcher 和 Notifier 后，最小 task 可以先不用真正 stackful coroutine，而用显式状态机：</p>
 <div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">enum</span><span class="w"> </span><span class="k">class</span><span class="w"> </span><span class="nc">TaskState</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">Ready</span><span class="p">,</span><span class="w"> </span><span class="n">DataWait</span><span class="p">,</span><span class="w"> </span><span class="n">Running</span><span class="p">,</span><span class="w"> </span><span class="n">Stopped</span><span class="w"> </span><span class="p">};</span>
 
@@ -2311,11 +2833,87 @@ Processor thread:
 4. stop 后不再开始新 callback，正在运行的 callback 有清晰退出/等待规则
 </pre></div>
 </div>
+<p>下面的<strong>教学最小例子</strong>不用独立协程栈，只实现持久 task 与一只 worker。它刻意让 <code class="docutils literal notranslate"><span class="pre">pending</span></code> 成为布尔闩锁：十次 Notify 可以合并，但数据条数仍由 task 自己的 ring 保存。</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="nc">MiniTask</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">bool</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="n">step</span><span class="p">;</span><span class="w">  </span><span class="c1">// 处理一条；仍有 backlog 时返回 true</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">pending</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MiniExecutor</span><span class="w"> </span><span class="p">{</span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span>
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Add</span><span class="p">(</span><span class="n">TaskId</span><span class="w"> </span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">function</span><span class="o">&lt;</span><span class="kt">bool</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
+<span class="w">    </span><span class="n">tasks_</span><span class="p">.</span><span class="n">emplace</span><span class="p">(</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">make_shared</span><span class="o">&lt;</span><span class="n">MiniTask</span><span class="o">&gt;</span><span class="p">(</span><span class="n">MiniTask</span><span class="p">{</span><span class="n">std</span><span class="o">::</span><span class="n">move</span><span class="p">(</span><span class="n">step</span><span class="p">)}));</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Notify</span><span class="p">(</span><span class="n">TaskId</span><span class="w"> </span><span class="n">id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
+<span class="w">      </span><span class="k">auto</span><span class="w"> </span><span class="n">it</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tasks_</span><span class="p">.</span><span class="n">find</span><span class="p">(</span><span class="n">id</span><span class="p">);</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">it</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">tasks_</span><span class="p">.</span><span class="n">end</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">      </span><span class="n">it</span><span class="o">-&gt;</span><span class="n">second</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">cv_</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Run</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(;;)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MiniTask</span><span class="o">&gt;</span><span class="w"> </span><span class="n">task</span><span class="p">;</span>
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">unique_lock</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
+<span class="w">        </span><span class="n">cv_</span><span class="p">.</span><span class="n">wait</span><span class="p">(</span><span class="n">lock</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">stopping_</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">HasReadyTask</span><span class="p">();</span><span class="w"> </span><span class="p">});</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">stopping_</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">        </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SelectReadyTask</span><span class="p">();</span>
+<span class="w">        </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">        </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+
+<span class="w">      </span><span class="k">const</span><span class="w"> </span><span class="kt">bool</span><span class="w"> </span><span class="n">more</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">step</span><span class="p">();</span><span class="w">  </span><span class="c1">// 锁外执行业务</span>
+
+<span class="w">      </span><span class="p">{</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
+<span class="w">        </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">running</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">        </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">task</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">more</span><span class="p">;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">more</span><span class="p">)</span><span class="w"> </span><span class="n">cv_</span><span class="p">.</span><span class="n">notify_one</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w">  </span><span class="kt">void</span><span class="w"> </span><span class="n">Stop</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">lock_guard</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="o">&gt;</span><span class="w"> </span><span class="n">lock</span><span class="p">(</span><span class="n">mutex_</span><span class="p">);</span>
+<span class="w">      </span><span class="n">stopping_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="n">cv_</span><span class="p">.</span><span class="n">notify_all</span><span class="p">();</span>
+<span class="w">  </span><span class="p">}</span>
+
+<span class="w"> </span><span class="k">private</span><span class="o">:</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">HasReadyTask</span><span class="p">()</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="p">[</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">]</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">tasks_</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">task</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">task</span><span class="o">-&gt;</span><span class="n">running</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MiniTask</span><span class="o">&gt;</span><span class="w"> </span><span class="n">SelectReadyTask</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="k">auto</span><span class="o">&amp;</span><span class="w"> </span><span class="p">[</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">]</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">tasks_</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">task</span><span class="o">-&gt;</span><span class="n">pending</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">task</span><span class="o">-&gt;</span><span class="n">running</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">task</span><span class="p">;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{};</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">mutex</span><span class="w"> </span><span class="n">mutex_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">condition_variable</span><span class="w"> </span><span class="n">cv_</span><span class="p">;</span>
+<span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">unordered_map</span><span class="o">&lt;</span><span class="n">TaskId</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">shared_ptr</span><span class="o">&lt;</span><span class="n">MiniTask</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="n">tasks_</span><span class="p">;</span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">stopping_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span>
+<span class="p">};</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">running</span></code> 在同一 mutex 下检查和修改，保证两个 worker 不会取得同一 task；业务执行期间锁已释放，producer 可以继续把消息写入 ring 并设置 <code class="docutils literal notranslate"><span class="pre">pending</span></code>。若通知发生在 <code class="docutils literal notranslate"><span class="pre">step()</span></code> 执行期间，返回后的 <code class="docutils literal notranslate"><span class="pre">pending</span> <span class="pre">||</span> <span class="pre">more</span></code> 会保留这次更新。调用方可以用一只 <code class="docutils literal notranslate"><span class="pre">std::thread</span> <span class="pre">worker([&amp;]</span> <span class="pre">{</span> <span class="pre">executor.Run();</span> <span class="pre">});</span></code> 承载循环，关闭时先 <code class="docutils literal notranslate"><span class="pre">Stop()</span></code>，再 <code class="docutils literal notranslate"><span class="pre">worker.join()</span></code>。示例省略头文件和 <code class="docutils literal notranslate"><span class="pre">TaskId</span></code> 别名；生产版本还需实现并发安全的 Remove、回调异常隔离，以及“正在运行的 task 何时允许删除”的等待协议。</p>
 <p>等状态机正确后再替换为 stackful coroutine，增加 <code class="docutils literal notranslate"><span class="pre">Resume/Yield</span></code> 和独立栈。不要让协程库的上下文切换细节掩盖 runnable state 的正确性。</p>
 <p>公平策略也应单独设计。若用 ready deque，就明确入队去重和轮转；若用持久 task vector，就明确扫描复杂度与 starvation 边界。priority、OS affinity 和实时 policy 最后再加，因为它们不能修复错误的唤醒协议。</p>
 </section>
-<section id="id7">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink">从局部机制回到完整消息链</a><a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<section id="id9">
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">从局部机制回到完整消息链</a><a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
 <p>现在所有局部机制已经有了位置：DAG 创建对象，DataVisitor 拥有 ring，Dispatcher 写数据，Notifier 传播事件，event latch 防止丢唤醒，Classic 选择 routine，Processor 恢复协程。</p>
 <p>下一章不再引入新的核心对象，而是选一条消息把这些部件完整组装起来，并对 INTRA、SHM、RTPS 的线程和复制点做对照。读者此时看到 <code class="docutils literal notranslate"><span class="pre">Receiver</span> <span class="pre">-&gt;</span> <span class="pre">Dispatcher</span> <span class="pre">-&gt;</span> <span class="pre">Buffer</span> <span class="pre">-&gt;</span> <span class="pre">Notifier</span> <span class="pre">-&gt;</span> <span class="pre">Scheduler</span> <span class="pre">-&gt;</span> <span class="pre">Processor</span> <span class="pre">-&gt;</span> <span class="pre">Proc</span></code>，每个箭头都已经有具体数据结构和状态机支撑。</p>
 </section>
@@ -2325,8 +2923,8 @@ Processor thread:
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="dispatcher-notifier.html" class="btn btn-neutral float-left" title="进程内数据分发：Dispatcher、弱引用与 Notifier" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="message-to-proc.html" class="btn btn-neutral float-right" title="完整消息链：从 Receiver 到 Component::Proc()" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="multi-input-fusion.html" class="btn btn-neutral float-left" title="多输入组件：DataVisitor 与 AllLatest 的消息组合语义" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="cpp-type-runtime.html" class="btn btn-neutral float-right" title="Cyber RT 的 C++ 类型系统：静态消息类型与动态组件运行时" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

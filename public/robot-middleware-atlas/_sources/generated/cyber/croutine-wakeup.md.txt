@@ -1,4 +1,4 @@
-# 任务唤醒与执行：从 event latch 到 Processor
+# 从一任务一线程到 Cyber Scheduler：任务、协程与 Processor
 
 ```{contents} Contents
 :depth: 2
@@ -6,11 +6,72 @@
 ```
 
 
-上一章结束时，transport 线程已经做完两件事：消息写入 `CacheBuffer`，`DataNotifier` 调用了 `Scheduler::NotifyProcessor(task_id)`。但业务 `Proc()` 仍未执行。
+自动驾驶进程里可能同时存在相机感知、点云处理、定位、预测、规划、监控和录制任务。如果每个 Reader 都在消息到达时临时创建线程，线程栈、创建开销和内核调度实体会随消息频率爆炸；如果每个任务永久占一只线程，几十到几百个低占空比任务又会浪费栈空间并增加上下文切换。
+
+本章不从 Scheduler 的成员变量开始，而是从这个资源分配问题推导执行架构。我们先实现会失败的一任务一线程版本，再引入可复用 worker、任务状态与唤醒谓词，最后对照固定提交中的 `RoutineFactory -> CRoutine -> ProcessorContext -> Processor`。上一章留下的运行时起点是：transport 线程已经把消息写入 `CacheBuffer`，`DataNotifier` 已调用 `NotifyProcessor(task_id)`，但业务 `Proc()` 尚未执行。
+
+## 第一版：每条消息创建线程
+
+初学者可能先写出下面的**错误示例**：
+
+```cpp
+void OnMessage(std::shared_ptr<const Image> image) {
+  std::thread([this, image = std::move(image)] {
+    component_->Proc(image);
+  }).detach();
+}
+```
+
+它把业务移出了接收线程，却失去了资源上界。60 Hz 相机若一次推理超过 16.7 ms，线程会持续累积；每只线程都需要用户栈和内核调度实体，`detach()` 又让关闭路径无法 join 在途工作。lambda 按值捕获的裸 `this` 还可能在 Component 析构后继续访问对象。这里真正需要的不是“更多线程”，而是把逻辑任务与执行它的 OS 线程分离。
+
+## 第二版：线程池仍然缺少持久任务状态
+
+普通线程池会把每条消息包装成一次性 `std::function<void()>`：
+
+```cpp
+void OnMessage(MessagePtr msg) {
+  pool.Submit([consumer, msg = std::move(msg)] {
+    consumer->Proc(msg);
+  });
+}
+```
+
+它限制了内核线程数，却让 ready queue 同时拥有任务和 payload。高频 channel 会产生大量 closure 与引用计数操作；同一组件可能被多个 worker 并发重入；队列满时还必须决定阻塞接收线程、丢任务还是丢消息。更重要的是，消息已经存在 DataVisitor 的有界 ring 中，再把 payload 复制进执行队列会建立第二套容量和丢弃语义。
+
+Cyber 因而采用持久任务：ring 保存“有多少数据”，CRoutine 保存“从哪里继续执行”，scheduler 只管理“哪只任务可能可运行”。一次通知不携带 payload，只让既有 task 再检查自己的 DataVisitor。
 
 这一章回答执行面的核心问题：task id 怎样找到一只 CRoutine，休眠中的 worker 怎样被唤醒，为什么“检查队列为空”和“准备睡眠”之间不会丢事件，Classic scheduler 又怎样选择最终运行的 routine。
 
 先给出本章边界：消息 payload 已经留在 ring 中，后续调度链不再搬运它。调度器只传播 task identity 和 runnable state，直到 Processor 恢复协程，DataVisitor 才重新从 ring 取出 `shared_ptr<Message>`。
+
+从零设计时，可以由四个问题推导四种对象：
+
+| 工程问题 | 推导出的对象 | 固定源码对应 |
+|---|---|---|
+| 业务函数和读取位置怎样长期绑定 | task/routine | `RoutineFactory`、`CRoutine` |
+| 谁保存 READY、WAIT、SLEEP 等状态 | task control block | `CRoutine::state_`、`updated_` |
+| 谁从许多任务中选择下一只 | scheduling context | `ClassicContext`、`ChoreographyContext` |
+| 谁真正占用 CPU | worker | `Processor` 内的 `std::thread` |
+
+:::{mermaid}
+flowchart LR
+  DV[DataVisitor<br/>payload 与 cursor]
+  RF[RoutineFactory<br/>类型化函数变成无参循环]
+  CR[CRoutine<br/>栈 上下文 状态 task id]
+  PC[ProcessorContext<br/>持久 run queue 与选择策略]
+  P[Processor<br/>OS std::thread]
+  PROC[Component Proc]
+
+  DV --> RF
+  RF --> CR
+  CR --> PC
+  P --> PC
+  P --> CR
+  CR --> DV
+  CR --> PROC
+:::
+
+这组边界刻意把“做什么”和“用哪只线程做”拆开。CRoutine 是逻辑任务，不是线程；Processor 是执行资源，不保存消息；ProcessorContext 是策略与等待位置，不理解 protobuf 类型；DataVisitor 保存数据，却不决定自己何时获得 CPU。
 
 ```text
 DataNotifier callback                         Processor OS thread
@@ -31,6 +92,32 @@ Scheduler::NotifyProcessor(task_id)                 |
                                                     |
                                       Component::Process/Proc()
 ```
+
+:::{mermaid}
+sequenceDiagram
+  participant T as transport thread
+  participant N as DataNotifier
+  participant S as SchedulerClassic
+  participant C as ClassicContext
+  participant P as Processor OS thread
+  participant R as CRoutine
+  participant D as DataVisitor
+
+  T->>N: Notify(channel_id)
+  N->>S: NotifyProcessor(task_id)
+  S->>R: SetUpdateFlag
+  S->>C: Notify(group)
+  C-->>P: condition_variable notify_one
+  P->>C: NextRoutine
+  C->>R: Acquire + UpdateState
+  P->>R: Resume
+  R->>D: TryFetch
+  D-->>R: shared_ptr message
+  R->>R: Component Proc
+  R-->>P: Yield
+:::
+
+同一条垂直线不等于同一线程。左侧通知链在 transport 线程同步运行；`notify_one` 之后，右侧 Processor 何时继续由 Linux 调度器决定；`Resume` 才从 Processor 主栈切到 CRoutine 栈。
 
 ## Task 的函数、数据与调度身份
 
@@ -61,6 +148,26 @@ if (visitor != nullptr) {
 task id 是调度身份，不是线程 id。多只 CRoutine 可以由同一 Processor 线程轮流执行；同一只 CRoutine 也不是永远绑定在创建它的线程上，具体约束由 scheduling policy 和 context 决定。
 
 创建顺序同样重要：`DispatchTask(cr)` 先让策略认识这只 routine，随后才注册按 task id 唤醒它的 callback。这样第一个 notifier 事件到来时，scheduler 已经有目标对象可查。
+
+真实 `CRoutine` 不是只有一个 callback。固定提交的 [`cyber/croutine/croutine.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/croutine/croutine.h) 把一只可调度任务所需的状态集中在同一对象中：
+
+```cpp
+// 固定提交源码摘录：省略 getter/setter
+RoutineFunc func_;
+RoutineState state_;
+std::shared_ptr<RoutineContext> context_;
+std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
+std::atomic_flag updated_ = ATOMIC_FLAG_INIT;
+bool force_stop_ = false;
+int processor_id_ = -1;
+uint32_t priority_ = 0;
+uint64_t id_ = 0;
+std::string group_name_;
+```
+
+`func_` 与 `context_` 采用组合：任务拥有要执行的函数和用户态上下文，不需要通过继承为每种消息类型创建新的调度类。消息类型已经在 RoutineFactory 的 lambda 中被擦除，Scheduler 因而只存一种 `shared_ptr<CRoutine>`。
+
+两只 atomic flag 解决不同不变量。`lock_` 是执行权，防止两个 Processor 同时 Resume 同一栈；`updated_` 是可合并事件，防止等待边界丢通知。priority、group 和 processor id 支持 Classic 分组扫描与 Choreography 绑定；把调度属性放在 task control block 中，策略无需认识业务 Component。
 
 ## `CreateRoutineFactory` 生成的不是一次性 callback
 
@@ -248,6 +355,33 @@ Processor thread:
 
 消息对象通过 ring 连接两个线程，不通过调用栈直接跨越。
 
+### 一只 Processor 内核线程怎样被创建和绑核
+
+[`Processor::BindContext()`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/scheduler/processor.cc#L78-L89) 用 `std::call_once` 保证对象只启动一次 `std::thread`。线程进入 `Run()` 后又通过 `syscall(SYS_gettid)` 取得 Linux TID；这里的对象 id、C++ `std::thread::id`、POSIX `pthread_t` 与 Linux TID 是不同命名空间，设置 nice 值时需要的是最后一个。
+
+Classic 策略不是创建一个抽象的“执行器”便结束。它为每个 group 建立共享的 `ClassicContext`，再创建配置数量的 Processor，并把真实线程交给资源控制函数：
+
+```cpp
+auto ctx = std::make_shared<ClassicContext>(group_name);
+auto processor = std::make_shared<Processor>();
+processor->BindContext(ctx);
+SetSchedAffinity(processor->Thread(), cpuset, affinity, i);
+SetSchedPolicy(processor->Thread(), processor_policy,
+               processor_prio, processor->Tid());
+```
+
+上面是依据固定源码 [`scheduler_classic.cc`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/policy/scheduler_classic.cc#L82-L109) 删节的真实代码。完整实现中的 [`SetSchedAffinity`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/common/pin_thread.cc#L52-L72) 调用 `pthread_setaffinity_np`：`range` 给线程一个可运行 CPU 集合，`1to1` 按 Processor 序号选择单核。绑的是承载协程的 Linux 线程；线程上的所有 CRoutine 随它一起受约束。
+
+affinity 只限制“可以在哪些 CPU 上运行”，不保证“何时运行”。普通 `SCHED_OTHER` 仍由 Linux 公平调度并用 nice 值影响权重；`SCHED_FIFO`/`SCHED_RR` 使用实时优先级，设置通常还需要相应权限。固定版本的 [`SetSchedPolicy`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/scheduler/common/pin_thread.cc#L75-L95) 没有把这些系统调用的失败可靠地反馈给配置方，因此 conf 写了 FIFO 不能证明内核已经接受。工程验收必须检查返回值或进程运行态；错误的实时配置还可能让低优先级 housekeeping 线程饥饿。
+
+### `Resume/Yield`：换用户栈，不换内核线程
+
+固定版本的 [`RoutineContext`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/routine_context.h#L29-L49) 内嵌 2 MiB 栈数组和保存的栈指针。不能笼统说“协程栈一定很小”：对象会占用相应虚拟地址空间，实际物理驻留还取决于触页，对新页的首次访问可能产生 page fault。
+
+`Resume()` 设置当前线程的 `thread_local current_routine_`，然后把 Processor 主栈与 routine 栈交给 `SwapContext`；`Yield()` 反向交换。x86-64 的 [`swap_x86_64.S`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06e6d0cd175d5623a34fa0d6aa/cyber/croutine/detail/swap_x86_64.S) 保存 ABI 要求跨调用保持的寄存器，交换 `%rsp` 后用 `ret` 进入先前保存的执行点。这里没有系统调用，也没有让内核重新选择线程，但仍有保存寄存器、改变栈工作集和 cache 行为的成本。
+
+`thread_local` 仍属于 Processor 线程，并不会自动变成 coroutine-local。若一只 CRoutine 在 `Proc()` 中执行阻塞 `read`、`recv` 或长时间 `sleep`，内核阻塞的是整只 Processor，挂在同一线程上的其他 CRoutine 也无法运行。由此可以看出，协程减少线程数量，并没有消除对业务代码“短、可返回、避免无界阻塞”的约束。
+
 ## 协作式执行的非抢占边界
 
 进入 `CRoutine::Resume()` 后，当前 Processor 一直执行这只 routine，直到它 `Yield()` 回主栈。对 Component task 而言，Yield 位于用户 `Proc()` 返回之后。
@@ -329,6 +463,85 @@ producer 写数据后把 `updated=true` 并通知 condition variable。worker �
 3. 多次 notify 可以合并，消息数量由 buffer 保存
 4. stop 后不再开始新 callback，正在运行的 callback 有清晰退出/等待规则
 ```
+
+下面的**教学最小例子**不用独立协程栈，只实现持久 task 与一只 worker。它刻意让 `pending` 成为布尔闩锁：十次 Notify 可以合并，但数据条数仍由 task 自己的 ring 保存。
+
+```cpp
+struct MiniTask {
+  std::function<bool()> step;  // 处理一条；仍有 backlog 时返回 true
+  bool pending = false;
+  bool running = false;
+};
+
+class MiniExecutor {
+ public:
+  void Add(TaskId id, std::function<bool()> step) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    tasks_.emplace(id, std::make_shared<MiniTask>(MiniTask{std::move(step)}));
+  }
+
+  void Notify(TaskId id) {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      auto it = tasks_.find(id);
+      if (it == tasks_.end()) return;
+      it->second->pending = true;
+    }
+    cv_.notify_one();
+  }
+
+  void Run() {
+    for (;;) {
+      std::shared_ptr<MiniTask> task;
+      {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [&] { return stopping_ || HasReadyTask(); });
+        if (stopping_) return;
+        task = SelectReadyTask();
+        task->pending = false;
+        task->running = true;
+      }
+
+      const bool more = task->step();  // 锁外执行业务
+
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+        task->running = false;
+        task->pending = task->pending || more;
+      }
+      if (more) cv_.notify_one();
+    }
+  }
+
+  void Stop() {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      stopping_ = true;
+    }
+    cv_.notify_all();
+  }
+
+ private:
+  bool HasReadyTask() const {
+    for (const auto& [id, task] : tasks_) {
+      if (task->pending && !task->running) return true;
+    }
+    return false;
+  }
+  std::shared_ptr<MiniTask> SelectReadyTask() {
+    for (const auto& [id, task] : tasks_) {
+      if (task->pending && !task->running) return task;
+    }
+    return {};
+  }
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::unordered_map<TaskId, std::shared_ptr<MiniTask>> tasks_;
+  bool stopping_ = false;
+};
+```
+
+`running` 在同一 mutex 下检查和修改，保证两个 worker 不会取得同一 task；业务执行期间锁已释放，producer 可以继续把消息写入 ring 并设置 `pending`。若通知发生在 `step()` 执行期间，返回后的 `pending || more` 会保留这次更新。调用方可以用一只 `std::thread worker([&] { executor.Run(); });` 承载循环，关闭时先 `Stop()`，再 `worker.join()`。示例省略头文件和 `TaskId` 别名；生产版本还需实现并发安全的 Remove、回调异常隔离，以及“正在运行的 task 何时允许删除”的等待协议。
 
 等状态机正确后再替换为 stackful coroutine，增加 `Resume/Yield` 和独立栈。不要让协程库的上下文切换细节掩盖 runnable state 的正确性。
 

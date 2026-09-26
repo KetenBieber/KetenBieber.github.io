@@ -108,13 +108,13 @@ using MessageTuple = std::tuple<std::shared_ptr<Messages>...>;
 ```cpp
 buffer_m0_(config.channel_id[0],
            new CacheBuffer<std::shared_ptr<M0>>(
-               config.queue_size[0] + 1)),
+               config.queue_size[0])),
 buffer_m1_(config.channel_id[1],
            new CacheBuffer<std::shared_ptr<M1>>(
-               config.queue_size[1] + 1))
+               config.queue_size[1]))
 ```
 
-`queue_size + 1` 来自环形缓冲区用一个空槽区分满与空的实现约定。对外配置容量为 `N`，内部数组需要 `N + 1` 个槽位；这不是额外保留一条可消费消息。
+这里传给构造器的是原始 `queue_size`，不是 `queue_size + 1`。多出来的空槽由 `CacheBuffer(size)` 构造器内部统一分配：配置为 `N` 时，逻辑上最多保留 `N` 条消息，底层 vector 才有 `N + 1` 个槽位。把两层都加一会误写成逻辑容量 `N + 1`，也不符合固定提交的 [`data_visitor.h`](https://github.com/ApolloAuto/apollo/blob/d53aa3da47a06a08e6d0cd175d5623a34fa0d6aa/cyber/data/data_visitor.h#L46-L147)。
 
 构造完成后，两只缓存分别登记到类型化 Dispatcher：
 
