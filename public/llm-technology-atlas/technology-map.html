@@ -1509,6 +1509,132 @@ window.runMermaid = runMermaid;</script>
 <li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B011-llama3.html#id17">49. 最终自检</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html">Qwen2.5：从 18T 数据到 Offline DPO + Online GRPO，一套“模型家族化”的训练系统</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5">1. 先看定位：Qwen2.5 不是一个模型，而是一个“产品曲线”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id2">2. 整体主线：真正需要读的是六层系统</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#dense-transformer-recipe">3. Dense 骨干：没有换掉 Transformer，而是在成熟 recipe 上继续扩展</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id3">4. 模型尺寸为什么要铺得这么密？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#gqa-kv">5. GQA：不同尺寸实际上选择了不同程度的 KV 共享</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#tokenizer-151-643-token-22-control-token">6. Tokenizer：151,643 个普通 token + 22 个 control token</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#vocabulary">6.1 Vocabulary 不只服务自然语言压缩</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#tokenizer">6.2 全尺寸统一 tokenizer</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#moe-qwen2-5-dense-model">7. MoE 分支：Qwen2.5 不只是一组 dense model</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#fine-grained-experts">Fine-grained experts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#shared-experts">Shared experts</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5-7t-18t-tokens">8. Qwen2.5 的真正主变量之一：7T → 18T tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-instruct-qwen2-5">9. 数据飞轮：Qwen2-Instruct 反过来筛选 Qwen2.5 的预训练数据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#math-code-pre-training">10. Math / Code 数据不是后训练补丁，而是进入 pre-training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#synthetic-data">11. Synthetic data：不是“模型生成的数据全部加入”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#data-mixture">12. Data mixture：真实互联网分布再次被主动改写</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#figure-1">13. 原论文 Figure 1：数据规模只是横轴，不是全部因果</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#scaling-law-qwen2-5-llama-3">14. Scaling Law：Qwen2.5 和 Llama 3 问的不是同一个问题</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#learning-rate">15. 为什么大模型不能直接沿用小模型 learning rate？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#scaling-law-moe">16. Scaling law 还用于设计 MoE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#k-32k">17. 长上下文第一阶段：训练时先从 4K 扩到 32K</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#phase-1">Phase 1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#final-long-context-phase">Final long-context phase</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#turbo-32k-65k-131k-262k">18. Turbo 的长上下文训练更激进：32K → 65K → 131K → 262K</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#training-contextextrapolated-contextserving-context">19. Training context、extrapolated context、serving context 必须分开</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id4">普通 Qwen2.5</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5-turbo">Qwen2.5-Turbo</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#yarn-rope">20. YaRN：解决 RoPE 长度外推</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#dual-chunk-attention-attention">21. Dual Chunk Attention：解决长序列如何组织 Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#dca-yarn-ablation">22. 为什么论文还需要专门做 DCA + YaRN ablation？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#post-training-qwen2-5-rl">23. Post-training：Qwen2.5 不再是一段“统一 RL”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#sft-offline-dpo-online-grpo">24. 为什么先 SFT，再 Offline DPO，再 Online GRPO？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#sft">SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#offline-dpo">Offline DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#online-grpo">Online GRPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#sft-100-capability-coverage">25. SFT：超过 100 万样本，但真正重要的是 capability coverage</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#long-response-sft-generation-length">26. Long-response SFT：为什么 generation length 也必须显式训练？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#math-sft-rejection-sampling">27. Math SFT：Rejection Sampling 再次出现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#coding-sft">28. Coding SFT：代码数据最大的优势是可执行验证</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#instruction-following-llm-instruction-verifier">29. Instruction Following：让 LLM 同时生成 instruction 和 verifier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#structured-data-json">30. Structured Data：为什么表格、JSON 需要单独训练？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#logical-reasoning-70k-query">31. Logical Reasoning：70K query 的关键不是数量，而是推理类型覆盖</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#cross-lingual-transfer">32. Cross-lingual transfer：不是所有语言都重新造一套能力数据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#robust-system-instruction-system-prompt">33. Robust System Instruction：为什么 system prompt 也需要分布覆盖？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#response-filtering-judge">34. Response Filtering：多 judge 一致才保留</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#offline-rl-rl-dpo">35. Offline RL：名字叫 RL，主算法实际上是 DPO</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#objective-query-offline-dpo">36. 为什么 objective query 更适合 Offline DPO？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id5">数学题</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id6">主观写作</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#dpo-llama-3-dpo">37. DPO 在这里和 Llama 3 的 DPO 角色有什么不同？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#online-rl-reward-model">38. Online RL：为什么现在才引入 Reward Model？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#online-rl-grpo">39. Online RL 为什么使用 GRPO？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#curriculum-reward-variance-query">40. 一个非常有意思的 curriculum：按 reward variance 排 query</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#high-reward-variance">41. 为什么 high reward variance 可能更“值得学”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id7">42. Online GRPO 的具体采样规模</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5-deepseek-r1-grpo">43. Qwen2.5 与 DeepSeek-R1 都用了 GRPO，但目标分布并不相同</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#deepseek-r1">DeepSeek-R1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id8">Qwen2.5</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#long-context-sft-turbo">44. Long-context SFT：Turbo 为什么还要再做两阶段？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#long-context-rl-short-instructions">45. 一个反直觉设计：Long-context RL 反而只用 short instructions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#m-context">46. 1M context 到底从哪里来？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#passkey-1m">47. 原论文 Passkey 图：证明“能找回来”，但不等于“理解了整篇 1M 文档”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#m-context-full-attention">48. 1M context 的另一个问题：Full Attention 即使能算，也可能太慢</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#sparse-inference-runtime-acceleration-sparse-transformer">49. Sparse inference：这是 runtime acceleration，不是重新训练一个 sparse Transformer</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#architecture">模型 architecture</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id9">长度外推</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#serving-acceleration">Serving acceleration</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#ttft-time-to-first-token">50. 原论文 TTFT 图：为什么要看 Time To First Token？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5-llama-3-scaling-post-training">51. Qwen2.5 与 Llama 3：相似，但 scaling 与 post-training 更“分层”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#qwen2-5-deepseek-moe-grpo">52. Qwen2.5 与 DeepSeek：MoE 与 GRPO 两条技术线在这里汇合</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id10">架构侧</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id11">后训练侧</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#specialist-generalist">53. 一个很值得保留的系统观点：Specialist 与 Generalist 是双向流动的</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#general-specialist">General → Specialist</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#specialist-data-general">Specialist data → General</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id12">54. 为什么这种循环对具身智能也很重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id13">55. 实验结果应该怎样看？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#long-context-ablation-leaderboard">56. Long-context ablation 比 leaderboard 更有因果价值</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id14">57. 论文中哪些结论不能过度扩张？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#t-token">57.1 18T 不等于 token 越多越好</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#m-passkey-100-1m-reasoning">57.2 1M Passkey 100% 不等于所有 1M reasoning 都完美</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#b-benchmark">57.3 72B 某些 benchmark 接近更大模型，不等于参数规模不重要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#grpo-grpo-alignment-task-dpo">57.4 GRPO 有效不等于 GRPO 在所有 alignment task 都优于 DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#short-context-rl-long-context-long-context-rl">57.5 Short-context RL 能迁移到 long-context，不等于 long-context RL 永远没价值</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id15">58. 把整篇 Qwen2.5 压成一条因果链</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id16">59. 三篇现代模型报告放在一起，现在能看到什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#llama-3">Llama 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id17">Qwen2.5</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#deepseek-v3-r1">DeepSeek-V3 / R1</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id18">60. 从 Qwen2.5 暴露出的真正下钻节点</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#dpo">DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#scaling-laws-chinchilla">Scaling Laws / Chinchilla</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#yarn">YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#distributed-long-context-runtime">Distributed / long-context runtime</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id19">61. 下一步：不应该立刻继续堆模型</a></li>
+<li class="toctree-l3"><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html#id20">62. 最终自检</a></li>
+</ul>
+</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="post-training/index.html">推理后训练</a><ul>
@@ -1668,6 +1794,12 @@ window.runMermaid = runMermaid;</script>
   T --&gt; L3[&quot;Llama 3&quot;]
   R --&gt; L3
   GQA --&gt; L3
+
+  T --&gt; Q25[&quot;Qwen2.5&quot;]
+  R --&gt; Q25
+  GQA --&gt; Q25
+  DSM --&gt; Q25
+  GRPO --&gt; Q25
     </pre></section>
 <section id="dense-transformer">
 <h2>第二条主干：标准 Dense Transformer 的规模化路线<a class="headerlink" href="#dense-transformer" title="Link to this heading"></a></h2>
@@ -1682,6 +1814,11 @@ window.runMermaid = runMermaid;</script>
   L3 --&gt; LC[&quot;128K continued pre-training&quot;]
   L3 --&gt; PT[&quot;RM → RS → SFT → DPO&quot;]
   L3 --&gt; SYS[&quot;4D parallelism / FP8 inference&quot;]
+  GQA --&gt; Q25[&quot;Qwen2.5&quot;]
+  R --&gt; Q25
+  Q25 --&gt; FAMILY[&quot;0.5B → 72B dense + MoE services&quot;]
+  Q25 --&gt; QPT[&quot;SFT → Offline DPO → Online GRPO&quot;]
+  Q25 --&gt; QLC[&quot;32K / 262K training → 128K / 1M serving&quot;]
     </pre></section>
 <section id="id2">
 <h2>快速跳转<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
@@ -1724,6 +1861,9 @@ window.runMermaid = runMermaid;</script>
 </tr>
 <tr class="row-even"><td><p>为什么标准 Dense Transformer 仍能扩到 405B，并把 8K 扩到 128K</p></td>
 <td><p><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B011-llama3.html"><span class="doc">Llama 3</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>18T 数据、多尺寸模型、Offline DPO / Online GRPO 与 1M context 怎样组成一个模型家族</p></td>
+<td><p><a class="reference internal" href="generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html"><span class="doc">Qwen2.5</span></a></p></td>
 </tr>
 </tbody>
 </table>
