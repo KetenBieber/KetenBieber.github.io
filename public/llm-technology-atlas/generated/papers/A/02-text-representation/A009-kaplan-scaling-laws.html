@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RMSNorm：为什么只做均方根缩放也能稳定 Transformer &mdash; LLM Technology Atlas</title>
+  <title>Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题” &mdash; LLM Technology Atlas</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
@@ -23,11 +23,369 @@
       <script src="../../../../_static/translations.js?v=beaddf03"></script>
       <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.12.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+const initStyles = () => {
+    const defaultStyle = document.createElement('style');
+    defaultStyle.textContent = "pre.mermaid {\n    /* Same as .mermaid-container > pre */\n    display: block;\n    width: 100%;\n}\n\npre.mermaid > svg {\n    /* Same as .mermaid-container > pre > svg */\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}";
+    document.head.appendChild(defaultStyle);
+
+    const fullscreenStyle = document.createElement('style');
+    fullscreenStyle.textContent = ".mermaid-container {\n    position: relative;\n    display: flex;\n    flex-direction: row;\n    width: 100%;\n}\n\n.mermaid-container > pre {\n    display: block;\n    width: 100%;\n}\n\n.mermaid-container > pre > svg {\n    height: 500px;\n    width: 100%;\n    max-width: 100% !important;\n}\n\n.mermaid-fullscreen-btn {\n    position: absolute;\n    width: 28px;\n    height: 28px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.3);\n    border-radius: 4px;\n    cursor: pointer;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    transition: all 0.2s;\n    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);\n    font-size: 14px;\n    line-height: 1;\n    padding: 0;\n    color: #333;\n}\n\n.mermaid-fullscreen-btn:hover {\n    opacity: 100% !important;\n    background: rgba(255, 255, 255, 1);\n    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-btn.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.3);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-btn.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 3px 10px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal {\n    display: none;\n    position: fixed !important;\n    top: 0 !important;\n    left: 0 !important;\n    width: 95vw;\n    height: 100vh;\n    background: rgba(255, 255, 255, 0.98);\n    z-index: 9999;\n    padding: 20px;\n    overflow: auto;\n}\n\n.mermaid-fullscreen-modal.dark-theme {\n    background: rgba(0, 0, 0, 0.98);\n}\n\n.mermaid-fullscreen-modal.active {\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen {\n    position: relative;\n    width: 95vw;\n    height: 90vh;\n    max-width: 95vw;\n    max-height: 90vh;\n    background: white;\n    border-radius: 8px;\n    padding: 20px;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);\n    overflow: auto;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen.dark-theme {\n    background: #1a1a1a;\n    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);\n}\n\n.mermaid-container-fullscreen pre.mermaid {\n    width: 100%;\n    height: 100%;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n}\n\n.mermaid-container-fullscreen .mermaid svg {\n    height: 100% !important;\n    width: 100% !important;\n    cursor: grab;\n}\n\n.mermaid-fullscreen-close {\n    position: fixed !important;\n    top: 20px !important;\n    right: 20px !important;\n    width: 40px;\n    height: 40px;\n    background: rgba(255, 255, 255, 0.95);\n    border: 1px solid rgba(0, 0, 0, 0.2);\n    border-radius: 50%;\n    cursor: pointer;\n    z-index: 10000;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);\n    transition: all 0.2s;\n    font-size: 24px;\n    line-height: 1;\n    color: #333;\n}\n\n.mermaid-fullscreen-close:hover {\n    background: white;\n    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);\n    transform: scale(1.1);\n}\n\n.mermaid-fullscreen-close.dark-theme {\n    background: rgba(50, 50, 50, 0.95);\n    border: 1px solid rgba(255, 255, 255, 0.2);\n    color: #e0e0e0;\n}\n\n.mermaid-fullscreen-close.dark-theme:hover {\n    background: rgba(60, 60, 60, 1);\n    box-shadow: 0 6px 16px rgba(255, 255, 255, 0.2);\n}\n\n.mermaid-fullscreen-modal .mermaid-fullscreen-btn {\n    display: none !important;\n}";
+    document.head.appendChild(fullscreenStyle);
+}
+
+// Detect if page has dark background
+const isDarkTheme = () => {
+    // We use a set of heuristics:
+    // 1. Check for common dark mode classes or attributes
+    // 2. Check computed background color brightness
+    if (document.documentElement.classList.contains('dark') ||
+        document.documentElement.getAttribute('data-theme') === 'dark' ||
+        document.body.classList.contains('dark') ||
+        document.body.getAttribute('data-theme') === 'dark') {
+        // console.log("Dark theme detected via class/attribute");
+        return true;
+    }
+    if (document.documentElement.classList.contains('light') ||
+        document.documentElement.getAttribute('data-theme') === 'light' ||
+        document.body.classList.contains('light') ||
+        document.body.getAttribute('data-theme') === 'light') {
+        // console.log("Light theme detected via class/attribute");
+        return false;
+    }
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        // console.log("Dark theme detected via prefers-color-scheme");
+        return true;
+    }
+    const bgColor = window.getComputedStyle(document.body).backgroundColor;
+    const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)/);
+    if (match) {
+        const r = parseInt(match[1]);
+        const g = parseInt(match[2]);
+        const b = parseInt(match[3]);
+        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+        // console.log("Background color brightness:", brightness);
+        return brightness < 128;
+    }
+    // console.log("No dark or light theme detected, defaulting to light theme");
+    return false;
+};
+
+let darkTheme = isDarkTheme();
+let modal = null;
+let modalContent = null;
+let previousScrollOffset = [window.scrollX, window.scrollY];
+let _lazyObserver = null;
+let _renderQueue = Promise.resolve();
+let closeModal = () => {};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal?.classList.contains('active')) {
+        closeModal();
+    }
+});
+
+// Apply d3 zoom to each SVG. Idempotent: an SVG already wrapped is skipped,
+// so this is safe to call both for the initial batch and for diagrams that
+// render lazily once they become visible.
+const addZoomToSvgs = (svgs) => {
+    svgs.each(function() {
+        if (this.getAttribute('data-zoom-applied') === 'true') return;
+        var svg = d3.select(this);
+        svg.html("<g class='wrapper'>" + svg.html() + "</g>");
+        var inner = svg.select("g");
+        var zoom = d3.zoom().on("zoom", function(event) {
+            inner.attr("transform", event.transform);
+        });
+        svg.call(zoom);
+        this.setAttribute('data-zoom-applied', 'true');
+    });
+};
+
+const runMermaid = async (rerun) => {
+    console.log("Running mermaid diagrams, rerun =", rerun);
+    // clear all existing mermaid charts
+    let all_mermaids = document.querySelectorAll(".mermaid");
+
+    if (rerun) {
+        // Disconnect any previous lazy rendering observer
+        if (_lazyObserver) {
+            _lazyObserver.disconnect();
+            _lazyObserver = null;
+        }
+
+        all_mermaids.forEach((el) => {
+            el.removeAttribute('data-mermaid-deferred');
+            el.removeAttribute('data-mermaid-render-failed');
+            if(!el.hasAttribute("data-original-code")) {
+                // store original code
+                // console.log(`Storing original code for first run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+            if(el.getAttribute("data-processed") === "true") {
+                // remove and restore original
+                el.removeAttribute("data-processed");
+                // console.log(`Restoring original code for re-run: `, el.getAttribute('data-original-code'));
+                el.innerHTML = el.getAttribute('data-original-code');
+            } else {
+                // store original code
+                // console.log(`Storing original code for re-run: `, el.innerHTML);
+                el.setAttribute('data-original-code', el.innerHTML);
+            }
+        });
+
+        // Separate visible and hidden elements. Mermaid's layout engine measures
+        // text dimensions via the DOM, which fails for elements hidden by a parent
+        // (e.g., Reveal.js non-active slides, sphinx-design unopened tabs),
+        // producing broken SVGs. Render visible elements now, defer hidden ones.
+        const visible = [];
+        const hidden = [];
+        all_mermaids.forEach((el) => {
+            // offsetParent is null for display:none ancestors.
+            // getClientRects().length > 0 catches position:fixed elements
+            // (which also have null offsetParent but are still visible).
+            if (el.offsetParent !== null || el.getClientRects().length > 0) {
+                visible.push(el);
+            } else {
+                hidden.push(el);
+                el.setAttribute('data-mermaid-deferred', 'true');
+            }
+        });
+
+        if (visible.length > 0) {
+            try {
+                await mermaid.run({ nodes: visible });
+            } catch (e) {
+                console.error("Mermaid rendering failed:", e);
+            }
+        }
+
+        // Lazily render hidden elements when they become visible.
+        // Uses a promise chain (_renderQueue) to serialize rendering,
+        // since IntersectionObserver may report multiple entries at once
+        // and mermaid.run() is not safe to call concurrently.
+        if (hidden.length > 0) {
+            if (typeof IntersectionObserver === 'undefined') {
+                console.warn("IntersectionObserver not available; hidden mermaid diagrams will not render.");
+            } else {
+                _renderQueue = Promise.resolve();
+                _lazyObserver = new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (entry.isIntersecting && entry.target.getAttribute("data-processed") !== "true") {
+                            _lazyObserver.unobserve(entry.target);
+                            const el = entry.target;
+                            _renderQueue = _renderQueue.then(async () => {
+                                try {
+                                    await mermaid.run({ nodes: [el] });
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    // Apply zoom to the now-rendered diagram, matching
+                                    // the decoration visible diagrams receive.
+                                    if (false) {
+                                        addZoomToSvgs(d3.selectAll("").select(function() {
+                                            return this.querySelector("svg");
+                                        }));
+                                    }
+                                } catch (e) {
+                                    console.error("Mermaid deferred rendering failed:", e);
+                                    el.removeAttribute('data-mermaid-deferred');
+                                    el.setAttribute('data-mermaid-render-failed', 'true');
+                                }
+                            });
+                        }
+                    }
+                });
+                hidden.forEach((el) => _lazyObserver.observe(el));
+            }
+        }
+    }
+
+    all_mermaids = document.querySelectorAll(".mermaid");
+    // Exclude deferred (hidden) and render-failed elements from completion checks
+    const mermaids_active = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])");
+    const mermaids_processed = document.querySelectorAll(".mermaid:not([data-mermaid-deferred]):not([data-mermaid-render-failed])[data-processed='true']");
+
+    if (false) {
+        const mermaids_to_add_zoom = 0 === -1 ? mermaids_active.length : 0;
+        if(mermaids_to_add_zoom > 0) {
+            var svgs = d3.selectAll("").select(function() {
+                return this.querySelector("svg");
+            });
+            // Wait until every active (visible) diagram has rendered. Deferred
+            // diagrams are excluded, so a fixed d3_node_count that counts a
+            // hidden diagram no longer loops forever waiting for its SVG.
+            if(mermaids_active.length !== mermaids_processed.length) {
+                setTimeout(() => runMermaid(false), 200);
+                return;
+            }
+            addZoomToSvgs(svgs);
+        }
+    } else if(mermaids_active.length !== mermaids_processed.length) {
+        // Wait for mermaid to process all diagrams
+        setTimeout(() => runMermaid(false), 200);
+        return;
+    }
+
+    // Stop here if not adding fullscreen capability
+    if (!true) return;
+
+    if (modal !== null ) {
+        // Destroy existing modal
+        modal.remove();
+        modal = null;
+        modalContent = null;
+    }
+
+    modal = document.createElement('div');
+    modal.className = 'mermaid-fullscreen-modal' + (darkTheme ? ' dark-theme' : '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', 'Fullscreen diagram viewer');
+    modal.innerHTML = `
+        <button class="mermaid-fullscreen-close${darkTheme ? ' dark-theme' : ''}" aria-label="Close fullscreen">✕</button>
+        <div class="mermaid-container-fullscreen${darkTheme ? ' dark-theme' : ''}"></div>
+    `;
+    document.body.appendChild(modal);
+
+    modalContent = modal.querySelector('.mermaid-container-fullscreen');
+    const closeBtn = modal.querySelector('.mermaid-fullscreen-close');
+
+    closeModal = () => {
+        modal.classList.remove('active');
+        modalContent.innerHTML = '';
+        document.body.style.overflow = ''
+        window.scrollTo({left: previousScrollOffset[0], top: previousScrollOffset[1], behavior: 'instant'});
+    };
+
+    closeBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+    document.querySelectorAll('.mermaid').forEach((mermaidDiv) => {
+        if (mermaidDiv.parentNode.classList.contains('mermaid-container') ||
+            mermaidDiv.closest('.mermaid-fullscreen-modal')) {
+            // Already processed, adjust button class if needed
+            const existingBtn = mermaidDiv.parentNode.querySelector('.mermaid-fullscreen-btn');
+            if (existingBtn) {
+                existingBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+            }
+            return;
+        }
+
+        const container = document.createElement('div');
+        container.className = 'mermaid-container';
+        mermaidDiv.parentNode.insertBefore(container, mermaidDiv);
+        container.appendChild(mermaidDiv);
+
+        const fullscreenBtn = document.createElement('button');
+        fullscreenBtn.className = 'mermaid-fullscreen-btn' + (darkTheme ? ' dark-theme' : '');
+        fullscreenBtn.setAttribute('aria-label', 'View diagram in fullscreen');
+        fullscreenBtn.textContent = "\u26f6";
+        fullscreenBtn.style.opacity = "50%";
+
+        // Calculate dynamic position based on diagram's margin and padding
+        const diagramStyle = window.getComputedStyle(mermaidDiv);
+        const marginTop = parseFloat(diagramStyle.marginTop) || 0;
+        const marginRight = parseFloat(diagramStyle.marginRight) || 0;
+        const paddingTop = parseFloat(diagramStyle.paddingTop) || 0;
+        const paddingRight = parseFloat(diagramStyle.paddingRight) || 0;
+        fullscreenBtn.style.top = `${marginTop + paddingTop + 4}px`;
+        fullscreenBtn.style.right = `${marginRight + paddingRight + 4}px`;
+
+        fullscreenBtn.addEventListener('click', () => {
+            previousScrollOffset = [window.scrollX, window.scrollY];
+            const clone = mermaidDiv.cloneNode(true);
+            modalContent.innerHTML = '';
+            modalContent.appendChild(clone);
+
+            const svg = clone.querySelector('svg');
+            if (svg) {
+                svg.removeAttribute('width');
+                svg.removeAttribute('height');
+                svg.style.width = '100%';
+                svg.style.height = 'auto';
+                svg.style.maxWidth = '100%';
+                svg.style.display = 'block';
+
+                if (false) {
+                    setTimeout(() => {
+                        const g = svg.querySelector('g');
+                        if (g) {
+                            var svgD3 = d3.select(svg);
+                            svgD3.html("<g class='wrapper'>" + svgD3.html() + "</g>");
+                            var inner = svgD3.select("g");
+                            var zoom = d3.zoom().on("zoom", function(event) {
+                                inner.attr("transform", event.transform);
+                            });
+                            svgD3.call(zoom);
+                        }
+                    }, 100);
+                }
+            }
+
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        container.appendChild(fullscreenBtn);
+    });
+};
+
+
+
+const load = async () => {
+    initStyles();
+
+
+    await runMermaid(true);
+
+    const reRunIfThemeChanges = async () => {
+        const newDarkTheme = isDarkTheme();
+        if (newDarkTheme !== darkTheme) {
+            darkTheme = newDarkTheme;
+            console.log("Theme change detected, re-running mermaid with", darkTheme ? "dark" : "default", "theme");
+            await mermaid.initialize(
+                {...{"startOnLoad": false},
+                ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+                }
+            );
+            await runMermaid(true);
+        }
+    };
+
+    // Update theme classes when theme changes
+    const themeObserver = new MutationObserver(reRunIfThemeChanges);
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+    themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+    });
+};
+
+
+
+
+
+console.log("Initializing mermaid with", darkTheme ? "dark" : "default", "theme");
+mermaid.initialize(
+    {...{"startOnLoad": false},
+    ...{ darkMode: darkTheme, theme: darkTheme ? "dark" : "default" },
+    }
+);
+
+window.addEventListener("load", load);
+window.runMermaid = runMermaid;</script>
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../../../genindex.html" />
     <link rel="search" title="搜索" href="../../../../search.html" />
-    <link rel="next" title="MQA：为什么共享 K/V 能显著降低 Decode Cache" href="../04-efficient-attention/A019-mqa.html" />
-    <link rel="prev" title="RoPE：把相对位置信息写进旋转内积" href="A014-roformer-rope.html" /> 
+    <link rel="next" title="Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展" href="A010-chinchilla-compute-optimal.html" />
+    <link rel="prev" title="Scaling Laws 与训练规划" href="../../../../scaling/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -481,102 +839,102 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="reference internal" href="../../../../transformer/index.html">Transformer 核心与高效注意力</a><ul class="current">
-<li class="toctree-l2"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html">Transformer：Attention 如何替代循环序列建模</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id1">模型定位与谱系</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id2">论文属于哪一类，究竟替换了什么</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../transformer/index.html">Transformer 核心与高效注意力</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html">Transformer：Attention 如何替代循环序列建模</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id2">论文属于哪一类，究竟替换了什么</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id3">输入、输出与任务</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#decoder">首先区分翻译模型与今天的纯 Decoder 语言模型</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id3">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#decoder">首先区分翻译模型与今天的纯 Decoder 语言模型</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id4">骨干架构与信息交互</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#encoder-decoder">标准原始六层 Encoder + 六层 Decoder</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id5">如果删去某个模块会怎样</a></li>
-</ul>
-</li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id6">关键技术</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#q-k-v">1. 从注意力的一般概率读取需求推导 Q/K/V</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#sqrt-d-k">2. 为什么除以 <code class="docutils literal notranslate"><span class="pre">\sqrt{d_k}</span></code>：方差必须具体算出来</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#key">两个 Key 的小数字例子</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#attention-8">3. 多头为何不等于「把相同 Attention 重复 8 次」</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id7">4. 自注意力没有时间递推，为什么位置编码不能省</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#ffnresidual-post-ln">5. 逐位置 FFN、Residual 和 Post-LN：注意力之外还做了什么</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#pytorch-qkv-attention-post-ln">6. PyTorch 最小程序：完整显式 QKV、自/交叉 Attention 与 Post-LN 的张量流</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id8">7. 实验解读：作者真正控制了哪些因素</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id9">预训练与后训练</a></li>
-<li class="toctree-l3"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id10">推理与部署</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#hbm">不许混淆数学计算、注意力矩阵存储和 HBM 访存</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id11">一次实际的机器翻译请求</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id12">技术 → 模型</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A013-transformer-attention-is-all-you-need.html#id13">模型 → 技术</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id4">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#encoder-decoder">标准原始六层 Encoder + 六层 Decoder</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id5">如果删去某个模块会怎样</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="A014-roformer-rope.html">RoPE：把相对位置信息写进旋转内积</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id1">模型定位与谱系</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#attention-q-k">不是新的 Attention 算法：论文只改动 Q/K 的位置注入方式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id6">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#q-k-v">1. 从注意力的一般概率读取需求推导 Q/K/V</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#sqrt-d-k">2. 为什么除以 <code class="docutils literal notranslate"><span class="pre">\sqrt{d_k}</span></code>：方差必须具体算出来</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#key">两个 Key 的小数字例子</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id2">输入、输出与任务</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#tokenattention-head">三种空间必须分开：token、Attention head、二维旋转对子空间</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#attention-8">3. 多头为何不等于「把相同 Attention 重复 8 次」</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id7">4. 自注意力没有时间递推，为什么位置编码不能省</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#ffnresidual-post-ln">5. 逐位置 FFN、Residual 和 Post-LN：注意力之外还做了什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#pytorch-qkv-attention-post-ln">6. PyTorch 最小程序：完整显式 QKV、自/交叉 Attention 与 Post-LN 的张量流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id8">7. 实验解读：作者真正控制了哪些因素</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id3">骨干架构与信息交互</a></li>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id4">关键技术</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#id5">1. 先把需求写成数学约束，而不是直接背公式</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#id6">2. 从一个二维向量推到相对位移：不跳过转置和三角恒等式</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#tensor">3. 为什么可以用复数写，且不是必须使用复数 tensor</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#d-h-block-diagonal-rotation">4. 从二维推广到 <code class="docutils literal notranslate"><span class="pre">d_h</span></code> 维：Block Diagonal Rotation 的代价</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#id7">5. 长距离衰减：论文说的是多频率振荡和一个上界，不是严格单调</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#pytorch-interleaved-rope-decode-offset">6. 可运行 PyTorch：interleaved RoPE、位置平移不变与正确的 Decode offset</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#rope-bert">7. 原文实验：哪些支持 RoPE，哪些不能被概括成「全面超过 BERT」</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id9">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id10">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#hbm">不许混淆数学计算、注意力矩阵存储和 HBM 访存</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id11">一次实际的机器翻译请求</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id8">预训练与后训练</a></li>
-<li class="toctree-l3"><a class="reference internal" href="A014-roformer-rope.html#id9">推理与部署</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#rope-attention">为什么 RoPE 能保持 Attention 的主复杂度，又增加少量运算</a><ul>
-<li class="toctree-l5"><a class="reference internal" href="A014-roformer-rope.html#prefill-decode-position-id">Prefill 与 Decode：绝对 position_id 是真正的工程陷阱</a></li>
-</ul>
-</li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#id10">技术 → 模型</a></li>
-<li class="toctree-l4"><a class="reference internal" href="A014-roformer-rope.html#id11">模型 → 技术</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id12">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id13">模型 → 技术</a></li>
 </ul>
 </li>
 </ul>
 </li>
-<li class="toctree-l2 current"><a class="current reference internal" href="#">RMSNorm：为什么只做均方根缩放也能稳定 Transformer</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#id1">模型定位与谱系</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id2">输入、输出与任务</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id3">骨干架构与信息交互</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#layernorm-rmsnorm">LayerNorm 与 RMSNorm 的数据流</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html">RoPE：把相对位置信息写进旋转内积</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#attention-q-k">不是新的 Attention 算法：论文只改动 Q/K 的位置注入方式</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#id4">关键技术</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#layernorm-invariance">1. LayerNorm 到底提供哪两种 invariance</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#rms">2. RMS 与标准差不是一回事</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#rmsnorm">3. 为什么说 RMSNorm 带来隐式尺度调节</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#id5">4. 反向传播完整推导</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#mean-reduction">5. 为什么少一个 mean reduction 可能更快</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#prmsnorm">6. pRMSNorm</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pytorch">7. 最小 PyTorch 实现</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#id6">8. 实验结果与证据边界</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id2">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#tokenattention-head">三种空间必须分开：token、Attention head、二维旋转对子空间</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="#id7">预训练与后训练</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#id8">推理与部署</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#id9">技术 → 模型</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#id10">模型 → 技术</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id3">骨干架构与信息交互</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id5">1. 先把需求写成数学约束，而不是直接背公式</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id6">2. 从一个二维向量推到相对位移：不跳过转置和三角恒等式</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#tensor">3. 为什么可以用复数写，且不是必须使用复数 tensor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#d-h-block-diagonal-rotation">4. 从二维推广到 <code class="docutils literal notranslate"><span class="pre">d_h</span></code> 维：Block Diagonal Rotation 的代价</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id7">5. 长距离衰减：论文说的是多频率振荡和一个上界，不是严格单调</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#pytorch-interleaved-rope-decode-offset">6. 可运行 PyTorch：interleaved RoPE、位置平移不变与正确的 Decode offset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#rope-bert">7. 原文实验：哪些支持 RoPE，哪些不能被概括成「全面超过 BERT」</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id8">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id9">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#rope-attention">为什么 RoPE 能保持 Attention 的主复杂度，又增加少量运算</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#prefill-decode-position-id">Prefill 与 Decode：绝对 position_id 是真正的工程陷阱</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id10">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id11">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html">RMSNorm：为什么只做均方根缩放也能稳定 Transformer</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id2">输入、输出与任务</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id3">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#layernorm-rmsnorm">LayerNorm 与 RMSNorm 的数据流</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#layernorm-invariance">1. LayerNorm 到底提供哪两种 invariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#rms">2. RMS 与标准差不是一回事</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#rmsnorm">3. 为什么说 RMSNorm 带来隐式尺度调节</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id5">4. 反向传播完整推导</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#mean-reduction">5. 为什么少一个 mean reduction 可能更快</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#prmsnorm">6. pRMSNorm</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#pytorch">7. 最小 PyTorch 实现</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id6">8. 实验结果与证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id7">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id8">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id9">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id10">模型 → 技术</a></li>
 </ul>
 </li>
 </ul>
@@ -656,294 +1014,294 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../scaling/index.html">Scaling Laws 与训练规划</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id1">阅读导航</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#scaling-law">2. 先把所有符号钉死：Scaling Law 最容易混淆的就是“数据量”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id3">3. 下层仍然是普通语言模型，上层研究对象变成了“训练运行”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#figure-1">4. 原论文 Figure 1：最重要的发现是“很多数量级仍近似直线”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#log-log-power-law">5. 为什么 log-log 直线意味着 power law？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#power-law">6. 为什么 power law 对工程特别有用？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id4">7. 三条最著名的单资源 scaling law</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id5">7.1 参数受限</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id6">7.2 数据受限</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#compute">7.3 Compute 受限</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../../../scaling/index.html">Scaling Laws 与训练规划</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scaling-law">2. 先把所有符号钉死：Scaling Law 最容易混淆的就是“数据量”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id3">3. 下层仍然是普通语言模型，上层研究对象变成了“训练运行”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-1">4. 原论文 Figure 1：最重要的发现是“很多数量级仍近似直线”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#log-log-power-law">5. 为什么 log-log 直线意味着 power law？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#power-law">6. 为什么 power law 对工程特别有用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id4">7. 三条最著名的单资源 scaling law</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id5">7.1 参数受限</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">7.2 数据受限</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#compute">7.3 Compute 受限</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id7">8. 为什么控制瓶颈如此重要？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id8">9. 模型“形状”为什么不是第一主变量？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#non-embedding-parameters">10. 这里为什么使用 non-embedding parameters？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id9">11. 数据瓶颈：模型和数据不是两个可以独立无限扩展的旋钮</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-l-n-d-empirical-ansatz">12. Kaplan 的 (L(N,D)) 从哪里来？不是严格推导，是 empirical ansatz</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id10">当数据无限大</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id11">当模型无限大</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">8. 为什么控制瓶颈如此重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id8">9. 模型“形状”为什么不是第一主变量？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#non-embedding-parameters">10. 这里为什么使用 non-embedding parameters？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id9">11. 数据瓶颈：模型和数据不是两个可以独立无限扩展的旋钮</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaplan-l-n-d-empirical-ansatz">12. Kaplan 的 (L(N,D)) 从哪里来？不是严格推导，是 empirical ansatz</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id10">当数据无限大</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id11">当模型无限大</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#d-propto-n-0-74">13. (D\propto N^{0.74}) 到底在回答什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#compute-optimal-tokens-n-0-74">14. 这绝对不是“compute-optimal tokens 应该按 (N^{0.74}) 增长”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#flops-6n">15. 训练 FLOPs 的 (6N) 近似从哪里来？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#nd-gpu">16. 为什么 (6ND) 不是 GPU 账单公式？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#sample-efficiency">17. 为什么大模型“sample efficiency 更高”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#learning-curve-scaling">18. Learning Curve 也可以 scaling</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#batch-size-scaling-law">19. Batch size 为什么也必须进入 scaling law？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#critical-batch-size-scaling">20. Critical Batch Size 的 scaling</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#c-min-c">21. 为什么论文还引入 (C_{\min})，而不是直接用实测 (C)？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#compute-efficient-frontier">22. 原论文 Compute-Efficient Frontier</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-compute">23. Kaplan 当时怎样解“固定 compute 应该做多大的模型”？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id12">模型规模</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#batch">Batch</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#serial-steps">Serial steps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#d-propto-n-0-74">13. (D\propto N^{0.74}) 到底在回答什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compute-optimal-tokens-n-0-74">14. 这绝对不是“compute-optimal tokens 应该按 (N^{0.74}) 增长”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#flops-6n">15. 训练 FLOPs 的 (6N) 近似从哪里来？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nd-gpu">16. 为什么 (6ND) 不是 GPU 账单公式？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sample-efficiency">17. 为什么大模型“sample efficiency 更高”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#learning-curve-scaling">18. Learning Curve 也可以 scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#batch-size-scaling-law">19. Batch size 为什么也必须进入 scaling law？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#critical-batch-size-scaling">20. Critical Batch Size 的 scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#c-min-c">21. 为什么论文还引入 (C_{\min})，而不是直接用实测 (C)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compute-efficient-frontier">22. 原论文 Compute-Efficient Frontier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaplan-compute">23. Kaplan 当时怎样解“固定 compute 应该做多大的模型”？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id12">模型规模</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#batch">Batch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#serial-steps">Serial steps</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#figure-compute-efficient">24. 原论文 Figure：为什么“更大模型 + 更早停”会看起来 compute-efficient？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#convergence-is-inefficient">25. “Convergence is inefficient”真正是什么意思？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-data-scaling-processed-token">26. 为什么 Kaplan 的 data scaling 会推出一个非常慢的 processed-token 增长？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id13">27. 为什么这个结论在 2020 年会显得合理？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#scaling-law-extrapolation-risk">28. Scaling law 为什么天然存在 extrapolation risk？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan">29. Kaplan 自己已经看到了内部“矛盾”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#contradiction">30. 原论文的“Contradiction”图为什么特别重要？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#chinchilla">31. 所以 Chinchilla 后来到底修正了什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-power-law">32. 为什么不能把 Kaplan 的失败理解成“power law 不存在”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#training-compute-optimal-vs-deployment-optimal">33. 一个必须区分的概念：training-compute optimal vs deployment optimal</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#llama-3-8b-70b-compute-optimal">34. 为什么 Llama 3 8B / 70B 会故意训练超过 compute-optimal？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#inference-cost">35. 为什么 inference cost 会改变最优模型选择？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#a">方案 A</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#b">方案 B</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-compute-efficient">24. 原论文 Figure：为什么“更大模型 + 更早停”会看起来 compute-efficient？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#convergence-is-inefficient">25. “Convergence is inefficient”真正是什么意思？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaplan-data-scaling-processed-token">26. 为什么 Kaplan 的 data scaling 会推出一个非常慢的 processed-token 增长？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id13">27. 为什么这个结论在 2020 年会显得合理？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scaling-law-extrapolation-risk">28. Scaling law 为什么天然存在 extrapolation risk？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaplan">29. Kaplan 自己已经看到了内部“矛盾”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#contradiction">30. 原论文的“Contradiction”图为什么特别重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#chinchilla">31. 所以 Chinchilla 后来到底修正了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#kaplan-power-law">32. 为什么不能把 Kaplan 的失败理解成“power law 不存在”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#training-compute-optimal-vs-deployment-optimal">33. 一个必须区分的概念：training-compute optimal vs deployment optimal</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#llama-3-8b-70b-compute-optimal">34. 为什么 Llama 3 8B / 70B 会故意训练超过 compute-optimal？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inference-cost">35. 为什么 inference cost 会改变最优模型选择？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#a">方案 A</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#b">方案 B</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id14">36. 为什么 scaling law 与“涌现能力”并不矛盾？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id15">37. Scaling law 为什么适合做大模型研发“前置实验”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#qwen2-5-scaling-law-learning-rate-batch">38. Qwen2.5 为什么把 scaling law 用到 learning rate / batch？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#llama-3-scaling-runs">39. Llama 3 为什么又重新做自己的 scaling runs？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id16">40. “Scaling law 是经验规律”与“它很有工程价值”并不冲突</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id17">41. 哪些量不能跨论文直接比较？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#n-c-d-c-c-c">41.1 (N_c,D_c,C_c)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#perplexity">41.2 perplexity</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#tokens">41.3 tokens</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#flops">41.4 FLOPs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id14">36. 为什么 scaling law 与“涌现能力”并不矛盾？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id15">37. Scaling law 为什么适合做大模型研发“前置实验”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#qwen2-5-scaling-law-learning-rate-batch">38. Qwen2.5 为什么把 scaling law 用到 learning rate / batch？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#llama-3-scaling-runs">39. Llama 3 为什么又重新做自己的 scaling runs？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id16">40. “Scaling law 是经验规律”与“它很有工程价值”并不冲突</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id17">41. 哪些量不能跨论文直接比较？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#n-c-d-c-c-c">41.1 (N_c,D_c,C_c)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#perplexity">41.2 perplexity</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#tokens">41.3 tokens</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#flops">41.4 FLOPs</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#architecture-independence">42. 为什么 architecture independence 不能被过度解释？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id18">43. 为什么模型参数越多不一定代表训练 FLOPs 同比例增加？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#law">44. 一个具体的预算例子：为什么资源分配 law 会极大影响训练计划？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-allocation">Kaplan allocation</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#chinchilla-style-equal-scaling">Chinchilla-style equal scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#architecture-independence">42. 为什么 architecture independence 不能被过度解释？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id18">43. 为什么模型参数越多不一定代表训练 FLOPs 同比例增加？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#law">44. 一个具体的预算例子：为什么资源分配 law 会极大影响训练计划？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#kaplan-allocation">Kaplan allocation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#chinchilla-style-equal-scaling">Chinchilla-style equal scaling</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#figure">45. 为什么 Figure 里的直线不能成为“无限扩张许可证”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#exponent">46. 原论文最值得保留的不是某个 exponent，而是实验方法</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id19">第一步</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id20">第二步</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id21">第三步</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id22">第四步</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#figure">45. 为什么 Figure 里的直线不能成为“无限扩张许可证”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#exponent">46. 原论文最值得保留的不是某个 exponent，而是实验方法</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id19">第一步</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id20">第二步</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id21">第三步</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id22">第四步</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id23">47. 论文真正证明了什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id24">48. 论文没有证明什么？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#power-law-exponent">48.1 所有模型永远遵守同一 power-law exponent</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#n-0-74-universal-data-law">48.2 (N^{0.74}) 是 universal data law</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id25">48.3 未来所有 compute 应主要花在模型参数上</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#architecture">48.4 architecture 不重要</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#scaling">48.5 scaling 可以无限延伸</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#loss-scaling-downstream-capability-scaling">48.6 loss scaling 自动等价于所有 downstream capability scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id23">47. 论文真正证明了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id24">48. 论文没有证明什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#power-law-exponent">48.1 所有模型永远遵守同一 power-law exponent</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#n-0-74-universal-data-law">48.2 (N^{0.74}) 是 universal data law</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id25">48.3 未来所有 compute 应主要花在模型参数上</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#architecture">48.4 architecture 不重要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#scaling">48.5 scaling 可以无限延伸</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#loss-scaling-downstream-capability-scaling">48.6 loss scaling 自动等价于所有 downstream capability scaling</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id26">49. 从今天回头看，Kaplan 哪些结论“活下来了”？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#predictable-scaling">活下来的 1：Predictable scaling</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id27">活下来的 2：规模要联合考虑</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id28">活下来的 3：大模型研发是资源配置问题</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id29">活下来的 4：Scaling law 是工具，不是定理</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id26">49. 从今天回头看，Kaplan 哪些结论“活下来了”？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#predictable-scaling">活下来的 1：Predictable scaling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id27">活下来的 2：规模要联合考虑</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id28">活下来的 3：大模型研发是资源配置问题</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id29">活下来的 4：Scaling law 是工具，不是定理</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id30">50. 哪些结论被后续工作重新估计？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id31">51. 下一篇为什么必须马上读 Chinchilla？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id32">52. 一张因果图收束 Kaplan</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id33">53. 最容易学错的十个地方</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id34">错法 1：Scaling law 是理论定理</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#log-log">错法 2：log-log 直线说明永远都成立</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#d-propto-n-0-74-chinchilla-token-ratio">错法 3：(D\propto N^{0.74}) 就是 Chinchilla 的 token ratio</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id35">错法 4：(6ND) 是实际 GPU 成本</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#shape">错法 5：模型 shape 完全不重要</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id36">错法 6：大模型一定要训练到收敛</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#kaplan-chinchilla">错法 7：Kaplan 被 Chinchilla 完全推翻</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#c-min-compute">错法 8：(C_{\min}) 就是实际训练 compute</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#token-count-tokenizer">错法 9：token count 跨 tokenizer 可直接比较</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#loss-benchmark">错法 10：只要 loss 能预测，所有 benchmark 都自动可预测</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id30">50. 哪些结论被后续工作重新估计？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id31">51. 下一篇为什么必须马上读 Chinchilla？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id32">52. 一张因果图收束 Kaplan</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id33">53. 最容易学错的十个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id34">错法 1：Scaling law 是理论定理</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#log-log">错法 2：log-log 直线说明永远都成立</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#d-propto-n-0-74-chinchilla-token-ratio">错法 3：(D\propto N^{0.74}) 就是 Chinchilla 的 token ratio</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id35">错法 4：(6ND) 是实际 GPU 成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#shape">错法 5：模型 shape 完全不重要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id36">错法 6：大模型一定要训练到收敛</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#kaplan-chinchilla">错法 7：Kaplan 被 Chinchilla 完全推翻</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#c-min-compute">错法 8：(C_{\min}) 就是实际训练 compute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#token-count-tokenizer">错法 9：token count 跨 tokenizer 可直接比较</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#loss-benchmark">错法 10：只要 loss 能预测，所有 benchmark 都自动可预测</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A009-kaplan-scaling-laws.html#id37">54. 最终自检</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id37">54. 最终自检</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html">Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id1">阅读导航</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla">1. 先把问题写对：Chinchilla 研究的不是“模型多大最好”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#compute">2. 固定 compute 后为什么天然存在一个“太大”和“太小”？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id2">模型太小</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id3">模型太大</a></li>
+<li class="toctree-l2"><a class="reference internal" href="A010-chinchilla-compute-optimal.html">Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla">1. 先把问题写对：Chinchilla 研究的不是“模型多大最好”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#compute">2. 固定 compute 后为什么天然存在一个“太大”和“太小”？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id2">模型太小</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id3">模型太大</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-kaplan">3. Chinchilla 为什么要重新研究 Kaplan？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#figure-1-token">4. 原论文 Figure 1：三种方法都把最优点推向“小模型 + 更多 token”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id4">5. Chinchilla 做了多大的实验矩阵？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id5">6. 三种方法分别在问什么？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-1-training-curve-envelope">Approach 1：Training-Curve Envelope</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-isoflop-profiles">Approach 2：IsoFLOP Profiles</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-parametric-loss-model">Approach 3：Parametric Loss Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-kaplan">3. Chinchilla 为什么要重新研究 Kaplan？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#figure-1-token">4. 原论文 Figure 1：三种方法都把最优点推向“小模型 + 更多 token”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id4">5. Chinchilla 做了多大的实验矩阵？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id5">6. 三种方法分别在问什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-1-training-curve-envelope">Approach 1：Training-Curve Envelope</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-2-isoflop-profiles">Approach 2：IsoFLOP Profiles</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-3-parametric-loss-model">Approach 3：Parametric Loss Model</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-1-training-curve-compute">7. Approach 1：从 training curve 上找“同 compute 最低点”</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-1">8. 原论文 Approach 1 图怎样读？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#learning-rate-schedule-scaling-law">9. 为什么 Learning-Rate Schedule 会影响 scaling-law 结论？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id6">10. 为什么这个问题如此隐蔽？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-isoflop-compute-optimal">11. Approach 2：IsoFLOP 为什么是最直观的 compute-optimal 实验？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id7">小模型</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id8">大模型</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-1-training-curve-compute">7. Approach 1：从 training curve 上找“同 compute 最低点”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-1">8. 原论文 Approach 1 图怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#learning-rate-schedule-scaling-law">9. 为什么 Learning-Rate Schedule 会影响 scaling-law 结论？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id6">10. 为什么这个问题如此隐蔽？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-2-isoflop-compute-optimal">11. Approach 2：IsoFLOP 为什么是最直观的 compute-optimal 实验？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id7">小模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id8">大模型</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-curve">12. IsoFLOP curve 为什么应该有谷底？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-valley">13. 原论文 Approach 2：真正应该盯着左图 valley</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-loss">14. IsoFLOP 比“模型越大 loss 越低”多了什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-l-n-d">15. Approach 3：为什么还要拟合显式 (L(N,D))？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id9">16. 三项分别代表什么？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#floor">第一项：不可约 floor</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id10">第二项：有限模型容量</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id11">第三项：有限训练数据/训练量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#isoflop-curve">12. IsoFLOP curve 为什么应该有谷底？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-2-valley">13. 原论文 Approach 2：真正应该盯着左图 valley</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#isoflop-loss">14. IsoFLOP 比“模型越大 loss 越低”多了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-3-l-n-d">15. Approach 3：为什么还要拟合显式 (L(N,D))？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id9">16. 三项分别代表什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#floor">第一项：不可约 floor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id10">第二项：有限模型容量</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id11">第三项：有限训练数据/训练量</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id12">17. 为什么用“加法”分解？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-3">18. 原论文 Approach 3 图：蓝线是什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#c-hat-l-n-d">19. 现在开始完整推导：固定 (C) 下怎样最小化 (\hat L(N,D))？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#n">20. 对 (N) 求偏导</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#d">21. 对 (D) 求偏导</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id13">22. 两个式子一对比，得到最优平衡条件</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#alpha-beta">23. 为什么这里出现 (\alpha) 和 (\beta)？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id14">24. 用约束消掉 (D)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#d-rm-opt-c">25. 再推出 (D_{\rm opt}(C))</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#fitted-exponent">26. 方法三的 fitted exponent 到底是多少？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id15">27. 三种方法放在一起，真正结论是什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-token">28. 为什么 Approach 3 更偏向 token？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#bootstrap-interval">29. 为什么作者还要做 bootstrap interval？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokens-per-parameter">30. “20 tokens per parameter”到底从哪里来？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id16">31. 为什么 20 不能被当作自然常数？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#optimal-tokens-vs-parameters">32. 原论文把 optimal tokens vs parameters 直接画出来了</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-undertrained">33. 为什么 Chinchilla 认为当时的大模型普遍“undertrained”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-gopher">34. 一个具体例子：为什么 280B Gopher 可能太大？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-40b">35. 为什么最终选 70B，而方法三甚至预测约 40B？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-architecture">36. Chinchilla 为什么不是一个新 architecture？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-gopher-n-d">37. 但是 Chinchilla 和 Gopher 又不只差 (N,D)</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#optimizer">Optimizer</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#dataset-mixture">Dataset mixture</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-normalization">Tokenizer normalization</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#optimizer-precision">Optimizer precision</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id12">17. 为什么用“加法”分解？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-3">18. 原论文 Approach 3 图：蓝线是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#c-hat-l-n-d">19. 现在开始完整推导：固定 (C) 下怎样最小化 (\hat L(N,D))？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#n">20. 对 (N) 求偏导</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#d">21. 对 (D) 求偏导</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id13">22. 两个式子一对比，得到最优平衡条件</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#alpha-beta">23. 为什么这里出现 (\alpha) 和 (\beta)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id14">24. 用约束消掉 (D)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#d-rm-opt-c">25. 再推出 (D_{\rm opt}(C))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#fitted-exponent">26. 方法三的 fitted exponent 到底是多少？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id15">27. 三种方法放在一起，真正结论是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-3-token">28. 为什么 Approach 3 更偏向 token？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#bootstrap-interval">29. 为什么作者还要做 bootstrap interval？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokens-per-parameter">30. “20 tokens per parameter”到底从哪里来？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id16">31. 为什么 20 不能被当作自然常数？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#optimal-tokens-vs-parameters">32. 原论文把 optimal tokens vs parameters 直接画出来了</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-undertrained">33. 为什么 Chinchilla 认为当时的大模型普遍“undertrained”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-gopher">34. 一个具体例子：为什么 280B Gopher 可能太大？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-40b">35. 为什么最终选 70B，而方法三甚至预测约 40B？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-architecture">36. Chinchilla 为什么不是一个新 architecture？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-gopher-n-d">37. 但是 Chinchilla 和 Gopher 又不只差 (N,D)</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#optimizer">Optimizer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#dataset-mixture">Dataset mixture</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokenizer-normalization">Tokenizer normalization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#optimizer-precision">Optimizer precision</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-chinchilla-flagship">38. 那 70B Chinchilla 的 flagship 对照还能证明什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-head-to-head">39. 原论文对 Kaplan 做了直接小规模 head-to-head</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-equal-scaling">40. 为什么 Chinchilla 的“equal scaling”会让模型显著变小？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#token-inference-economics">41. 为什么“小模型 + 更多 token”同时改善 inference economics？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id17">42. 这为什么改变了“大模型越大越好”的产业直觉？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokens-parameter">43. 为什么今天很多模型又训练得远超 20 tokens/parameter？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#training-compute-optimal-fixed-model-size-optimal">44. Training-compute optimal 和 fixed-model-size optimal</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id18">Chinchilla 问题</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id19">部署约束问题</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-chinchilla-flagship">38. 那 70B Chinchilla 的 flagship 对照还能证明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#kaplan-head-to-head">39. 原论文对 Kaplan 做了直接小规模 head-to-head</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-equal-scaling">40. 为什么 Chinchilla 的“equal scaling”会让模型显著变小？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#token-inference-economics">41. 为什么“小模型 + 更多 token”同时改善 inference economics？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id17">42. 这为什么改变了“大模型越大越好”的产业直觉？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokens-parameter">43. 为什么今天很多模型又训练得远超 20 tokens/parameter？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#training-compute-optimal-fixed-model-size-optimal">44. Training-compute optimal 和 fixed-model-size optimal</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id18">Chinchilla 问题</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id19">部署约束问题</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#inference-heavy-chinchilla">45. 为什么 inference-heavy 产品甚至应该“比 Chinchilla 更偏小模型”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-ratio">46. 为什么数据质量会让 Chinchilla ratio 再次改变？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-token">47. Tokenizer 为什么也会改变“每参数多少 token”的意义？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-a">Tokenizer A</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-b">Tokenizer B</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#inference-heavy-chinchilla">45. 为什么 inference-heavy 产品甚至应该“比 Chinchilla 更偏小模型”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-ratio">46. 为什么数据质量会让 Chinchilla ratio 再次改变？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokenizer-token">47. Tokenizer 为什么也会改变“每参数多少 token”的意义？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokenizer-a">Tokenizer A</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#tokenizer-b">Tokenizer B</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-moe">48. 为什么 Chinchilla 的结果不能直接套到 MoE？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#context-length-6nd">49. 为什么 context length 也会破坏简单 (6ND)？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-loss-form-scaling">50. 为什么 Chinchilla 的第三种 loss form 对现代 scaling 仍有启发？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id20">51. 为什么三种方法比一个漂亮公式更重要？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-llama-3">52. 为什么 IsoFLOP 是后来 Llama 3 最值得继承的方法？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#compute-valley">53. 为什么大 compute 下 valley 会变平？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#flagship">54. 原论文的 flagship 结果为什么仍然重要？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#benchmark">55. 但 benchmark 不是这篇论文最核心的证据</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id21">56. Chinchilla 真正修正 Kaplan 的原因可以压成什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-chinchilla">57. Kaplan 和 Chinchilla 其实共享哪些结论？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#scaling">57.1 Scaling 是可预测的</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id22">57.2 不应该只训练小模型到充分收敛</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#model-data-compute">57.3 model/data/compute 必须联合考虑</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id23">57.4 大规模训练应该先做小规模实验</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-moe">48. 为什么 Chinchilla 的结果不能直接套到 MoE？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#context-length-6nd">49. 为什么 context length 也会破坏简单 (6ND)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-loss-form-scaling">50. 为什么 Chinchilla 的第三种 loss form 对现代 scaling 仍有启发？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id20">51. 为什么三种方法比一个漂亮公式更重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#isoflop-llama-3">52. 为什么 IsoFLOP 是后来 Llama 3 最值得继承的方法？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#compute-valley">53. 为什么大 compute 下 valley 会变平？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#flagship">54. 原论文的 flagship 结果为什么仍然重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#benchmark">55. 但 benchmark 不是这篇论文最核心的证据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id21">56. Chinchilla 真正修正 Kaplan 的原因可以压成什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#kaplan-chinchilla">57. Kaplan 和 Chinchilla 其实共享哪些结论？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#scaling">57.1 Scaling 是可预测的</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id22">57.2 不应该只训练小模型到充分收敛</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#model-data-compute">57.3 model/data/compute 必须联合考虑</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id23">57.4 大规模训练应该先做小规模实验</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-scaling-law">58. 为什么 Chinchilla 也不是 scaling law 的终点？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-chinchilla">59. 从 Llama 3 回看 Chinchilla</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-chinchilla">60. 从 Qwen2.5 回看 Chinchilla</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#training-design-objective">61. 一个更现代的 training design objective</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id24">62. 为什么这对本地部署模型尤其重要？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id25">63. 对具身智能有什么直接启示？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#quality-adjusted-scaling">64. 为什么机器人数据比文本更需要“quality-adjusted scaling”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id26">65. 为什么“训练数据越多越好”仍然不是 Chinchilla 的结论？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id27">66. 为什么“模型越小越好”同样不是结论？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#flops">67. 为什么“同 FLOPs”也不等于“同真实训练成本”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#availability-optimum">68. 为什么数据 availability 会把 optimum 推离数学前沿？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id28">69. 为什么 Chinchilla 之后高质量数据成为更关键的壁垒？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#modern-synthetic-data-chinchilla">70. 为什么 modern synthetic data 让 Chinchilla 问题更复杂？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#causal-evidence">71. 论文最强的 causal evidence 到底是哪几层？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#controlled-scaling-runs">第一层：Controlled scaling runs</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id29">第二层：三种独立分析一致</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-predicted-vs-chinchilla-predicted-head-to-head">第三层：Kaplan-predicted vs Chinchilla-predicted head-to-head</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-chinchilla-vs-280b-gopher">第四层：70B Chinchilla vs 280B Gopher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-scaling-law">58. 为什么 Chinchilla 也不是 scaling law 的终点？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#llama-3-chinchilla">59. 从 Llama 3 回看 Chinchilla</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#qwen2-5-chinchilla">60. 从 Qwen2.5 回看 Chinchilla</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#training-design-objective">61. 一个更现代的 training design objective</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id24">62. 为什么这对本地部署模型尤其重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id25">63. 对具身智能有什么直接启示？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#quality-adjusted-scaling">64. 为什么机器人数据比文本更需要“quality-adjusted scaling”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id26">65. 为什么“训练数据越多越好”仍然不是 Chinchilla 的结论？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id27">66. 为什么“模型越小越好”同样不是结论？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#flops">67. 为什么“同 FLOPs”也不等于“同真实训练成本”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#availability-optimum">68. 为什么数据 availability 会把 optimum 推离数学前沿？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id28">69. 为什么 Chinchilla 之后高质量数据成为更关键的壁垒？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#modern-synthetic-data-chinchilla">70. 为什么 modern synthetic data 让 Chinchilla 问题更复杂？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#causal-evidence">71. 论文最强的 causal evidence 到底是哪几层？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#controlled-scaling-runs">第一层：Controlled scaling runs</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id29">第二层：三种独立分析一致</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#kaplan-predicted-vs-chinchilla-predicted-head-to-head">第三层：Kaplan-predicted vs Chinchilla-predicted head-to-head</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-chinchilla-vs-280b-gopher">第四层：70B Chinchilla vs 280B Gopher</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id30">72. 论文哪些结论最不应该被过度扩张？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id31">72.1 20 tokens/parameter 是永久最优比率</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#n-d-propto-c-0-5">72.2 所有模型都应该严格 (N,D\propto C^{0.5})</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id32">72.3 Chinchilla 证明 architecture 不重要</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id33">72.4 更小模型一定比更大模型好</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#token">72.5 训练更多 token 永远有相同收益</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#flops-wall-clock-energy">72.6 同 FLOPs 就代表同 wall-clock / energy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id30">72. 论文哪些结论最不应该被过度扩张？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id31">72.1 20 tokens/parameter 是永久最优比率</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#n-d-propto-c-0-5">72.2 所有模型都应该严格 (N,D\propto C^{0.5})</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id32">72.3 Chinchilla 证明 architecture 不重要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id33">72.4 更小模型一定比更大模型好</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#token">72.5 训练更多 token 永远有相同收益</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#flops-wall-clock-energy">72.6 同 FLOPs 就代表同 wall-clock / energy</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#compute-optimal">73. “Compute-optimal”这个词本身要带约束读</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id34">74. 一张图把 Kaplan → Chinchilla 的逻辑串起来</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id35">75. 为什么这两篇论文应该成对学习？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-llama-3">76. 从 Chinchilla 到 Llama 3：方法怎样进化？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-qwen2-5">77. 从 Chinchilla 到 Qwen2.5：变量怎样继续扩展？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#scaling-law-ai">78. 为什么 scaling law 不是“AI 玄学曲线拟合”？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id36">79. 为什么 Chinchilla 的思维很适合工程师？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#scaling-study">80. 如果现在自己要做一个小规模 scaling study，流程应该是什么？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-1-tokenizer-data-architecture-family">Step 1：固定 tokenizer / data / architecture family</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-2-flop-budget">Step 2：选多个 FLOP budget</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-3-budget-n">Step 3：每个 budget 扫不同 (N)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-4-schedule-horizon">Step 4：让 schedule 匹配目标 horizon</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-5-isoflop-curve">Step 5：画 IsoFLOP curve</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-6-valley-location">Step 6：拟合 valley location</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-7-constraint-d-rm-opt-c">Step 7：由 constraint 得 (D_{\rm opt}(C))</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#step-8-compute">Step 8：留一个更大 compute 做外推验证</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#compute-optimal">73. “Compute-optimal”这个词本身要带约束读</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id34">74. 一张图把 Kaplan → Chinchilla 的逻辑串起来</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id35">75. 为什么这两篇论文应该成对学习？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-llama-3">76. 从 Chinchilla 到 Llama 3：方法怎样进化？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-qwen2-5">77. 从 Chinchilla 到 Qwen2.5：变量怎样继续扩展？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#scaling-law-ai">78. 为什么 scaling law 不是“AI 玄学曲线拟合”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id36">79. 为什么 Chinchilla 的思维很适合工程师？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#scaling-study">80. 如果现在自己要做一个小规模 scaling study，流程应该是什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-1-tokenizer-data-architecture-family">Step 1：固定 tokenizer / data / architecture family</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-2-flop-budget">Step 2：选多个 FLOP budget</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-3-budget-n">Step 3：每个 budget 扫不同 (N)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-4-schedule-horizon">Step 4：让 schedule 匹配目标 horizon</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-5-isoflop-curve">Step 5：画 IsoFLOP curve</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-6-valley-location">Step 6：拟合 valley location</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-7-constraint-d-rm-opt-c">Step 7：由 constraint 得 (D_{\rm opt}(C))</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#step-8-compute">Step 8：留一个更大 compute 做外推验证</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#grid-search">81. 为什么不要一开始就做超大 grid search？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id37">82. 最容易学错的十个地方</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-20-tokens-parameter">错法 1：Chinchilla = 20 tokens/parameter</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-kaplan-scaling-laws">错法 2：Chinchilla 推翻 Kaplan scaling laws</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#approach-1-2-3">错法 3：Approach 1/2/3 是同一公式重复验证</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#e-a-n-alpha-b-d-beta">错法 4：(E+A/N^\alpha+B/D^\beta) 是理论定律</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#error-term">错法 5：最优点要求两个 error term 相等</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-vs-280b">错法 6：70B vs 280B 是严格单变量实验</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#b-10t-token-chinchilla">错法 7：今天 7B 训练 10T token 就违反 Chinchilla</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#token-ratio-tokenizer">错法 8：token ratio 可以跨 tokenizer 直接比较</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#moe-total-params-6nd">错法 9：MoE 应该直接拿 total params 套 (6ND)</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id38">错法 10：compute-optimal 是一个永恒唯一点</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#grid-search">81. 为什么不要一开始就做超大 grid search？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id37">82. 最容易学错的十个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-20-tokens-parameter">错法 1：Chinchilla = 20 tokens/parameter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#chinchilla-kaplan-scaling-laws">错法 2：Chinchilla 推翻 Kaplan scaling laws</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#approach-1-2-3">错法 3：Approach 1/2/3 是同一公式重复验证</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#e-a-n-alpha-b-d-beta">错法 4：(E+A/N^\alpha+B/D^\beta) 是理论定律</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#error-term">错法 5：最优点要求两个 error term 相等</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-vs-280b">错法 6：70B vs 280B 是严格单变量实验</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#b-10t-token-chinchilla">错法 7：今天 7B 训练 10T token 就违反 Chinchilla</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#token-ratio-tokenizer">错法 8：token ratio 可以跨 tokenizer 直接比较</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#moe-total-params-6nd">错法 9：MoE 应该直接拿 total params 套 (6ND)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id38">错法 10：compute-optimal 是一个永恒唯一点</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id39">83. 论文真正证明了什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id40">84. 论文没有证明什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#scaling-laws">85. 两篇 Scaling Laws 专题最后应该留下什么？</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#kaplan">Kaplan 留下：</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id41">Chinchilla 留下：</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id39">83. 论文真正证明了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id40">84. 论文没有证明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#scaling-laws">85. 两篇 Scaling Laws 专题最后应该留下什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#kaplan">Kaplan 留下：</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id41">Chinchilla 留下：</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-405b">86. 现在回看 Llama 3 的 405B 选择就不再抽象</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-scaling-law">87. 现在回看 Qwen2.5 的 scaling law 也更清晰</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id42">88. 下一步应该下钻什么？</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../02-text-representation/A010-chinchilla-compute-optimal.html#id43">89. 最终自检</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#llama-3-405b">86. 现在回看 Llama 3 的 405B 选择就不再抽象</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#qwen2-5-scaling-law">87. 现在回看 Qwen2.5 的 scaling law 也更清晰</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id42">88. 下一步应该下钻什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A010-chinchilla-compute-optimal.html#id43">89. 最终自检</a></li>
 </ul>
 </li>
 </ul>
@@ -1857,8 +2215,8 @@
           <div role="navigation" aria-label="页面导航">
   <ul class="wy-breadcrumbs">
       <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
-          <li class="breadcrumb-item"><a href="../../../../transformer/index.html">Transformer 核心与高效注意力</a></li>
-      <li class="breadcrumb-item active">RMSNorm：为什么只做均方根缩放也能稳定 Transformer</li>
+          <li class="breadcrumb-item"><a href="../../../../scaling/index.html">Scaling Laws 与训练规划</a></li>
+      <li class="breadcrumb-item active">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -1867,526 +2225,2221 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section class="tex2jax_ignore mathjax_ignore" id="rmsnorm-transformer">
-<h1>RMSNorm：为什么只做均方根缩放也能稳定 Transformer<a class="headerlink" href="#rmsnorm-transformer" title="Link to this heading"></a></h1>
+  <section class="tex2jax_ignore mathjax_ignore" id="kaplan-scaling-laws">
+<h1>Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”<a class="headerlink" href="#kaplan-scaling-laws" title="Link to this heading"></a></h1>
 <blockquote>
-<div><p><strong>原论文</strong>：<a class="reference external" href="https://arxiv.org/abs/1910.07467">Root Mean Square Layer Normalization</a>。<br />
-本文在原论文论证链基础上补充必要数学推导、工程直觉与现代实现对照。</p>
+<div><p><strong>论文</strong>：Jared Kaplan et al., <a class="reference external" href="https://arxiv.org/abs/2001.08361">Scaling Laws for Neural Language Models</a>，2020。<br />
+<strong>类型</strong>：A · 原始经验方法论文。<br />
+<strong>一句话定位</strong>：这篇论文真正改变的不是 Transformer 结构，而是大模型研发的决策方式：模型参数量 (N)、数据量 (D)、训练计算量 (C) 与最终 language-model loss 之间，在实验区间内呈现出稳定、可拟合的幂律，于是“训练多大模型、要多少数据、给多少算力”第一次可以被当成一个经验可预测的资源分配问题。</p>
 </div></blockquote>
+<p>这篇论文必须和下一篇 <strong>Chinchilla</strong> 连起来读。</p>
+<p>原因是它同时包含两层贡献：</p>
+<ol class="arabic simple">
+<li><p>一层后来被反复验证、并真正奠定现代大模型工程基础；</p></li>
+<li><p>一层关于 <strong>固定 compute 下应该怎样分配模型参数和训练 token</strong> 的具体结论，后来被 Chinchilla 明确修正。</p></li>
+</ol>
+<p>因此最容易犯的错误有两个：</p>
+<blockquote>
+<div><p>“Kaplan 已经过时，所以不用读。”</p>
+</div></blockquote>
+<p>以及：</p>
+<blockquote>
+<div><p>“Kaplan 的 scaling law 就是今天仍应照搬的 compute-optimal 配方。”</p>
+</div></blockquote>
+<p>这两句话都不对。</p>
+<p>真正应该保留的是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Kaplan 2020
+├─ 保留下来的核心：
+│  ├─ loss 随 N / D / C 呈稳定经验幂律
+│  ├─ 小规模实验可以用于大规模外推
+│  ├─ 数据瓶颈与模型瓶颈可以分开研究
+│  ├─ 大模型具有更高 sample efficiency
+│  └─ scaling law 可以参与真实训练规划
+│
+└─ 后来被修正的部分：
+   └─ 固定 compute 时，应该把大部分新增算力用于增大 N，
+      而只缓慢增加训练 token
+            ↓
+       Chinchilla 2022 重新实验
+            ↓
+       N 与 D 应更接近同步扩展
+</pre></div>
+</div>
+<p>如果这一层历史关系没有建立，后面读 Llama 3 的 IsoFLOPs、Qwen2.5 的 hyperparameter scaling，都会只剩“他们画了一堆曲线”。</p>
+<hr class="docutils" />
 <section id="id1">
-<h2>模型定位与谱系<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
-<p><strong>主要类型：A 原始方法论文。</strong> 本文位于 Transformer / RNN / FFN 的归一化模块层，不改变 Attention、FFN、Tokenizer 或训练目标。</p>
-<p>技术谱系：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>BatchNorm
-   └─ 依赖 batch 统计
-          ↓
-LayerNorm
-   ├─ 对单样本 hidden features 求均值
-   ├─ 对单样本 hidden features 求方差
-   └─ 适合 RNN / Transformer
-          ↓
-观察：LayerNorm 同时做
-   1. re-centering
-   2. re-scaling
-          ↓
-问题：re-centering 是否真的必要？
-          ↓
-RMSNorm
-   ├─ 不减均值
-   ├─ 只除 RMS
-   └─ 保留 gain 参数
-          ↓
-现代 LLM 广泛采用
-</pre></div>
-</div>
-<p>技术树：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Transformer
-└── Normalization
-    ├── LayerNorm
-    └── RMSNorm
-        └── partial RMSNorm
-</pre></div>
-</div>
-<p>论文判断是：在其测试模型上，LayerNorm 的 re-centering invariance 并非总是必要，而 re-scaling invariance 更关键；RMSNorm 用更简单计算获得接近性能。论文报告不同模型上运行时间可降低约 7%–64%，但这个比例是<strong>特定模型和实现环境中的端到端结果</strong>，不能直接套到现代 fused Transformer kernel。citeturn100152academia0</p>
+<h2>阅读导航<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>这篇文章不要求先懂 Chinchilla，但建议已经知道：</p>
+<ul class="simple">
+<li><p>next-token cross entropy；</p></li>
+<li><p>Transformer 基本结构；</p></li>
+<li><p>Adam / batch / training step 的含义；</p></li>
+<li><p>log-log 坐标；</p></li>
+<li><p>幂函数与指数。</p></li>
+</ul>
+<p>站内相关：</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html"><span class="std std-doc">Transformer</span></a></p></li>
+<li><p><a class="reference internal" href="../01-foundations/A002-adam.html"><span class="std std-doc">Adam</span></a></p></li>
+<li><p><a class="reference internal" href="../01-foundations/A003-adamw.html"><span class="std std-doc">AdamW</span></a></p></li>
+<li><p><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html"><span class="std std-doc">Llama 3</span></a></p></li>
+<li><p><a class="reference internal" href="../../B/05-moe-complete-llm/B012-qwen2.5.html"><span class="std std-doc">Qwen2.5</span></a></p></li>
+</ul>
+<p>读完后再进入：</p>
+<ul class="simple">
+<li><p><strong>A010 · Chinchilla / Training Compute-Optimal Large Language Models</strong></p></li>
+</ul>
+<p>本文重点解决：</p>
+<ol class="arabic simple">
+<li><p>Scaling law 到底在预测什么？</p></li>
+<li><p>(N,D,C,B,S,L) 分别是什么，为什么经常被混淆？</p></li>
+<li><p>为什么 log-log 图上近似直线就意味着 power law？</p></li>
+<li><p>(L(N))、(L(D))、(L(C)) 为什么必须在“另外两个资源不成为瓶颈”时才有意义？</p></li>
+<li><p>小小的指数 (0.076)、(0.095) 为什么仍然重要？</p></li>
+<li><p>Kaplan 的联合 (L(N,D)) 为什么是经验 ansatz，而不是第一性定理？</p></li>
+<li><p>“(D\propto N^{0.74})”到底是什么意思，为什么它<strong>不是</strong> Chinchilla 问的 compute-optimal token ratio？</p></li>
+<li><p>(C\approx6NBS) 从哪来？</p></li>
+<li><p>Critical Batch Size 为什么也会进入 compute-efficient training？</p></li>
+<li><p>为什么 Kaplan 得到 (N_{\rm opt}\propto C^{0.73})？</p></li>
+<li><p>为什么这会推出“模型做得更大、提前停训”？</p></li>
+<li><p>Kaplan 自己为什么已经意识到 scaling law 必然会失效？</p></li>
+<li><p>Chinchilla 后来到底修正的是哪一层？</p></li>
+<li><p>Llama 3 和 Qwen2.5 现在怎样继续使用 scaling-law 思想？</p></li>
+</ol>
 </section>
+<hr class="docutils" />
 <section id="id2">
-<h2>输入、输出与任务<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
-<p>对单个 token hidden state：</p>
-<div class="math notranslate nohighlight">
-\[
-x=(x_1,\ldots,x_d)\in\mathbb R^d.
-\]</div>
-<p>批量 Transformer：</p>
-<div class="math notranslate nohighlight">
-\[
-X\in\mathbb R^{B\times T\times d}.
-\]</div>
-<p>RMSNorm 在最后 hidden 维上独立计算：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{RMS}(x)
-=
-\sqrt{
-\frac1d\sum_{i=1}^{d}x_i^2+\epsilon
-}.
-\]</div>
-<p>归一化：</p>
-<div class="math notranslate nohighlight">
-\[
-\hat x_i
-=
-\frac{x_i}{\operatorname{RMS}(x)}.
-\]</div>
-<p>带可学习 gain：</p>
-<div class="math notranslate nohighlight">
-\[
-y_i=g_i\hat x_i,\qquad g\in\mathbb R^d.
-\]</div>
-<p>Shape 不变：</p>
-<div class="math notranslate nohighlight">
-\[
-[B,T,d]\to[B,T,d].
-\]</div>
-<p>与 BatchNorm 不同，RMSNorm 不跨 batch 或 sequence 维共享统计：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>X[B,T,d]
-   ↓
-每个 (b,t) 单独对 d 个 hidden feature 求 RMS
-   ↓
-Y[B,T,d]
+<h2>1. 这篇论文真正面对的工程问题是什么？<a class="headerlink" href="#id2" title="Link to this heading"></a></h2>
+<p>假设你现在有一笔训练预算。</p>
+<p>你可以把新增资源花在：</p>
+<ul class="simple">
+<li><p>更大的模型；</p></li>
+<li><p>更多训练数据；</p></li>
+<li><p>更多 training steps；</p></li>
+<li><p>更大的 batch；</p></li>
+<li><p>更长训练时间。</p></li>
+</ul>
+<p>最简单的直觉是：</p>
+<blockquote>
+<div><p>模型越大越好。</p>
+</div></blockquote>
+<p>但这不够。</p>
+<p>因为固定 compute 下，变量彼此耦合。</p>
+<p>比如：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>模型做大 4×
+但训练总 FLOPs 不变
+        ↓
+每个 token 变贵
+        ↓
+能够处理的 token 数下降
+        ↓
+模型可能“更有容量但训练不足”
 </pre></div>
 </div>
-<p>因此 batch 大小变化不会像 BatchNorm 那样改变归一化统计语义。</p>
+<p>反过来：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>模型很小
+把所有算力用于看更多 token
+        ↓
+优化很充分
+        ↓
+但最终受模型容量限制
+</pre></div>
+</div>
+<p>所以真正问题是：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\text{在有限资源下，模型规模、数据和优化时间应该如何共同增长？}
+}
+\]</div>
+<p>这就是 scaling law 从“观察规律”走向“训练规划”的入口。</p>
 </section>
+<hr class="docutils" />
+<section id="scaling-law">
+<h2>2. 先把所有符号钉死：Scaling Law 最容易混淆的就是“数据量”<a class="headerlink" href="#scaling-law" title="Link to this heading"></a></h2>
+<p>Kaplan 论文中常见变量：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>符号</p></th>
+<th class="head"><p>含义</p></th>
+<th class="head"><p>最容易混淆的地方</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>(N)</p></td>
+<td><p>non-embedding trainable parameters</p></td>
+<td><p>不一定等于今天报告的 total parameters</p></td>
+</tr>
+<tr class="row-odd"><td><p>(D)</p></td>
+<td><p>dataset size / data tokens</p></td>
+<td><p>与训练中累计处理 token 数的语境要区分</p></td>
+</tr>
+<tr class="row-even"><td><p>(B)</p></td>
+<td><p>batch 中处理的 token 数</p></td>
+<td><p>不是 sequence count</p></td>
+</tr>
+<tr class="row-odd"><td><p>(S)</p></td>
+<td><p>optimizer update steps</p></td>
+<td><p>不是 token 数</p></td>
+</tr>
+<tr class="row-even"><td><p>(C)</p></td>
+<td><p>training FLOPs</p></td>
+<td><p>不是 GPU 峰值算力，也不是 wall-clock time</p></td>
+</tr>
+<tr class="row-odd"><td><p>(C_{\min})</p></td>
+<td><p>调整 batch inefficiency 后的最小有效 compute</p></td>
+<td><p>是经验归一化量</p></td>
+</tr>
+<tr class="row-even"><td><p>(L)</p></td>
+<td><p>test negative log-likelihood</p></td>
+<td><p>论文主要优化对象</p></td>
+</tr>
+<tr class="row-odd"><td><p>(B_{\rm crit})</p></td>
+<td><p>critical batch size</p></td>
+<td><p>随 training state / loss 变化</p></td>
+</tr>
+</tbody>
+</table>
+<p>训练过程中累计处理 token 数可粗略写成：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm processed}
+\approx
+B S.
+\]</div>
+<p>但“独特语料池大小”和“累计训练 token 数”并不总是同一个概念。</p>
+<p>如果训练多个 epoch：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm processed}
+&gt;
+D_{\rm unique}.
+\]</div>
+<p>后面读 Chinchilla 时尤其要注意：它讨论的 (D) 更直接指本次训练总共处理多少 tokens。</p>
+</section>
+<hr class="docutils" />
 <section id="id3">
-<h2>骨干架构与信息交互<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
-<section id="layernorm-rmsnorm">
-<h3>LayerNorm 与 RMSNorm 的数据流<a class="headerlink" href="#layernorm-rmsnorm" title="Link to this heading"></a></h3>
-<p>LayerNorm：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>x
- ↓
-μ = mean(x)
- ↓
-x - μ
- ↓
-σ = sqrt(mean((x-μ)^2)+eps)
- ↓
-(x-μ)/σ
- ↓
-γ * ... + β
-</pre></div>
-</div>
-<p>RMSNorm：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>x
- ↓
-r = sqrt(mean(x²)+eps)
- ↓
-x/r
- ↓
-g * ...
-</pre></div>
-</div>
-<p>RMSNorm 删除：</p>
-<ol class="arabic simple">
-<li><p>mean reduction；</p></li>
-<li><p>subtract mean；</p></li>
-<li><p>centered value 的平方统计。</p></li>
-</ol>
-<p>保留：</p>
-<ol class="arabic simple">
-<li><p>square；</p></li>
-<li><p>mean；</p></li>
-<li><p>rsqrt；</p></li>
-<li><p>scale。</p></li>
-</ol>
-<p>在 Transformer Pre-Norm 结构中：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>x
- ├──────────── residual ────────────┐
- ↓                                │
-RMSNorm                            │
- ↓                                │
-Attention / FFN                    │
- ↓                                │
-+─────────────────────────────────┘
-</pre></div>
-</div>
-<p>RMSNorm 本身不决定 Pre-Norm 或 Post-Norm；那是 block layout 的更高层设计。</p>
+<h2>3. 下层仍然是普通语言模型，上层研究对象变成了“训练运行”<a class="headerlink" href="#id3" title="Link to this heading"></a></h2>
+<p>底层模型没有神秘之处。</p>
+<p>输入：</p>
+<div class="math notranslate nohighlight">
+\[
+x_1,x_2,\dots,x_T.
+\]</div>
+<p>自回归 likelihood：</p>
+<div class="math notranslate nohighlight">
+\[
+p_\theta(x_{1:T})
+=
+\prod_{t=1}^{T}
+p_\theta(x_t|x_{&lt;t}).
+\]</div>
+<p>training loss：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathcal L_{\rm LM}
+=
+-
+\frac1T
+\sum_{t=1}^{T}
+\log p_\theta(x_t|x_{&lt;t}).
+\]</div>
+<p>但这篇论文研究的“一个样本”不再只是一个文本 sequence。</p>
+<p>更高一层的实验对象是：</p>
+<div class="math notranslate nohighlight">
+\[
+(N,D,B,S,C)
+\rightarrow
+L.
+\]</div>
+<p>也就是：</p>
+<blockquote>
+<div><p>给定一次训练 run 的规模配置，最终 loss 会怎样？</p>
+</div></blockquote>
+<p>整个方法可以抽象成：</p>
+<pre  class="mermaid">
+        flowchart TD
+    A[&quot;Choose N / D / B / S&quot;] --&gt; B[&quot;Train autoregressive LM&quot;]
+    B --&gt; C[&quot;Measure train/test loss curves&quot;]
+    C --&gt; D[&quot;Control which resource is the bottleneck&quot;]
+    D --&gt; E[&quot;Fit empirical power laws&quot;]
+    E --&gt; F[&quot;Extrapolate to larger scale&quot;]
+    F --&gt; G[&quot;Training-plan decisions&quot;]
+    </pre><p>因此 scaling law 不是新网络层。</p>
+<p>它是：</p>
+<blockquote>
+<div><p><strong>训练系统之上的经验性能模型。</strong></p>
+</div></blockquote>
 </section>
+<hr class="docutils" />
+<section id="figure-1">
+<h2>4. 原论文 Figure 1：最重要的发现是“很多数量级仍近似直线”<a class="headerlink" href="#figure-1" title="Link to this heading"></a></h2>
+<p><img alt="Kaplan 原论文：Simple Power Laws" src="../../../../_images/fig1-simple-power-laws.svg" /></p>
+<p><em>原论文核心总览图。论文把模型参数量、数据规模和训练 compute 与 test loss 放到 log-log 坐标下，观察到跨多个数量级的近似 power-law 关系。它支持“规模变化具有可预测性”，但不证明这些直线可以无限外推。</em></p>
+<p>这张图的第一性原理读法不是：</p>
+<blockquote>
+<div><p>“有三条线。”</p>
+</div></blockquote>
+<p>而是：</p>
+<blockquote>
+<div><p><strong>当一个关系在 log-log 坐标上接近直线，我们可以用非常少的参数描述跨数量级变化。</strong></p>
+</div></blockquote>
 </section>
+<hr class="docutils" />
+<section id="log-log-power-law">
+<h2>5. 为什么 log-log 直线意味着 power law？<a class="headerlink" href="#log-log-power-law" title="Link to this heading"></a></h2>
+<p>假设：</p>
+<div class="math notranslate nohighlight">
+\[
+L(X)=kX^{-\alpha},
+\]</div>
+<p>其中 (X) 可以是：</p>
+<ul class="simple">
+<li><p>(N)；</p></li>
+<li><p>(D)；</p></li>
+<li><p>(C)。</p></li>
+</ul>
+<p>两边取 log：</p>
+<div class="math notranslate nohighlight">
+\[
+\log L
+=
+\log k
+-
+\alpha\log X.
+\]</div>
+<p>定义：</p>
+<div class="math notranslate nohighlight">
+\[
+u=\log X,
+\qquad
+v=\log L.
+\]</div>
+<p>则：</p>
+<div class="math notranslate nohighlight">
+\[
+v
+=
+-\alpha u+\log k.
+\]</div>
+<p>这就是直线：</p>
+<div class="math notranslate nohighlight">
+\[
+v=mu+b.
+\]</div>
+<p>斜率：</p>
+<div class="math notranslate nohighlight">
+\[
+m=-\alpha.
+\]</div>
+<p>所以：</p>
+<blockquote>
+<div><p>log-log 图上出现稳定直线，本质上是在说资源扩大一个<strong>比例</strong>，loss 改善也近似遵循稳定比例关系。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="power-law">
+<h2>6. 为什么 power law 对工程特别有用？<a class="headerlink" href="#power-law" title="Link to this heading"></a></h2>
+<p>假设：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N)
+=
+kN^{-\alpha}.
+\]</div>
+<p>模型增大：</p>
+<div class="math notranslate nohighlight">
+\[
+N_2=qN_1.
+\]</div>
+<p>则：</p>
+<div class="math notranslate nohighlight">
+\[
+\frac{L(N_2)}{L(N_1)}
+=
+\frac{k(qN_1)^{-\alpha}}
+{kN_1^{-\alpha}}
+=
+q^{-\alpha}.
+\]</div>
+<p>只需要知道：</p>
+<ul class="simple">
+<li><p>当前 scale；</p></li>
+<li><p>放大倍数 (q)；</p></li>
+<li><p>指数 (\alpha)；</p></li>
+</ul>
+<p>就能估计收益。</p>
+<p>例如：</p>
+<div class="math notranslate nohighlight">
+\[
+\alpha_N\approx0.076.
+\]</div>
+<p>参数量翻倍：</p>
+<div class="math notranslate nohighlight">
+\[
+q=2.
+\]</div>
+<p>那么：</p>
+<div class="math notranslate nohighlight">
+\[
+2^{-0.076}
+\approx0.949.
+\]</div>
+<p>即 loss 大约变为原来的 94.9%。</p>
+<p>也就是相对下降约：</p>
+<div class="math notranslate nohighlight">
+\[
+5.1\%.
+\]</div>
+<p>注意：</p>
+<blockquote>
+<div><p>这不是 accuracy +5.1 个百分点。</p>
+</div></blockquote>
+<p>如果原 NLL：</p>
+<div class="math notranslate nohighlight">
+\[
+L_1=3.0,
+\]</div>
+<p>那么粗略：</p>
+<div class="math notranslate nohighlight">
+\[
+L_2\approx2.85.
+\]</div>
+<p>perplexity：</p>
+<div class="math notranslate nohighlight">
+\[
+PPL=e^L.
+\]</div>
+<p>于是：</p>
+<div class="math notranslate nohighlight">
+\[
+e^{3.0}\approx20.1,
+\]</div>
+<div class="math notranslate nohighlight">
+\[
+e^{2.85}\approx17.3.
+\]</div>
+<p>小指数在跨很多个数量级以后仍然会产生巨大累计差异。</p>
+</section>
+<hr class="docutils" />
 <section id="id4">
-<h2>关键技术<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
-<section id="layernorm-invariance">
-<h3>1. LayerNorm 到底提供哪两种 invariance<a class="headerlink" href="#layernorm-invariance" title="Link to this heading"></a></h3>
-<p>LayerNorm：</p>
+<h2>7. 三条最著名的单资源 scaling law<a class="headerlink" href="#id4" title="Link to this heading"></a></h2>
+<p>Kaplan 报告：</p>
+<section id="id5">
+<h3>7.1 参数受限<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<p>当：</p>
+<ul class="simple">
+<li><p>数据足够；</p></li>
+<li><p>训练足够；</p></li>
+<li><p>主要瓶颈是模型容量；</p></li>
+</ul>
+<p>经验上：</p>
 <div class="math notranslate nohighlight">
 \[
-\mu(x)=\frac1d\sum_i x_i,
-\]</div>
-<div class="math notranslate nohighlight">
-\[
-\sigma(x)
+\boxed{
+L(N)
 =
-\sqrt{
-\frac1d\sum_i(x_i-\mu)^2+\epsilon
-}.
+\left(
+\frac{N_c}{N}
+\right)^{\alpha_N}
+}
 \]</div>
-<p>输出：</p>
+<p>其中：</p>
 <div class="math notranslate nohighlight">
 \[
-\operatorname{LN}(x)
+\alpha_N\approx0.076.
+\]</div>
+</section>
+<section id="id6">
+<h3>7.2 数据受限<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<p>当：</p>
+<ul class="simple">
+<li><p>模型足够大；</p></li>
+<li><p>用有限数据训练并合理 early stop；</p></li>
+<li><p>主要瓶颈是数据；</p></li>
+</ul>
+<p>经验上：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+L(D)
 =
-\gamma\odot
-\frac{x-\mu(x)}{\sigma(x)}
-+\beta.
+\left(
+\frac{D_c}{D}
+\right)^{\alpha_D}
+}
 \]</div>
-<p>对：</p>
+<p>其中：</p>
 <div class="math notranslate nohighlight">
 \[
-x'=ax+b\mathbf1.
+\alpha_D\approx0.095.
 \]</div>
-<p>忽略 <code class="docutils literal notranslate"><span class="pre">\epsilon</span></code> 且 <code class="docutils literal notranslate"><span class="pre">a&gt;0</span></code>：</p>
+</section>
+<section id="compute">
+<h3>7.3 Compute 受限<a class="headerlink" href="#compute" title="Link to this heading"></a></h3>
+<p>当：</p>
+<ul class="simple">
+<li><p>数据足够；</p></li>
+<li><p>模型大小合理；</p></li>
+<li><p>batch 也被调整到更有效率的工作区；</p></li>
+</ul>
+<p>论文写：</p>
 <div class="math notranslate nohighlight">
 \[
-\mu(x')=a\mu(x)+b,
+\boxed{
+L(C_{\min})
+=
+\left(
+\frac{C_c^{\min}}
+{C_{\min}}
+\right)^{\alpha_C}
+}
 \]</div>
+<p>其中：</p>
 <div class="math notranslate nohighlight">
 \[
-x'-\mu(x')=a(x-\mu(x)),
+\alpha_C\approx0.050.
 \]</div>
+<p>这三条关系最容易被错误地摆成同一层“万能公式”。</p>
+<p>真正前提是：</p>
+<blockquote>
+<div><p><strong>每一条单变量 law 都要求另外两个资源不要先成为主瓶颈。</strong></p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id7">
+<h2>8. 为什么控制瓶颈如此重要？<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<p>假设你想测：</p>
 <div class="math notranslate nohighlight">
 \[
-\sigma(x')=a\sigma(x).
+L(N).
+\]</div>
+<p>如果数据集只有很少 token，那么模型增大以后，性能可能不再改善。</p>
+<p>这不代表：</p>
+<blockquote>
+<div><p>model scaling law 失效。</p>
+</div></blockquote>
+<p>可能只是：</p>
+<div class="math notranslate nohighlight">
+\[
+D
+\]</div>
+<p>先成为瓶颈。</p>
+<p>同理，测：</p>
+<div class="math notranslate nohighlight">
+\[
+L(D)
+\]</div>
+<p>时，如果模型太小，无论加多少数据，最终 loss 都会被模型 capacity floor 卡住。</p>
+<p>所以实验逻辑必须是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>想研究 N
+→ 尽量让 D 和 training 足够
+
+想研究 D
+→ 尽量让 N 足够大
+
+想研究 C
+→ 同时优化 N / batch / steps allocation
+</pre></div>
+</div>
+<p>这也是为什么真正的 scaling-law 工作需要很多训练 run，而不是画一条现成模型 leaderboard 拟合直线。</p>
+</section>
+<hr class="docutils" />
+<section id="id8">
+<h2>9. 模型“形状”为什么不是第一主变量？<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<p>Kaplan 做了一个非常有影响力的观察：</p>
+<blockquote>
+<div><p>在合理范围内，当 non-embedding parameter count (N) 固定时，深度、宽度、head 数等 shape 改变，对 loss 的影响远小于 scale 本身。</p>
+</div></blockquote>
+<p>注意这不是说 architecture 不重要。</p>
+<p>更准确地说：</p>
+<blockquote>
+<div><p><strong>在论文测试的 Transformer family 与 shape 范围内，参数总规模比具体 depth/width aspect ratio 更能解释 performance trend。</strong></p>
+</div></blockquote>
+<p>这让大规模实验可以把：</p>
+<div class="math notranslate nohighlight">
+\[
+N
+\]</div>
+<p>作为一个相对稳定的一维 scale coordinate。</p>
+<p>否则每变一次模型深宽，就必须重新定义 scaling law。</p>
+</section>
+<hr class="docutils" />
+<section id="non-embedding-parameters">
+<h2>10. 这里为什么使用 non-embedding parameters？<a class="headerlink" href="#non-embedding-parameters" title="Link to this heading"></a></h2>
+<p>词表 embedding 参数：</p>
+<div class="math notranslate nohighlight">
+\[
+V\times d.
+\]</div>
+<p>会强烈受到：</p>
+<ul class="simple">
+<li><p>vocabulary size；</p></li>
+<li><p>tokenizer；</p></li>
+<li><p>embedding tying；</p></li>
+</ul>
+<p>影响。</p>
+<p>但它们并不总是以和 Transformer block 内矩阵相同的方式贡献 compute/capacity。</p>
+<p>因此 Kaplan 的 (N) 主要采用：</p>
+<blockquote>
+<div><p>non-embedding parameter count。</p>
+</div></blockquote>
+<p>这也是为什么不能把论文里的：</p>
+<div class="math notranslate nohighlight">
+\[
+N_c
+\]</div>
+<p>常数直接搬到今天任意 tokenizer/model family。</p>
+<p>scale exponent 比绝对 normalization constant 更具有可迁移解释价值。</p>
+</section>
+<hr class="docutils" />
+<section id="id9">
+<h2>11. 数据瓶颈：模型和数据不是两个可以独立无限扩展的旋钮<a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+N\rightarrow\infty
+\]</div>
+<p>但：</p>
+<div class="math notranslate nohighlight">
+\[
+D
+\]</div>
+<p>固定，最终会过度受限于数据。</p>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+D\rightarrow\infty
+\]</div>
+<p>但：</p>
+<div class="math notranslate nohighlight">
+\[
+N
+\]</div>
+<p>固定，最终受限于容量。</p>
+<p>所以论文需要一个 joint function：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N,D).
+\]</div>
+<p>原论文核心图：</p>
+<p><img alt="Kaplan：Model size 与 dataset size 的联合影响" src="../../../../_images/fig-data-model-joint.svg" /></p>
+<p><em>原论文联合 (N,D) 实验的一部分。它的意义是：模型大小和数据大小共同决定最终 loss，并存在可预测的数据瓶颈边界。</em></p>
+</section>
+<hr class="docutils" />
+<section id="kaplan-l-n-d-empirical-ansatz">
+<h2>12. Kaplan 的 (L(N,D)) 从哪里来？不是严格推导，是 empirical ansatz<a class="headerlink" href="#kaplan-l-n-d-empirical-ansatz" title="Link to this heading"></a></h2>
+<p>论文提出：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+L(N,D)
+=
+\left[
+\left(
+\frac{N_c}{N}
+\right)^{\alpha_N/\alpha_D}
++
+\frac{D_c}{D}
+\right]^{\alpha_D}.
+}
+\]</div>
+<p>这个公式很容易被过度神化。</p>
+<p>它不是从 Transformer dynamics 唯一推导出的“自然定律”。</p>
+<p>它是一个经验函数形式，设计时满足几个合理边界。</p>
+<section id="id10">
+<h3>当数据无限大<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+D\rightarrow\infty.
+\]</div>
+<p>第二项消失：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N,\infty)
+=
+\left[
+\left(
+\frac{N_c}{N}
+\right)^{\alpha_N/\alpha_D}
+\right]^{\alpha_D}.
 \]</div>
 <p>所以：</p>
 <div class="math notranslate nohighlight">
 \[
-\frac{x'-\mu(x')}{\sigma(x')}
-=
-\frac{x-\mu(x)}{\sigma(x)}.
-\]</div>
-<p>LayerNorm 同时消除了整体平移 <code class="docutils literal notranslate"><span class="pre">b\mathbf1</span></code> 与正尺度 <code class="docutils literal notranslate"><span class="pre">a</span></code>。</p>
-<p>RMSNorm：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{RMS}(x)
-=
-\sqrt{\frac1d\sum_i x_i^2}.
-\]</div>
-<p>若：</p>
-<div class="math notranslate nohighlight">
-\[
-x'=ax,
-\]</div>
-<p>则：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{RMS}(x')
-=
-|a|\operatorname{RMS}(x).
-\]</div>
-<p>当 <code class="docutils literal notranslate"><span class="pre">a&gt;0</span></code>：</p>
-<div class="math notranslate nohighlight">
-\[
-\frac{x'}{\operatorname{RMS}(x')}
-=
-\frac{x}{\operatorname{RMS}(x)}.
-\]</div>
-<p>但加常数 <code class="docutils literal notranslate"><span class="pre">b\mathbf1</span></code> 时一般不成立。因此 RMSNorm 保留 re-scaling invariance，舍弃 re-centering invariance。</p>
-</section>
-<section id="rms">
-<h3>2. RMS 与标准差不是一回事<a class="headerlink" href="#rms" title="Link to this heading"></a></h3>
-<p>定义：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{RMS}^2(x)
-=
-\frac1d\sum_i x_i^2.
-\]</div>
-<p>方差：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{Var}(x)
-=
-\frac1d\sum_i(x_i-\mu)^2.
-\]</div>
-<p>展开：</p>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{Var}(x)
-=
-\frac1d\sum_i x_i^2-\mu^2.
-\]</div>
-<p>因此：</p>
-<div class="math notranslate nohighlight">
-\[
 \boxed{
-\operatorname{RMS}^2(x)
+L(N,\infty)
 =
-\operatorname{Var}(x)+\mu^2
-}
-\]</div>
-<p>只有 <code class="docutils literal notranslate"><span class="pre">\mu=0</span></code> 时 RMS 等于标准差。</p>
-<p>数值例：</p>
-<div class="math notranslate nohighlight">
-\[
-x=(1,2,3),\qquad \mu=2.
-\]</div>
-<div class="math notranslate nohighlight">
-\[
-\sigma^2=\frac{1+0+1}{3}=\frac23,\quad
-\sigma\approx0.8165.
-\]</div>
-<div class="math notranslate nohighlight">
-\[
-\operatorname{RMS}
-=
-\sqrt{\frac{1+4+9}{3}}
-=
-\sqrt{\frac{14}{3}}
-\approx2.1602.
-\]</div>
-<p>两者明显不同。</p>
-</section>
-<section id="rmsnorm">
-<h3>3. 为什么说 RMSNorm 带来隐式尺度调节<a class="headerlink" href="#rmsnorm" title="Link to this heading"></a></h3>
-<p>考虑：</p>
-<div class="math notranslate nohighlight">
-\[
-y=Wx.
-\]</div>
-<p>若上游把输入放大：</p>
-<div class="math notranslate nohighlight">
-\[
-x'=ax,
-\]</div>
-<p>普通线性层输出：</p>
-<div class="math notranslate nohighlight">
-\[
-Wx'=aWx.
-\]</div>
-<p>而 RMSNorm：</p>
-<div class="math notranslate nohighlight">
-\[
-\hat x'
-=
-\frac{ax}{\operatorname{RMS}(ax)}
-=
-\frac{x}{\operatorname{RMS}(x)}
-=
-\hat x.
-\]</div>
-<p>所以后续层对整体正尺度变化不敏感。它并没有真正改 optimizer 的 learning rate；所谓 implicit learning-rate adaptation 是对有效激活/梯度尺度的解释。</p>
-</section>
-<section id="id5">
-<h3>4. 反向传播完整推导<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
-<p>忽略 gain，定义：</p>
-<div class="math notranslate nohighlight">
-\[
-r=
-\sqrt{\frac1d\sum_jx_j^2+\epsilon},
-\qquad
-y_i=\frac{x_i}{r}.
-\]</div>
-<p>首先：</p>
-<div class="math notranslate nohighlight">
-\[
-\frac{\partial r}{\partial x_k}
-=
-\frac{x_k}{dr}.
-\]</div>
-<p>然后：</p>
-<div class="math notranslate nohighlight">
-\[
-\frac{\partial y_i}{\partial x_k}
-=
-\frac{\delta_{ik}}{r}
--
-\frac{x_ix_k}{dr^3}.
-\]</div>
-<p>设上游梯度：</p>
-<div class="math notranslate nohighlight">
-\[
-g_i=\frac{\partial L}{\partial y_i}.
-\]</div>
-<p>则：</p>
-<div class="math notranslate nohighlight">
-\[
-\frac{\partial L}{\partial x_k}
-=
-\sum_i
-g_i
 \left(
-\frac{\delta_{ik}}{r}
--
-\frac{x_ix_k}{dr^3}
-\right).
+\frac{N_c}{N}
+\right)^{\alpha_N}.
+}
 \]</div>
-<p>向量形式：</p>
+<p>恢复 (L(N))。</p>
+</section>
+<section id="id11">
+<h3>当模型无限大<a class="headerlink" href="#id11" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+N\rightarrow\infty.
+\]</div>
+<p>第一项消失：</p>
 <div class="math notranslate nohighlight">
 \[
 \boxed{
-\nabla_xL
+L(\infty,D)
 =
-\frac{g}{r}
--
-\frac{x}{dr^3}(x^\top g)
+\left(
+\frac{D_c}{D}
+\right)^{\alpha_D}.
 }
 \]</div>
-<p>若有 learnable gain，只需先把上游梯度逐元素乘 gain。</p>
-<p>这说明 backward 仍存在 hidden 维度耦合：RMS 分母依赖全部 <code class="docutils literal notranslate"><span class="pre">x_i</span></code>，不能把它理解成每个元素独立除一个常数。</p>
+<p>恢复 (L(D))。</p>
+<p>所以它至少保证两端行为一致。</p>
+<p>真正可信度来自：</p>
+<blockquote>
+<div><p>与实验数据拟合得好，而不是因为公式看起来漂亮。</p>
+</div></blockquote>
 </section>
-<section id="mean-reduction">
-<h3>5. 为什么少一个 mean reduction 可能更快<a class="headerlink" href="#mean-reduction" title="Link to this heading"></a></h3>
-<p>LayerNorm 要获得中心和尺度，RMSNorm 只需要：</p>
+</section>
+<hr class="docutils" />
+<section id="d-propto-n-0-74">
+<h2>13. (D\propto N^{0.74}) 到底在回答什么？<a class="headerlink" href="#d-propto-n-0-74" title="Link to this heading"></a></h2>
+<p>从联合函数看，有限数据惩罚大致由一个无量纲比例控制：</p>
 <div class="math notranslate nohighlight">
 \[
-\sum_i x_i^2.
+\frac{N^{\alpha_N/\alpha_D}}{D}.
 \]</div>
-<p>归一化算子通常计算强度不高，却涉及 reduction、同步与 HBM 读写。删除均值统计与 centered subtraction 可以减少指令和数据依赖。</p>
-<p>现代 fused kernel 中真实收益取决于：</p>
-<ul class="simple">
-<li><p>hidden size；</p></li>
-<li><p>token 数；</p></li>
-<li><p>vectorization；</p></li>
-<li><p>fusion；</p></li>
-<li><p>memory bandwidth。</p></li>
-</ul>
-<p>因此论文 7%–64% 不能当成现代 LLM 固定收益。citeturn100152academia0</p>
-</section>
-<section id="prmsnorm">
-<h3>6. pRMSNorm<a class="headerlink" href="#prmsnorm" title="Link to this heading"></a></h3>
-<p>partial RMSNorm 用一部分 feature 估计：</p>
+<p>联合拟合中：</p>
 <div class="math notranslate nohighlight">
 \[
-\operatorname{RMS}_p(x)
+\alpha_N\approx0.076,
+\qquad
+\alpha_D\approx0.103.
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+\frac{\alpha_N}{\alpha_D}
+\approx
+0.738.
+\]</div>
+<p>要保持类似程度的数据瓶颈：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+D\propto N^{0.74}.
+}
+\]</div>
+<p>例如模型扩大：</p>
+<div class="math notranslate nohighlight">
+\[
+8\times.
+\]</div>
+<p>数据大约需要扩大：</p>
+<div class="math notranslate nohighlight">
+\[
+8^{0.74}\approx4.7\times.
+\]</div>
+<p>于是论文总结成：</p>
+<blockquote>
+<div><p>模型 8×，大约 5× 数据可以维持类似的 overfitting penalty。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="compute-optimal-tokens-n-0-74">
+<h2>14. 这绝对不是“compute-optimal tokens 应该按 (N^{0.74}) 增长”<a class="headerlink" href="#compute-optimal-tokens-n-0-74" title="Link to this heading"></a></h2>
+<p>这是理解 Kaplan → Chinchilla 最关键的分界。</p>
+<p>刚才的：</p>
+<div class="math notranslate nohighlight">
+\[
+D\propto N^{0.74}
+\]</div>
+<p>回答：</p>
+<blockquote>
+<div><p><strong>为了不让有限数据瓶颈明显恶化，数据规模应怎样随模型容量扩展？</strong></p>
+</div></blockquote>
+<p>它不是在解：</p>
+<div class="math notranslate nohighlight">
+\[
+\min_{N,D} L(N,D)
+\quad
+\text{s.t. fixed training FLOPs}.
+\]</div>
+<p>后一个问题才是 Chinchilla 的主问题。</p>
+<p>因此：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Kaplan joint N-D law
+→ 数据容量 / overfitting boundary
+
+Chinchilla compute-optimal law
+→ 固定 FLOPs 下 N 与 processed tokens 怎样分配
+</pre></div>
+</div>
+<p>它们不是一个公式的两个写法。</p>
+</section>
+<hr class="docutils" />
+<section id="flops-6n">
+<h2>15. 训练 FLOPs 的 (6N) 近似从哪里来？<a class="headerlink" href="#flops-6n" title="Link to this heading"></a></h2>
+<p>对于 dense Transformer，粗略看每个参数参与主要矩阵乘法。</p>
+<p>单 token forward：</p>
+<div class="math notranslate nohighlight">
+\[
+\approx2N
+\]</div>
+<p>FLOPs。</p>
+<p>直觉是：</p>
+<blockquote>
+<div><p>一次 multiply + add 常按 2 FLOPs 计。</p>
+</div></blockquote>
+<p>backward 需要：</p>
+<ul class="simple">
+<li><p>对 activation 求梯度；</p></li>
+<li><p>对 weight 求梯度。</p></li>
+</ul>
+<p>粗略约为 forward 的两倍：</p>
+<div class="math notranslate nohighlight">
+\[
+\approx4N.
+\]</div>
+<p>所以每 token：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\rm token}
+\approx
+2N+4N
 =
-\sqrt{
-\frac1m
-\sum_{i\in S_p}x_i^2
-}.
+6N.
 \]</div>
-<p>再缩放整个向量：</p>
+<p>若每 step 处理 (B) tokens，训练 (S) steps：</p>
 <div class="math notranslate nohighlight">
 \[
-y_i=\frac{x_i}{\operatorname{RMS}_p(x)}.
+\boxed{
+C
+\approx
+6NBS.
+}
 \]</div>
-<p>目的是减少统计成本，但这是近似；如果子集不代表完整 hidden distribution，估计会偏离真实 RMS。</p>
+<p>如果定义总 processed tokens：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm processed}=BS,
+\]</div>
+<p>则：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+C
+\approx
+6ND_{\rm processed}.
+}
+\]</div>
+<p>这条式子后来成为 Chinchilla 等 scaling analysis 的核心近似。</p>
 </section>
-<section id="pytorch">
-<h3>7. 最小 PyTorch 实现<a class="headerlink" href="#pytorch" title="Link to this heading"></a></h3>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">torch</span><span class="w"> </span><span class="kn">import</span> <span class="n">nn</span>
+<hr class="docutils" />
+<section id="nd-gpu">
+<h2>16. 为什么 (6ND) 不是 GPU 账单公式？<a class="headerlink" href="#nd-gpu" title="Link to this heading"></a></h2>
+<p>它忽略：</p>
+<ul class="simple">
+<li><p>attention (L^2) 项；</p></li>
+<li><p>embedding/output head；</p></li>
+<li><p>normalization；</p></li>
+<li><p>activation recomputation；</p></li>
+<li><p>optimizer update；</p></li>
+<li><p>communication；</p></li>
+<li><p>pipeline bubble；</p></li>
+<li><p>kernel utilization；</p></li>
+<li><p>padding；</p></li>
+<li><p>routing / MoE；</p></li>
+<li><p>hardware precision。</p></li>
+</ul>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\rm theoretical}
+\neq
+C_{\rm wall-clock}.
+\]</div>
+<p>更准确的用途是：</p>
+<blockquote>
+<div><p>在同类 dense Transformer training run 之间建立一个近似统一的 compute coordinate。</p>
+</div></blockquote>
+<p>现代长上下文、MoE、稀疏 attention 下，必须重新校准。</p>
+</section>
+<hr class="docutils" />
+<section id="sample-efficiency">
+<h2>17. 为什么大模型“sample efficiency 更高”？<a class="headerlink" href="#sample-efficiency" title="Link to this heading"></a></h2>
+<p>论文观察到：</p>
+<blockquote>
+<div><p>大模型达到同样 loss，往往需要更少 optimization steps / samples。</p>
+</div></blockquote>
+<p>这并不神秘。</p>
+<p>小模型的容量瓶颈可能很早出现。</p>
+<p>大模型在训练早期就拥有更强的函数表示能力，因此同样 token 数下，loss 可以下降得更快。</p>
+<p>于是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Small model
+→ cheap per token
+→ but many steps / samples to reach a target loss
 
-<span class="k">class</span><span class="w"> </span><span class="nc">RMSNorm</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dim</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">):</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">weight</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">eps</span> <span class="o">=</span> <span class="n">eps</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
-        <span class="c1"># x: [B,T,d]</span>
-        <span class="n">rms</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
-            <span class="n">x</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">eps</span>
-        <span class="p">)</span>                                      <span class="c1"># [B,T,1]</span>
-        <span class="n">x_hat</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">rms</span>                       <span class="c1"># [B,T,d]</span>
-        <span class="k">return</span> <span class="n">x_hat</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">weight</span>            <span class="c1"># [B,T,d]</span>
-
-<span class="n">torch</span><span class="o">.</span><span class="n">manual_seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
-<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="n">requires_grad</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-
-<span class="n">norm</span> <span class="o">=</span> <span class="n">RMSNorm</span><span class="p">(</span><span class="mi">8</span><span class="p">)</span>
-<span class="n">y</span> <span class="o">=</span> <span class="n">norm</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
-
-<span class="k">assert</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
-
-<span class="n">loss</span> <span class="o">=</span> <span class="n">y</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
-<span class="n">loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
-
-<span class="nb">print</span><span class="p">(</span><span class="n">norm</span><span class="o">.</span><span class="n">weight</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># [8]</span>
-<span class="nb">print</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">grad</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>            <span class="c1"># [2,4,8]</span>
+Large model
+→ expensive per token
+→ but reaches same loss with fewer steps
 </pre></div>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">pow(2)</span></code> 对应 <code class="docutils literal notranslate"><span class="pre">x_i^2</span></code>；<code class="docutils literal notranslate"><span class="pre">mean(dim=-1)</span></code> 对应 hidden 维平均；<code class="docutils literal notranslate"><span class="pre">sqrt</span></code> 得 RMS；<code class="docutils literal notranslate"><span class="pre">x/rms</span></code> 完成 re-scaling；<code class="docutils literal notranslate"><span class="pre">weight</span></code> 对应可学习 gain。</p>
+<p>compute-optimal training 就是要在：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{cost per token}
+\]</div>
+<p>与：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{sample efficiency}
+\]</div>
+<p>之间找平衡。</p>
 </section>
-<section id="id6">
-<h3>8. 实验结果与证据边界<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
-<p>论文在多类网络/任务上比较 LayerNorm 与 RMSNorm，报告 RMSNorm 能保持相近性能，同时在其设置下降低运行时间，并研究 pRMSNorm。citeturn100152academia0</p>
-<p>支持：</p>
+<hr class="docutils" />
+<section id="learning-curve-scaling">
+<h2>18. Learning Curve 也可以 scaling<a class="headerlink" href="#learning-curve-scaling" title="Link to this heading"></a></h2>
+<p>Kaplan 不只研究最终 loss。</p>
+<p>它还研究：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N,S).
+\]</div>
+<p>论文观察到，在初始 transient 之后，不同模型的 learning curve 也可以用相似幂律表示。</p>
+<p>一种形式：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N,S)
+=
+\left(
+\frac{N_c}{N}
+\right)^{\alpha_N}
++
+\left(
+\frac{S_c}{S_{\min}}
+\right)^{\alpha_S}.
+\]</div>
+<p>其中：</p>
+<div class="math notranslate nohighlight">
+\[
+\alpha_S\approx0.76.
+\]</div>
+<p>第一项：</p>
+<blockquote>
+<div><p>model-capacity floor。</p>
+</div></blockquote>
+<p>第二项：</p>
+<blockquote>
+<div><p>training progress 还不够造成的 optimization gap。</p>
+</div></blockquote>
+<p>这给出一个很有价值的视角：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{final loss}
+=
+\text{capacity limitation}
++
+\text{not-trained-long-enough limitation}.
+\]</div>
+<p>后面 Chinchilla 的：</p>
+<div class="math notranslate nohighlight">
+\[
+E+\frac{A}{N^\alpha}+\frac{B}{D^\beta}
+\]</div>
+<p>与这个思想有明显谱系关系。</p>
+</section>
+<hr class="docutils" />
+<section id="batch-size-scaling-law">
+<h2>19. Batch size 为什么也必须进入 scaling law？<a class="headerlink" href="#batch-size-scaling-law" title="Link to this heading"></a></h2>
+<p>固定 token budget 时，不同 batch size 并不等价。</p>
+<p>batch 太小：</p>
 <ul class="simple">
-<li><p>re-centering 不是所有测试任务的必要条件；</p></li>
-<li><p>只做 RMS scaling 可以稳定训练；</p></li>
-<li><p>简化归一化能带来实际运行收益。</p></li>
+<li><p>gradient noise 大；</p></li>
+<li><p>update 次数多；</p></li>
+<li><p>serial steps 多。</p></li>
 </ul>
+<p>batch 太大：</p>
+<ul class="simple">
+<li><p>额外样本边际信息变少；</p></li>
+<li><p>compute efficiency 可能下降；</p></li>
+<li><p>为了同样 optimization progress 处理过多样本。</p></li>
+</ul>
+<p>因此存在一个：</p>
+<div class="math notranslate nohighlight">
+\[
+B_{\rm crit}.
+\]</div>
+<p>直觉上：</p>
+<blockquote>
+<div><p>增大 batch 到一定程度以前，可以用更多并行数据减少 serial updates；超过临界点以后，再扩大 batch 的收益迅速下降。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="critical-batch-size-scaling">
+<h2>20. Critical Batch Size 的 scaling<a class="headerlink" href="#critical-batch-size-scaling" title="Link to this heading"></a></h2>
+<p>原论文拟合：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+B_{\rm crit}(L)
+=
+\frac{B_*}
+{L^{1/\alpha_B}}
+}
+\]</div>
+<p>其中：</p>
+<div class="math notranslate nohighlight">
+\[
+\alpha_B\approx0.21.
+\]</div>
+<p>原论文证据图：</p>
+<p><img alt="Kaplan：Critical Batch Size 随 loss 的变化" src="../../../../_images/fig-critical-batch.svg" /></p>
+<p><em>原论文关于 critical batch 的经验结果。论文观察到 (B_{\rm crit}) 更主要与当前性能/loss 水平相关，而不是简单由模型参数量决定。</em></p>
+<p>当训练越后期、loss 越低时：</p>
+<div class="math notranslate nohighlight">
+\[
+B_{\rm crit}
+\]</div>
+<p>通常增大。</p>
+<p>因此一个固定 batch 从头训练到底，并不一定在整个训练过程中都 compute-efficient。</p>
+</section>
+<hr class="docutils" />
+<section id="c-min-c">
+<h2>21. 为什么论文还引入 (C_{\min})，而不是直接用实测 (C)？<a class="headerlink" href="#c-min-c" title="Link to this heading"></a></h2>
+<p>如果一个 run 的 batch 远离 critical batch，那么它可能浪费 compute。</p>
+<p>为了研究“如果每个 run 都以更理想 batch 训练，理论上最少需要多少 compute”，论文构造：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\min}.
+\]</div>
+<p>它本质上是在尝试把：</p>
+<blockquote>
+<div><p>batch 选择造成的训练效率差异</p>
+</div></blockquote>
+<p>从 scaling trend 中剥离。</p>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+L(C_{\min})
+\]</div>
+<p>并不是数据中心真实电表读数。</p>
+<p>而是一种：</p>
+<blockquote>
+<div><p><strong>归一化后的 compute-efficiency coordinate。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="compute-efficient-frontier">
+<h2>22. 原论文 Compute-Efficient Frontier<a class="headerlink" href="#compute-efficient-frontier" title="Link to this heading"></a></h2>
+<p><img alt="Kaplan：调整 batch 后的 compute-efficient frontier" src="../../../../_images/fig-compute-frontier.svg" /></p>
+<p><em>原论文把不同训练 run 调整到更接近 compute-efficient batch 后，重新观察 loss 与 (C_{\min}) 的关系。论文认为这条曲线比固定 batch 的原始 compute 曲线更适合用于外推。</em></p>
+<p>拟合：</p>
+<div class="math notranslate nohighlight">
+\[
+L(C_{\min})
+\propto
+C_{\min}^{-0.050}.
+\]</div>
+<p>指数看起来只有：</p>
+<div class="math notranslate nohighlight">
+\[
+0.05.
+\]</div>
+<p>但如果 compute 增加：</p>
+<div class="math notranslate nohighlight">
+\[
+1000\times,
+\]</div>
+<p>loss 比例：</p>
+<div class="math notranslate nohighlight">
+\[
+1000^{-0.05}
+\approx0.708.
+\]</div>
+<p>也就是仍然可积累出明显收益。</p>
+</section>
+<hr class="docutils" />
+<section id="kaplan-compute">
+<h2>23. Kaplan 当时怎样解“固定 compute 应该做多大的模型”？<a class="headerlink" href="#kaplan-compute" title="Link to this heading"></a></h2>
+<p>论文最终观察：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+N_{\rm opt}
+\propto
+C_{\min}^{0.73}.
+}
+\]</div>
+<p>同时：</p>
+<div class="math notranslate nohighlight">
+\[
+B_{\rm crit}
+\propto
+C_{\min}^{0.24}.
+\]</div>
+<p>而 serial optimization steps：</p>
+<div class="math notranslate nohighlight">
+\[
+S_{\min}
+\propto
+C_{\min}^{0.03}.
+\]</div>
+<p>因为：</p>
+<div class="math notranslate nohighlight">
+\[
+C
+\approx
+6NBS.
+\]</div>
+<p>指数大致满足：</p>
+<div class="math notranslate nohighlight">
+\[
+0.73+0.24+0.03\approx1.
+\]</div>
+<p>这意味着，如果训练 compute 增长 10×：</p>
+<section id="id12">
+<h3>模型规模<a class="headerlink" href="#id12" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+10^{0.73}\approx5.37\times.
+\]</div>
+</section>
+<section id="batch">
+<h3>Batch<a class="headerlink" href="#batch" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+10^{0.24}\approx1.74\times.
+\]</div>
+</section>
+<section id="serial-steps">
+<h3>Serial steps<a class="headerlink" href="#serial-steps" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+10^{0.03}\approx1.07\times.
+\]</div>
+<p>所以 Kaplan 得出非常鲜明的工程结论：</p>
+<blockquote>
+<div><p>新增算力主要应该用于<strong>增大模型</strong>，其次用于扩大 batch，而不是明显增加 serial training time。</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="figure-compute-efficient">
+<h2>24. 原论文 Figure：为什么“更大模型 + 更早停”会看起来 compute-efficient？<a class="headerlink" href="#figure-compute-efficient" title="Link to this heading"></a></h2>
+<p><img alt="Kaplan：Compute 与 optimal model size" src="../../../../_images/fig-optimal-size.svg" /></p>
+<p><em>原论文的 compute-optimal model-size trend。该论文在自己的实验设置与 batch-adjusted learning-curve 建模下，得到最优模型规模随 compute 约按 (C^{0.73}) 增长。</em></p>
+<p>直觉是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Large model
+→ 每 token 更贵
+→ 但 early learning 更快 / sample efficiency 更高
+
+Small model
+→ 每 token 更便宜
+→ 但要训练很久才能追上
+</pre></div>
+</div>
+<p>于是如果目标只是：</p>
+<blockquote>
+<div><p>固定 compute 下尽量把 loss 压低，</p>
+</div></blockquote>
+<p>Kaplan 的拟合认为：</p>
+<blockquote>
+<div><p>做更大的模型，训练到离 convergence 还很远时就停，反而更划算。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="convergence-is-inefficient">
+<h2>25. “Convergence is inefficient”真正是什么意思？<a class="headerlink" href="#convergence-is-inefficient" title="Link to this heading"></a></h2>
+<p>它不是说：</p>
+<blockquote>
+<div><p>模型永远不要充分训练。</p>
+</div></blockquote>
+<p>而是说，在论文定义的固定 training-compute optimization 中：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{train smaller model to convergence}
+\]</div>
+<p>未必是最低 loss 的方式。</p>
+<p>因为你可以把同样 compute 换成：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{larger model}
++
+\text{fewer steps}.
+\]</div>
+<p>如果 larger model 的 early-stage sample efficiency 足够好，就可能更优。</p>
+<p>这个结论后来仍然有重要影响。</p>
+<p>Chinchilla 并没有推翻：</p>
+<blockquote>
+<div><p>compute-optimal model 不必训练到传统意义上的 convergence。</p>
+</div></blockquote>
+<p>它修正的是：</p>
+<blockquote>
+<div><p><strong>“到底应该多大，以及到底要训练多少 token。”</strong></p>
+</div></blockquote>
+</section>
+<section id="kaplan-data-scaling-processed-token">
+<h2>26. 为什么 Kaplan 的 data scaling 会推出一个非常慢的 processed-token 增长？<a class="headerlink" href="#kaplan-data-scaling-processed-token" title="Link to this heading"></a></h2>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm opt}
+\propto
+C^{0.73},
+\]</div>
+<p>而总 compute：</p>
+<div class="math notranslate nohighlight">
+\[
+C\approx6ND,
+\]</div>
+<p>那么：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm processed}
+\propto
+\frac{C}{N}.
+\]</div>
+<p>代入：</p>
+<div class="math notranslate nohighlight">
+\[
+N\propto C^{0.73},
+\]</div>
+<p>得到：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm processed}
+\propto
+C^{1-0.73}.
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+D_{\rm processed}
+\propto
+C^{0.27}.
+}
+\]</div>
+<p>也就是说算力增加：</p>
+<div class="math notranslate nohighlight">
+\[
+10\times,
+\]</div>
+<p>processed tokens 只增加：</p>
+<div class="math notranslate nohighlight">
+\[
+10^{0.27}
+\approx1.86\times.
+\]</div>
+<p>而模型参数增加约：</p>
+<div class="math notranslate nohighlight">
+\[
+5.37\times.
+\]</div>
+<p>这就是后来 Chinchilla 最直接挑战的结论。</p>
+</section>
+<hr class="docutils" />
+<section id="id13">
+<h2>27. 为什么这个结论在 2020 年会显得合理？<a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<p>不能站在 2026 年回头简单说：</p>
+<blockquote>
+<div><p>Kaplan 当时“明显错了”。</p>
+</div></blockquote>
+<p>它来自一组真实实验和一套内部一致的建模。</p>
+<p>几个重要背景：</p>
+<ol class="arabic simple">
+<li><p>论文里的大部分 scaling runs 比后来的 Chinchilla run 小得多；</p></li>
+<li><p>training schedule 设计与后来的 Chinchilla 不同；</p></li>
+<li><p>对 learning-curve intermediate points 的使用方式不同；</p></li>
+<li><p>batch efficiency 被特别纳入了 compute normalization；</p></li>
+<li><p>论文更强调“大模型早期训练效率高”。</p></li>
+</ol>
+<p>所以在它自己的实验区域里，结论有经验依据。</p>
+<p>真正的科学问题是：</p>
+<blockquote>
+<div><p><strong>外推到更大 compute 时，这组 fitted exponent 是否仍然成立？</strong></p>
+</div></blockquote>
+<p>这恰恰是 scaling law 最核心的风险。</p>
+</section>
+<hr class="docutils" />
+<section id="scaling-law-extrapolation-risk">
+<h2>28. Scaling law 为什么天然存在 extrapolation risk？<a class="headerlink" href="#scaling-law-extrapolation-risk" title="Link to this heading"></a></h2>
+<p>我们观测：</p>
+<div class="math notranslate nohighlight">
+\[
+X\in[X_{\min},X_{\max}]
+\]</div>
+<p>内近似：</p>
+<div class="math notranslate nohighlight">
+\[
+L(X)\propto X^{-\alpha}.
+\]</div>
+<p>然后预测：</p>
+<div class="math notranslate nohighlight">
+\[
+X\gg X_{\max}.
+\]</div>
+<p>这个预测隐含：</p>
+<blockquote>
+<div><p>未来 regime 的 dominant mechanism 没有改变。</p>
+</div></blockquote>
+<p>但实际上随着 scale 增长，可能出现：</p>
+<ul class="simple">
+<li><p>数据分布变化；</p></li>
+<li><p>optimizer regime 变化；</p></li>
+<li><p>architecture 变化；</p></li>
+<li><p>context length 变化；</p></li>
+<li><p>precision 变化；</p></li>
+<li><p>batch scaling 变化；</p></li>
+<li><p>data reuse；</p></li>
+<li><p>hardware communication bottleneck；</p></li>
+<li><p>irreducible entropy floor。</p></li>
+</ul>
+<p>所以 scaling law 的正确用法从来不是：</p>
+<blockquote>
+<div><p>拟合一次，永久当自然定律。</p>
+</div></blockquote>
+<p>而是：</p>
+<blockquote>
+<div><p><strong>持续用更大规模实验重新校准经验前沿。</strong></p>
+</div></blockquote>
+<p>Chinchilla 就是一次非常典型的 recalibration。</p>
+</section>
+<hr class="docutils" />
+<section id="kaplan">
+<h2>29. Kaplan 自己已经看到了内部“矛盾”<a class="headerlink" href="#kaplan" title="Link to this heading"></a></h2>
+<p>论文有一个很有价值但经常被忽略的章节：</p>
+<blockquote>
+<div><p>Contradictions and a Conjecture。</p>
+</div></blockquote>
+<p>它发现：</p>
+<p>compute-efficient data usage：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm compute}
+\propto
+C^{0.26\sim0.27}
+\]</div>
+<p>增长得很慢。</p>
+<p>另一方面，为了不让 overfitting penalty 恶化，联合 (N,D) law 暗示：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm overfit}
+\propto
+N^{0.74}.
+\]</div>
+<p>而：</p>
+<div class="math notranslate nohighlight">
+\[
+N\propto C^{0.73},
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm overfit}
+\propto
+C^{0.73\times0.74}.
+\]</div>
+<p>大约：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm overfit}
+\propto
+C^{0.54}.
+\]</div>
+<p>于是两个 data requirement：</p>
+<div class="math notranslate nohighlight">
+\[
+C^{0.27}
+\]</div>
+<p>和：</p>
+<div class="math notranslate nohighlight">
+\[
+C^{0.54}
+\]</div>
+<p>增长速度不一致。</p>
+<p>scale 足够大以后，一定会冲突。</p>
+</section>
+<hr class="docutils" />
+<section id="contradiction">
+<h2>30. 原论文的“Contradiction”图为什么特别重要？<a class="headerlink" href="#contradiction" title="Link to this heading"></a></h2>
+<p><img alt="Kaplan：Scaling extrapolation 的内部矛盾" src="../../../../_images/fig-contradiction.svg" /></p>
+<p><em>原论文自己指出，compute-efficient training 所预测的慢速数据增长最终会与数据受限 scaling law 冲突。这张图非常重要，因为它明确提醒：论文中的 power laws 必须在某处发生 regime change，不能无限外推。</em></p>
+<p>这张图告诉我们的不是某个精确“终极模型规模”。</p>
+<p>更重要的是：</p>
+<blockquote>
+<div><p><strong>作者自己已经知道经验 scaling law 的外推存在自洽边界。</strong></p>
+</div></blockquote>
+<p>这是做 empirical science 非常重要的态度。</p>
+</section>
+<hr class="docutils" />
+<section id="chinchilla">
+<h2>31. 所以 Chinchilla 后来到底修正了什么？<a class="headerlink" href="#chinchilla" title="Link to this heading"></a></h2>
+<p>不是修正：</p>
+<blockquote>
+<div><p>loss 随 scale 有规律。</p>
+</div></blockquote>
+<p>而是修正：</p>
+<blockquote>
+<div><p><strong>固定 FLOPs 下，最优 (N) 与 (D) 如何共同增长。</strong></p>
+</div></blockquote>
+<p>Kaplan：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm opt}
+\propto
+C^{0.73},
+\]</div>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm opt}
+\propto
+C^{0.27}.
+\]</div>
+<p>Chinchilla：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm opt}
+\propto
+C^{\approx0.5},
+\]</div>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm opt}
+\propto
+C^{\approx0.5}.
+\]</div>
+<p>也就是说 Kaplan 把更多新增 compute 分给：</p>
+<div class="math notranslate nohighlight">
+\[
+N.
+\]</div>
+<p>Chinchilla 则认为：</p>
+<blockquote>
+<div><p>参数量与训练 token 应更接近同步增长。</p>
+</div></blockquote>
+<p>这是两篇论文最重要的关系。</p>
+</section>
+<hr class="docutils" />
+<section id="kaplan-power-law">
+<h2>32. 为什么不能把 Kaplan 的失败理解成“power law 不存在”？<a class="headerlink" href="#kaplan-power-law" title="Link to this heading"></a></h2>
+<p>因为 Chinchilla 本身仍然使用：</p>
+<ul class="simple">
+<li><p>power-law fitting；</p></li>
+<li><p>small-to-large extrapolation；</p></li>
+<li><p>IsoFLOP curves；</p></li>
+<li><p>parametric loss function。</p></li>
+</ul>
+<p>也就是说它没有否定 scaling-law paradigm。</p>
+<p>它做的是：</p>
+<blockquote>
+<div><p><strong>重新设计实验，让 model size 和 training tokens 的 trade-off 被更直接地测量。</strong></p>
+</div></blockquote>
+<p>所以技术谱系是：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Kaplan:
+发现并系统化 empirical scaling regularity
+        ↓
+Chinchilla:
+重新估计 compute-optimal N/D allocation
+        ↓
+Llama 3:
+把 IsoFLOPs / scaling forecast 作为旗舰设计工具
+        ↓
+Qwen2.5:
+进一步把 scaling law 用于 LR / batch / MoE design
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="training-compute-optimal-vs-deployment-optimal">
+<h2>33. 一个必须区分的概念：training-compute optimal vs deployment optimal<a class="headerlink" href="#training-compute-optimal-vs-deployment-optimal" title="Link to this heading"></a></h2>
+<p>假设固定 training FLOPs：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\rm train}.
+\]</div>
+<p>我们求：</p>
+<div class="math notranslate nohighlight">
+\[
+(N_{\rm opt},D_{\rm opt})
+=
+\arg\min L(N,D)
+\quad
+\text{s.t. } C_{\rm train}=C.
+\]</div>
+<p>这是 training-compute optimum。</p>
+<p>但现实部署可能固定：</p>
+<div class="math notranslate nohighlight">
+\[
+N\le N_{\rm deploy}.
+\]</div>
+<p>例如：</p>
+<blockquote>
+<div><p>我就只能部署 8B。</p>
+</div></blockquote>
+<p>这时候你不能选择更大模型。</p>
+<p>目标变成：</p>
+<div class="math notranslate nohighlight">
+\[
+\min_D L(N_{\rm deploy},D).
+\]</div>
+<p>于是即使超过 training-compute-optimal token 数，也可能值得继续训练。</p>
+<p>这就是现代 small model “overtraining” 的逻辑。</p>
+</section>
+<hr class="docutils" />
+<section id="llama-3-8b-70b-compute-optimal">
+<h2>34. 为什么 Llama 3 8B / 70B 会故意训练超过 compute-optimal？<a class="headerlink" href="#llama-3-8b-70b-compute-optimal" title="Link to this heading"></a></h2>
+<p>在 <a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html"><span class="std std-doc">Llama 3</span></a> 中，Meta 明确区分：</p>
+<ul class="simple">
+<li><p>flagship 405B 的 training compute allocation；</p></li>
+<li><p>8B / 70B 的 deployment product point。</p></li>
+</ul>
+<p>如果用户最终只能部署：</p>
+<div class="math notranslate nohighlight">
+\[
+N=8B,
+\]</div>
+<p>那么训练阶段多花 token，让 8B 更强，具有真实价值。</p>
+<p>即：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{training compute optimal}
+\neq
+\text{inference-size constrained optimal}.
+\]</div>
+<p>这一点实际上让我们重新理解 Kaplan 的“大模型早停”结论：</p>
+<blockquote>
+<div><p>它只对应一类 objective，不是所有产品目标。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="inference-cost">
+<h2>35. 为什么 inference cost 会改变最优模型选择？<a class="headerlink" href="#inference-cost" title="Link to this heading"></a></h2>
+<p>假设两个方案训练 loss 接近：</p>
+<section id="a">
+<h3>方案 A<a class="headerlink" href="#a" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+N=100B,
+\quad
+D=1T.
+\]</div>
+</section>
+<section id="b">
+<h3>方案 B<a class="headerlink" href="#b" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+N=50B,
+\quad
+D=2T.
+\]</div>
+<p>训练 FLOPs：</p>
+<div class="math notranslate nohighlight">
+\[
+C\approx6ND
+\]</div>
+<p>可能近似。</p>
+<p>如果最终要服务：</p>
+<div class="math notranslate nohighlight">
+\[
+10^{12}
+\]</div>
+<p>个 inference tokens，</p>
+<p>更小的模型会在长期 serving 中节省巨大 compute。</p>
+<p>所以总生命周期成本应该考虑：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\rm total}
+=
+C_{\rm train}
++
+C_{\rm inference}
++
+C_{\rm finetune}.
+\]</div>
+<p>Kaplan 主要问：</p>
+<div class="math notranslate nohighlight">
+\[
+C_{\rm train}.
+\]</div>
+<p>Chinchilla 已经开始强调 smaller compute-optimal model 对 inference 的额外价值。</p>
+<p>现代模型产品更不能只看训练一次的成本。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id14">
+<h2>36. 为什么 scaling law 与“涌现能力”并不矛盾？<a class="headerlink" href="#id14" title="Link to this heading"></a></h2>
+<p>Kaplan 主要研究：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{cross entropy / NLL}.
+\]</div>
+<p>它观察到的是 smooth trend。</p>
+<p>但某个下游 benchmark 的 accuracy 可能表现出看似突然跃迁。</p>
+<p>原因之一是：</p>
+<blockquote>
+<div><p>smooth probability improvement 经过 threshold / argmax evaluation 后，可以变成 discrete metric jump。</p>
+</div></blockquote>
+<p>例如正确答案 probability：</p>
+<div class="math notranslate nohighlight">
+\[
+0.20
+\rightarrow
+0.25
+\rightarrow
+0.30
+\rightarrow
+0.40.
+\]</div>
+<p>如果其他错误选项原来是：</p>
+<div class="math notranslate nohighlight">
+\[
+0.35,
+\]</div>
+<p>则 accuracy 直到最后才从：</p>
+<div class="math notranslate nohighlight">
+\[
+0
+\rightarrow1.
+\]</div>
+<p>底层 likelihood 改善可能很平滑。</p>
+<p>外层指标却会跳。</p>
+<p>所以：</p>
+<blockquote>
+<div><p>scaling loss smooth 不意味着所有行为指标都必须 smooth。</p>
+</div></blockquote>
+<p>Llama 3 后来用：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{compute}
+\rightarrow
+\text{correct-answer NLL}
+\rightarrow
+\text{benchmark accuracy}
+\]</div>
+<p>两阶段 forecast，正是类似思想。</p>
+</section>
+<hr class="docutils" />
+<section id="id15">
+<h2>37. Scaling law 为什么适合做大模型研发“前置实验”？<a class="headerlink" href="#id15" title="Link to this heading"></a></h2>
+<p>旗舰训练可能只有一次机会。</p>
+<p>如果一次 run 要花：</p>
+<div class="math notranslate nohighlight">
+\[
+10^{25}
+\]</div>
+<p>FLOPs，</p>
+<p>你不可能在 flagship scale 做：</p>
+<ul class="simple">
+<li><p>10 个 model size；</p></li>
+<li><p>20 个 learning rate；</p></li>
+<li><p>8 个 batch；</p></li>
+<li><p>5 个 data mixture；</p></li>
+</ul>
+<p>完整 grid search。</p>
+<p>所以现代研发模式变成：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>大量便宜小模型实验
+        ↓
+拟合 scaling relationship
+        ↓
+预测大模型配置
+        ↓
+少量中尺度验证
+        ↓
+旗舰训练
+</pre></div>
+</div>
+<p>这是一种：</p>
+<blockquote>
+<div><p><strong>实验设计压缩。</strong></p>
+</div></blockquote>
+<p>不是让模型替代实验。</p>
+<p>而是让大量小实验指导昂贵大实验。</p>
+</section>
+<hr class="docutils" />
+<section id="qwen2-5-scaling-law-learning-rate-batch">
+<h2>38. Qwen2.5 为什么把 scaling law 用到 learning rate / batch？<a class="headerlink" href="#qwen2-5-scaling-law-learning-rate-batch" title="Link to this heading"></a></h2>
+<p>Kaplan 证明了一个更广义的思想：</p>
+<blockquote>
+<div><p>很多 training property 随规模变化不是完全不可预测的。</p>
+</div></blockquote>
+<p><a class="reference internal" href="../../B/05-moe-complete-llm/B012-qwen2.5.html"><span class="std std-doc">Qwen2.5</span></a> 进一步拟合：</p>
+<div class="math notranslate nohighlight">
+\[
+\mu_{\rm opt}
+=
+f(N,D,\text{architecture}),
+\]</div>
+<p>以及：</p>
+<div class="math notranslate nohighlight">
+\[
+B_{\rm opt}
+=
+g(N,D,\text{architecture}).
+\]</div>
+<p>也就是说 scaling law 从：</p>
+<blockquote>
+<div><p>预测最终 loss</p>
+</div></blockquote>
+<p>扩展到：</p>
+<blockquote>
+<div><p>预测最优 hyperparameter。</p>
+</div></blockquote>
+<p>这非常符合 Kaplan 的方法论精神，但不是 Kaplan 原论文已经证明的具体 law。</p>
+</section>
+<hr class="docutils" />
+<section id="llama-3-scaling-runs">
+<h2>39. Llama 3 为什么又重新做自己的 scaling runs？<a class="headerlink" href="#llama-3-scaling-runs" title="Link to this heading"></a></h2>
+<p>如果 Kaplan / Chinchilla 已经有 law，为什么 Meta 不直接套公式？</p>
+<p>因为 scaling coefficients 依赖：</p>
+<ul class="simple">
+<li><p>tokenizer；</p></li>
+<li><p>data distribution；</p></li>
+<li><p>model architecture；</p></li>
+<li><p>optimizer；</p></li>
+<li><p>context length；</p></li>
+<li><p>training recipe；</p></li>
+<li><p>evaluation metric。</p></li>
+</ul>
+<p>Llama 3 重新训练 40M→16B 的小模型，重新拟合 IsoFLOPs。</p>
+<p>这说明真正成熟的 scaling-law 用法是：</p>
+<blockquote>
+<div><p><strong>继承方法，不继承未经校准的常数。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="id16">
+<h2>40. “Scaling law 是经验规律”与“它很有工程价值”并不冲突<a class="headerlink" href="#id16" title="Link to this heading"></a></h2>
+<p>工程中很多非常有价值的模型并不是从第一性公理严格推出。</p>
+<p>例如：</p>
+<ul class="simple">
+<li><p>aerodynamic empirical coefficient；</p></li>
+<li><p>battery degradation curve；</p></li>
+<li><p>material fatigue S-N curve；</p></li>
+<li><p>latency model；</p></li>
+<li><p>cache miss model。</p></li>
+</ul>
+<p>Scaling law 也是类似。</p>
+<p>它的价值来自：</p>
+<ol class="arabic simple">
+<li><p>fit stability；</p></li>
+<li><p>predictive power；</p></li>
+<li><p>useful extrapolation range；</p></li>
+<li><p>decision value。</p></li>
+</ol>
+<p>不是因为：</p>
+<blockquote>
+<div><p>神经网络必须数学上遵守这一幂律。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="id17">
+<h2>41. 哪些量不能跨论文直接比较？<a class="headerlink" href="#id17" title="Link to this heading"></a></h2>
+<section id="n-c-d-c-c-c">
+<h3>41.1 (N_c,D_c,C_c)<a class="headerlink" href="#n-c-d-c-c-c" title="Link to this heading"></a></h3>
+<p>依赖 tokenizer、dataset 和 loss unit。</p>
+</section>
+<section id="perplexity">
+<h3>41.2 perplexity<a class="headerlink" href="#perplexity" title="Link to this heading"></a></h3>
+<p>不同 tokenizer 下：</p>
+<div class="math notranslate nohighlight">
+\[
+PPL=e^{\text{NLL/token}}
+\]</div>
+<p>并非直接可比。</p>
+</section>
+<section id="tokens">
+<h3>41.3 tokens<a class="headerlink" href="#tokens" title="Link to this heading"></a></h3>
+<p>一个 tokenizer 的 1T tokens：</p>
+<div class="math notranslate nohighlight">
+\[
+\neq
+\]</div>
+<p>另一个 tokenizer 的相同文本量。</p>
+</section>
+<section id="flops">
+<h3>41.4 FLOPs<a class="headerlink" href="#flops" title="Link to this heading"></a></h3>
+<p>Dense、MoE、长 context、activation checkpointing 等计算结构不同。</p>
+<p>因此现代 scaling paper 经常需要重新定义：</p>
+<blockquote>
+<div><p>active parameters、total parameters、non-embedding parameters、training FLOPs。</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="architecture-independence">
+<h2>42. 为什么 architecture independence 不能被过度解释？<a class="headerlink" href="#architecture-independence" title="Link to this heading"></a></h2>
+<p>Kaplan 观察到：</p>
+<blockquote>
+<div><p>在测试范围内，depth/width/head 等 shape 改变影响相对弱。</p>
+</div></blockquote>
 <p>不能推出：</p>
+<blockquote>
+<div><p>architecture innovation 没价值。</p>
+</div></blockquote>
+<p>因为后来的：</p>
 <ul class="simple">
-<li><p>所有架构都可无损替换 LayerNorm；</p></li>
-<li><p>RMSNorm 与 LayerNorm 函数完全等价；</p></li>
-<li><p>所有现代 GPU 都能复现同样加速百分比。</p></li>
+<li><p>FlashAttention；</p></li>
+<li><p>MoE；</p></li>
+<li><p>MLA；</p></li>
+<li><p>GQA；</p></li>
+<li><p>better positional encoding；</p></li>
+<li><p>better optimizer；</p></li>
 </ul>
-</section>
-</section>
-<section id="id7">
-<h2>预训练与后训练<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
-<p>RMSNorm 不改变预训练目标：</p>
+<p>都会改变：</p>
 <div class="math notranslate nohighlight">
 \[
-L=-\sum_t\log p_\theta(x_t\mid x_{&lt;t}).
+\text{quality per FLOP},
 \]</div>
-<p>它只是 backbone forward 中的模块：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>hidden
- ↓
-RMSNorm
- ↓
-Attention / FFN
- ↓
-Residual
+<p>或者：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{memory / throughput constraints}.
+\]</div>
+<p>Scaling law 描述：</p>
+<blockquote>
+<div><p>给定 model family 内 scale 的变化。</p>
+</div></blockquote>
+<p>换 family 后，需要重新拟合。</p>
+</section>
+<hr class="docutils" />
+<section id="id18">
+<h2>43. 为什么模型参数越多不一定代表训练 FLOPs 同比例增加？<a class="headerlink" href="#id18" title="Link to this heading"></a></h2>
+<p>Dense Transformer 中：</p>
+<div class="math notranslate nohighlight">
+\[
+C\approx6ND
+\]</div>
+<p>比较自然。</p>
+<p>但 MoE：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm total}
+\gg
+N_{\rm active}.
+\]</div>
+<p>每个 token 只激活部分 expert。</p>
+<p>此时：</p>
+<div class="math notranslate nohighlight">
+\[
+C
+\]</div>
+<p>更接近 active compute，而 model capacity 又和 total parameters 有关。</p>
+<p>因此现代 MoE scaling law 需要至少考虑：</p>
+<div class="math notranslate nohighlight">
+\[
+(N_{\rm total},N_{\rm active},D,C).
+\]</div>
+<p>Qwen2.5 的 MoE scaling experiment 就是这种扩展。</p>
+</section>
+<hr class="docutils" />
+<section id="law">
+<h2>44. 一个具体的预算例子：为什么资源分配 law 会极大影响训练计划？<a class="headerlink" href="#law" title="Link to this heading"></a></h2>
+<p>假设训练 compute 增长：</p>
+<div class="math notranslate nohighlight">
+\[
+100\times.
+\]</div>
+<section id="kaplan-allocation">
+<h3>Kaplan allocation<a class="headerlink" href="#kaplan-allocation" title="Link to this heading"></a></h3>
+<p>模型：</p>
+<div class="math notranslate nohighlight">
+\[
+100^{0.73}
+\approx28.8\times.
+\]</div>
+<p>processed data：</p>
+<div class="math notranslate nohighlight">
+\[
+100^{0.27}
+\approx3.47\times.
+\]</div>
+</section>
+<section id="chinchilla-style-equal-scaling">
+<h3>Chinchilla-style equal scaling<a class="headerlink" href="#chinchilla-style-equal-scaling" title="Link to this heading"></a></h3>
+<p>模型：</p>
+<div class="math notranslate nohighlight">
+\[
+100^{0.5}
+=
+10\times.
+\]</div>
+<p>data：</p>
+<div class="math notranslate nohighlight">
+\[
+100^{0.5}
+=
+10\times.
+\]</div>
+<p>两个策略对同一增长预算的决策完全不同：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Kaplan:
+非常激进地增大模型
+较少增加 token
+
+Chinchilla:
+模型和 token 一起增加
 </pre></div>
 </div>
-<p>训练时 gain 参数参与反向；没有 BatchNorm 式 running mean/variance。SFT、DPO、PPO 等阶段都可沿用相同 RMSNorm backbone，因此归一化方法与后训练目标基本正交。</p>
+<p>所以 exponent 不是论文里的“小数细节”。</p>
+<p>它直接决定：</p>
+<blockquote>
+<div><p>几百亿、几千亿参数模型应该训练多久。</p>
+</div></blockquote>
 </section>
-<section id="id8">
-<h2>推理与部署<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
-<p>Prefill：</p>
+</section>
+<hr class="docutils" />
+<section id="figure">
+<h2>45. 为什么 Figure 里的直线不能成为“无限扩张许可证”？<a class="headerlink" href="#figure" title="Link to this heading"></a></h2>
+<p>任何 power law：</p>
 <div class="math notranslate nohighlight">
 \[
-X\in\mathbb R^{B\times T\times d},
+L(C)=kC^{-\alpha}
 \]</div>
-<p>对每个 <code class="docutils literal notranslate"><span class="pre">(b,t)</span></code> 独立求 hidden RMS。</p>
-<p>Decode：</p>
+<p>如果无限延伸：</p>
 <div class="math notranslate nohighlight">
 \[
-X\in\mathbb R^{B\times1\times d},
+C\rightarrow\infty
 \]</div>
-<p>每层每 token 仍执行 RMSNorm。</p>
-<p>RMSNorm 不创建 KV Cache。其 kernel 主要是：</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>load
- → square
- → reduce
- → rsqrt
- → scale
- → multiply gain
- → store
-</pre></div>
-</div>
-<p>因此系统优化重点是 reduction、HBM traffic 与 fusion，而不是改变 Attention 的 <code class="docutils literal notranslate"><span class="pre">O(T^2)</span></code> 复杂度。</p>
-<section id="id9">
-<h3>技术 → 模型<a class="headerlink" href="#id9" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>LayerNorm → RMSNorm：<code class="docutils literal notranslate"><span class="pre">DERIVED_FROM</span></code></p></li>
-<li><p>RMSNorm → 本文：<code class="docutils literal notranslate"><span class="pre">PROPOSES</span></code></p></li>
-<li><p>pRMSNorm → 本文：<code class="docutils literal notranslate"><span class="pre">PROPOSES</span></code></p></li>
-<li><p>RMSNorm → LLaMA/Mistral/DeepSeek 等：后续 <code class="docutils literal notranslate"><span class="pre">ADOPTS</span></code></p></li>
-</ul>
+<p>就会：</p>
+<div class="math notranslate nohighlight">
+\[
+L\rightarrow0.
+\]</div>
+<p>但自然语言存在不可约不确定性。</p>
+<p>所以 NLL 不可能无限趋近 0。</p>
+<p>因此至少最终要变成：</p>
+<div class="math notranslate nohighlight">
+\[
+L(C)
+=
+L_\infty
++
+kC^{-\alpha},
+\]</div>
+<p>或者发生其他 regime change。</p>
+<p>Chinchilla 后来明确引入：</p>
+<div class="math notranslate nohighlight">
+\[
+E
+\]</div>
+<p>作为 entropy floor：</p>
+<div class="math notranslate nohighlight">
+\[
+L(N,D)
+=
+E+\frac{A}{N^\alpha}+\frac{B}{D^\beta}.
+\]</div>
+<p>这比 Kaplan 的某些零渐近形式更显式地表达了极限。</p>
 </section>
-<section id="id10">
-<h3>模型 → 技术<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>RMSNorm：<code class="docutils literal notranslate"><span class="pre">IMPLEMENTS</span></code> RMS re-scaling + learnable gain</p></li>
-<li><p>LLaMA 类 Decoder：<code class="docutils literal notranslate"><span class="pre">ADOPTS</span></code> RMSNorm，通常结合 Pre-Norm residual</p></li>
-<li><p>原始 Transformer：<code class="docutils literal notranslate"><span class="pre">ADOPTS</span></code> LayerNorm，不应反向标成 RMSNorm</p></li>
-<li><p>BatchNorm CNN：统计轴不同，不是 RMSNorm 同义实现</p></li>
-</ul>
-<p><strong>验收：</strong> 能否证明 <code class="docutils literal notranslate"><span class="pre">RMS^2=Var+\mu^2</span></code>，证明 re-scaling invariance，并完整推导 <code class="docutils literal notranslate"><span class="pre">\nabla_xL=g/r-x(x^\top</span> <span class="pre">g)/(dr^3)</span></code>。</p>
+<hr class="docutils" />
+<section id="exponent">
+<h2>46. 原论文最值得保留的不是某个 exponent，而是实验方法<a class="headerlink" href="#exponent" title="Link to this heading"></a></h2>
+<p>Kaplan 的长期价值可以压成四步：</p>
+<section id="id19">
+<h3>第一步<a class="headerlink" href="#id19" title="Link to this heading"></a></h3>
+<p>把复杂训练现象压缩成几个规模坐标：</p>
+<div class="math notranslate nohighlight">
+\[
+N,D,C,B,S.
+\]</div>
 </section>
+<section id="id20">
+<h3>第二步<a class="headerlink" href="#id20" title="Link to this heading"></a></h3>
+<p>控制瓶颈，做大量实验。</p>
+</section>
+<section id="id21">
+<h3>第三步<a class="headerlink" href="#id21" title="Link to this heading"></a></h3>
+<p>用简单经验函数拟合：</p>
+<div class="math notranslate nohighlight">
+\[
+L=f(N,D,C,\dots).
+\]</div>
+</section>
+<section id="id22">
+<h3>第四步<a class="headerlink" href="#id22" title="Link to this heading"></a></h3>
+<p>用拟合做：</p>
+<ul class="simple">
+<li><p>外推；</p></li>
+<li><p>budget allocation；</p></li>
+<li><p>experiment planning。</p></li>
+</ul>
+<p>这套方法后来成为 foundation-model engineering 的标准工具之一。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id23">
+<h2>47. 论文真正证明了什么？<a class="headerlink" href="#id23" title="Link to this heading"></a></h2>
+<p>比较稳妥的结论：</p>
+<ol class="arabic simple">
+<li><p>在论文所研究的 autoregressive Transformer / WebText2 regime 内，test loss 随 (N,D,C) 呈稳定经验 power law；</p></li>
+<li><p>模型参数量是解释 performance 的强 scale variable，模型 shape 在所测范围内影响相对较弱；</p></li>
+<li><p>参数与数据存在可拟合的共同 bottleneck；</p></li>
+<li><p>learning curve、critical batch 也表现出相对稳定的 scaling behavior；</p></li>
+<li><p>小规模实验能够对更大训练配置提供有用预测；</p></li>
+<li><p>在论文自己的优化/训练设置下，compute-efficient allocation 强烈偏向增大模型并较早停止训练。</p></li>
+</ol>
+</section>
+<hr class="docutils" />
+<section id="id24">
+<h2>48. 论文没有证明什么？<a class="headerlink" href="#id24" title="Link to this heading"></a></h2>
+<section id="power-law-exponent">
+<h3>48.1 所有模型永远遵守同一 power-law exponent<a class="headerlink" href="#power-law-exponent" title="Link to this heading"></a></h3>
+<p>没有。</p>
+</section>
+<section id="n-0-74-universal-data-law">
+<h3>48.2 (N^{0.74}) 是 universal data law<a class="headerlink" href="#n-0-74-universal-data-law" title="Link to this heading"></a></h3>
+<p>没有。</p>
+</section>
+<section id="id25">
+<h3>48.3 未来所有 compute 应主要花在模型参数上<a class="headerlink" href="#id25" title="Link to this heading"></a></h3>
+<p>Chinchilla 后来就修正了这一点。</p>
+</section>
+<section id="architecture">
+<h3>48.4 architecture 不重要<a class="headerlink" href="#architecture" title="Link to this heading"></a></h3>
+<p>没有。</p>
+</section>
+<section id="scaling">
+<h3>48.5 scaling 可以无限延伸<a class="headerlink" href="#scaling" title="Link to this heading"></a></h3>
+<p>论文自己已经指出矛盾与 breakdown。</p>
+</section>
+<section id="loss-scaling-downstream-capability-scaling">
+<h3>48.6 loss scaling 自动等价于所有 downstream capability scaling<a class="headerlink" href="#loss-scaling-downstream-capability-scaling" title="Link to this heading"></a></h3>
+<p>没有。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id26">
+<h2>49. 从今天回头看，Kaplan 哪些结论“活下来了”？<a class="headerlink" href="#id26" title="Link to this heading"></a></h2>
+<section id="predictable-scaling">
+<h3>活下来的 1：Predictable scaling<a class="headerlink" href="#predictable-scaling" title="Link to this heading"></a></h3>
+<p>小模型实验真的可以帮助预测大模型。</p>
+</section>
+<section id="id27">
+<h3>活下来的 2：规模要联合考虑<a class="headerlink" href="#id27" title="Link to this heading"></a></h3>
+<p>不能只看：</p>
+<div class="math notranslate nohighlight">
+\[
+N.
+\]</div>
+<p>必须看：</p>
+<div class="math notranslate nohighlight">
+\[
+N,D,C.
+\]</div>
+</section>
+<section id="id28">
+<h3>活下来的 3：大模型研发是资源配置问题<a class="headerlink" href="#id28" title="Link to this heading"></a></h3>
+<p>architecture 之外：</p>
+<ul class="simple">
+<li><p>data；</p></li>
+<li><p>compute；</p></li>
+<li><p>optimizer；</p></li>
+<li><p>batch；</p></li>
+<li><p>schedule；</p></li>
+</ul>
+<p>同样是 model design。</p>
+</section>
+<section id="id29">
+<h3>活下来的 4：Scaling law 是工具，不是定理<a class="headerlink" href="#id29" title="Link to this heading"></a></h3>
+<p>每代模型需要重新测。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id30">
+<h2>50. 哪些结论被后续工作重新估计？<a class="headerlink" href="#id30" title="Link to this heading"></a></h2>
+<p>最关键的是：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm opt}
+\propto
+C^{0.73}
+\]</div>
+<p>与：</p>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm opt}
+\propto
+C^{0.27}.
+\]</div>
+<p>Chinchilla 使用更广泛的 fixed-FLOP experiment 与不同 learning-rate schedule 处理，得到约：</p>
+<div class="math notranslate nohighlight">
+\[
+N_{\rm opt}
+\propto
+C^{0.5},
+\]</div>
+<div class="math notranslate nohighlight">
+\[
+D_{\rm opt}
+\propto
+C^{0.5}.
+\]</div>
+<p>所以不要把“Kaplan scaling law”当成一个单一公式。</p>
+<p>它包含：</p>
+<blockquote>
+<div><p>scaling paradigm</p>
+</div></blockquote>
+<p>以及：</p>
+<blockquote>
+<div><p>particular fitted coefficients。</p>
+</div></blockquote>
+<p>前者影响深远。</p>
+<p>后者必须持续更新。</p>
+</section>
+<hr class="docutils" />
+<section id="id31">
+<h2>51. 下一篇为什么必须马上读 Chinchilla？<a class="headerlink" href="#id31" title="Link to this heading"></a></h2>
+<p>如果现在停住，很容易留下一个错误认知：</p>
+<blockquote>
+<div><p>Scaling law = 参数越大越划算。</p>
+</div></blockquote>
+<p>下一篇会直接重新问：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\text{固定 FLOPs 时，N 和 D 到底怎么配？}
+}
+\]</div>
+<p>而且它不是只提出另一个拟合。</p>
+<p>它使用三种独立方法：</p>
+<ol class="arabic simple">
+<li><p>training-curve envelope；</p></li>
+<li><p>IsoFLOP profiles；</p></li>
+<li><p>parametric loss function；</p></li>
+</ol>
+<p>都得到接近一致的答案。</p>
+<p>然后真正训练：</p>
+<div class="math notranslate nohighlight">
+\[
+70B
+\]</div>
+<p>参数、</p>
+<div class="math notranslate nohighlight">
+\[
+1.4T
+\]</div>
+<p>tokens 的 Chinchilla，</p>
+<p>与：</p>
+<div class="math notranslate nohighlight">
+\[
+280B
+\]</div>
+<p>参数、</p>
+<p>约：</p>
+<div class="math notranslate nohighlight">
+\[
+300B
+\]</div>
+<p>tokens 的 Gopher，</p>
+<p>在近似相同训练 compute 下对照。</p>
+<p>所以 Kaplan → Chinchilla 应该视为同一问题的上下两章。</p>
+</section>
+<hr class="docutils" />
+<section id="id32">
+<h2>52. 一张因果图收束 Kaplan<a class="headerlink" href="#id32" title="Link to this heading"></a></h2>
+<pre  class="mermaid">
+        flowchart TD
+    A[&quot;Training is expensive&quot;] --&gt; B[&quot;Need small-run prediction&quot;]
+    B --&gt; C[&quot;Measure N / D / C&quot;]
+    C --&gt; D[&quot;Log-log power laws&quot;]
+    D --&gt; E[&quot;L(N), L(D), L(C)&quot;]
+    E --&gt; F[&quot;Joint N-D bottleneck&quot;]
+    E --&gt; G[&quot;Learning-curve scaling&quot;]
+    G --&gt; H[&quot;Critical batch&quot;]
+    H --&gt; I[&quot;Normalize to C_min&quot;]
+    I --&gt; J[&quot;Compute-efficient allocation&quot;]
+    J --&gt; K[&quot;Kaplan estimate:&lt;br/&gt;N ~ C^0.73&lt;br/&gt;D ~ C^0.27&quot;]
+    K --&gt; L[&quot;Aggressive model scaling&lt;br/&gt;early stopping&quot;]
+    K --&gt; M[&quot;Extrapolation contradiction&quot;]
+    M --&gt; N[&quot;Need re-estimation&quot;]
+    N --&gt; O[&quot;Chinchilla&quot;]
+    </pre></section>
+<hr class="docutils" />
+<section id="id33">
+<h2>53. 最容易学错的十个地方<a class="headerlink" href="#id33" title="Link to this heading"></a></h2>
+<section id="id34">
+<h3>错法 1：Scaling law 是理论定理<a class="headerlink" href="#id34" title="Link to this heading"></a></h3>
+<p>不是，是 empirical law。</p>
+</section>
+<section id="log-log">
+<h3>错法 2：log-log 直线说明永远都成立<a class="headerlink" href="#log-log" title="Link to this heading"></a></h3>
+<p>不是，只说明观察区间可近似 power law。</p>
+</section>
+<section id="d-propto-n-0-74-chinchilla-token-ratio">
+<h3>错法 3：(D\propto N^{0.74}) 就是 Chinchilla 的 token ratio<a class="headerlink" href="#d-propto-n-0-74-chinchilla-token-ratio" title="Link to this heading"></a></h3>
+<p>不是，它主要描述数据瓶颈/overfitting scaling。</p>
+</section>
+<section id="id35">
+<h3>错法 4：(6ND) 是实际 GPU 成本<a class="headerlink" href="#id35" title="Link to this heading"></a></h3>
+<p>不是，是 dense training FLOPs approximation。</p>
+</section>
+<section id="shape">
+<h3>错法 5：模型 shape 完全不重要<a class="headerlink" href="#shape" title="Link to this heading"></a></h3>
+<p>不是，论文只说同 family 合理范围内较弱。</p>
+</section>
+<section id="id36">
+<h3>错法 6：大模型一定要训练到收敛<a class="headerlink" href="#id36" title="Link to this heading"></a></h3>
+<p>固定 training compute objective 下不一定。</p>
+</section>
+<section id="kaplan-chinchilla">
+<h3>错法 7：Kaplan 被 Chinchilla 完全推翻<a class="headerlink" href="#kaplan-chinchilla" title="Link to this heading"></a></h3>
+<p>错误。compute-allocation exponent 被修正，但 scaling methodology 被继承。</p>
+</section>
+<section id="c-min-compute">
+<h3>错法 8：(C_{\min}) 就是实际训练 compute<a class="headerlink" href="#c-min-compute" title="Link to this heading"></a></h3>
+<p>不是，它包含 batch efficiency normalization。</p>
+</section>
+<section id="token-count-tokenizer">
+<h3>错法 9：token count 跨 tokenizer 可直接比较<a class="headerlink" href="#token-count-tokenizer" title="Link to this heading"></a></h3>
+<p>不能。</p>
+</section>
+<section id="loss-benchmark">
+<h3>错法 10：只要 loss 能预测，所有 benchmark 都自动可预测<a class="headerlink" href="#loss-benchmark" title="Link to this heading"></a></h3>
+<p>需要额外建模。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id37">
+<h2>54. 最终自检<a class="headerlink" href="#id37" title="Link to this heading"></a></h2>
+<p>读完 Kaplan Scaling Laws，应该能回答：</p>
+<ol class="arabic simple">
+<li><p>scaling law 为什么首先是工程决策问题？</p></li>
+<li><p>(N,D,B,S,C,L) 分别是什么？</p></li>
+<li><p>为什么 processed tokens 与 unique data size 要区分？</p></li>
+<li><p>为什么 log-log 直线对应 power law？</p></li>
+<li><p>(L(N)) 的前提是什么？</p></li>
+<li><p>(L(D)) 的前提是什么？</p></li>
+<li><p>为什么资源 bottleneck 会污染单变量 scaling fit？</p></li>
+<li><p>(\alpha_N\approx0.076) 怎样解释？</p></li>
+<li><p>为什么小 exponent 仍然可以跨规模积累明显收益？</p></li>
+<li><p>Kaplan 为什么使用 non-embedding parameters？</p></li>
+<li><p>联合 (L(N,D)) 公式为什么属于 empirical ansatz？</p></li>
+<li><p>怎样验证其 (D\to\infty) 与 (N\to\infty) 极限？</p></li>
+<li><p>(D\propto N^{0.74}) 到底回答什么？</p></li>
+<li><p>为什么它不是 fixed-compute optimum？</p></li>
+<li><p>(C\approx6NBS) 怎样得到？</p></li>
+<li><p>为什么 (6ND) 不是 wall-clock cost？</p></li>
+<li><p>什么叫 sample efficiency？</p></li>
+<li><p>learning curve 为什么也可以 scaling？</p></li>
+<li><p>critical batch 是什么？</p></li>
+<li><p>为什么 (B_{\rm crit}) 会随 loss 改变？</p></li>
+<li><p>(C_{\min}) 为什么被引入？</p></li>
+<li><p>Kaplan 怎样得到 (N_{\rm opt}\propto C^{0.73})？</p></li>
+<li><p>为什么这会推出 (D_{\rm processed}\propto C^{0.27})？</p></li>
+<li><p>“larger model + early stop”为什么可能 compute-efficient？</p></li>
+<li><p>training-compute optimum 与 deployment optimum 有什么区别？</p></li>
+<li><p>Kaplan 自己发现了什么 extrapolation contradiction？</p></li>
+<li><p>Chinchilla 后来真正修正了哪条结论？</p></li>
+<li><p>为什么 Chinchilla 没有否定 scaling-law paradigm？</p></li>
+<li><p>Llama 3 为什么还要自己重新做 scaling runs？</p></li>
+<li><p>Qwen2.5 怎样把 scaling law 扩展到 hyperparameter selection？</p></li>
+</ol>
+<p>如果这些问题都能回答，就可以进入下一篇：</p>
+<blockquote>
+<div><p><strong>A010 · Chinchilla：固定训练 FLOPs 下为什么参数量和训练 token 应一起扩展。</strong></p>
+</div></blockquote>
 </section>
 </section>
 
@@ -2394,8 +4447,8 @@ X\in\mathbb R^{B\times1\times d},
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="A014-roformer-rope.html" class="btn btn-neutral float-left" title="RoPE：把相对位置信息写进旋转内积" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="../04-efficient-attention/A019-mqa.html" class="btn btn-neutral float-right" title="MQA：为什么共享 K/V 能显著降低 Decode Cache" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../../../../scaling/index.html" class="btn btn-neutral float-left" title="Scaling Laws 与训练规划" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="A010-chinchilla-compute-optimal.html" class="btn btn-neutral float-right" title="Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

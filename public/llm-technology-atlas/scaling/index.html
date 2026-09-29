@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>偏好学习与推理后训练 &mdash; LLM Technology Atlas</title>
+  <title>Scaling Laws 与训练规划 &mdash; LLM Technology Atlas</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
@@ -21,13 +21,11 @@
       <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
       <script src="../_static/copybutton.js?v=6dbb43f8"></script>
       <script src="../_static/translations.js?v=beaddf03"></script>
-      <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
-      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../genindex.html" />
     <link rel="search" title="搜索" href="../search.html" />
-    <link rel="next" title="DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html" />
-    <link rel="prev" title="Qwen2.5：从 18T 数据到 Offline DPO + Online GRPO，一套“模型家族化”的训练系统" href="../generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html" /> 
+    <link rel="next" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" />
+    <link rel="prev" title="GQA：在 MHA 表达能力与 MQA 推理效率之间折中" href="../generated/papers/A/04-efficient-attention/A020-gqa.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -656,7 +654,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../scaling/index.html">Scaling Laws 与训练规划</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Scaling Laws 与训练规划</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id1">阅读导航</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
@@ -1575,7 +1573,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">偏好学习与推理后训练</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../post-training/index.html">偏好学习与推理后训练</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html">DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#ppo-grpo">阅读导航：这是一篇“从 PPO 到 GRPO”的方法页</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-ppo-critic">1. 先别急着看 GRPO：PPO 为什么要有 Critic？</a><ul>
@@ -1857,7 +1855,7 @@
           <div role="navigation" aria-label="页面导航">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">偏好学习与推理后训练</li>
+      <li class="breadcrumb-item active">Scaling Laws 与训练规划</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -1866,131 +1864,161 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section class="tex2jax_ignore mathjax_ignore" id="id1">
-<h1>偏好学习与推理后训练<a class="headerlink" href="#id1" title="Link to this heading"></a></h1>
-<p>这一部分把两条现代后训练路线放到一起：DPO 从 pairwise preference 直接得到 policy objective；GRPO 则保留在线 rollout 与 policy gradient，但用同题多样本构造 group-relative advantage。</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="scaling-laws">
+<h1>Scaling Laws 与训练规划<a class="headerlink" href="#scaling-laws" title="Link to this heading"></a></h1>
+<p>这一组文章研究的不是某个 Transformer block，而是<strong>怎样用小规模受控实验预测昂贵大模型训练，并在固定预算下分配模型参数、训练 token 与其他训练资源</strong>。</p>
+<p>先读 Kaplan，建立 (N/D/C) 的经验 scaling、数据瓶颈、critical batch 与 compute-efficient planning；再读 Chinchilla，看固定 FLOPs 下的 (N)–(D) 前沿为什么被重新估计，以及 IsoFLOP 方法如何成为现代旗舰模型设计工具。</p>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html">DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#ppo-grpo">阅读导航：这是一篇“从 PPO 到 GRPO”的方法页</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-ppo-critic">1. 先别急着看 GRPO：PPO 为什么要有 Critic？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#figure-4-grpo-value-model">2. 原论文 Figure 4：GRPO 删除的是 Value Model 这条支路</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-baseline">3. GRPO 的核心：同一道题采一组答案，让“同题相对表现”成为 baseline</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#group-mean-v-s-t-baseline">4. 但 group mean 不是 <span class="math notranslate nohighlight">\(V(s_t)\)</span>：两种 baseline 的信息粒度不同</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#group-baseline-baseline">5. 一个经常被忽略的问题：group baseline 自己包含当前样本，它还是标准的无偏 baseline 吗？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-ppo-clipping-ratio">6. GRPO 并没有删除 PPO clipping：ratio 仍然是核心</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-objective">7. 把完整 GRPO objective 写出来：它其实是三块拼起来的</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#ppo-grpo-kl">8. PPO 与 GRPO 的 KL 放置位置不同，这不是排版细节</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#outcome-supervision-response-token">9. Outcome supervision 的真正代价：整条 response 的 token 共用一个信用信号</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#process-supervision-reasoning-step-reward">10. Process Supervision：把“整条轨迹一个分数”改成“每个 reasoning step 有 reward”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#iterative-grpo-policy-reward-model">11. Iterative GRPO：Policy 在变，Reward Model 也不能永远停在最初分布</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#deepseekmath-grpo">12. DeepSeekMath 实际怎么训练 GRPO？先把实验规模摆出来</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#figure-5">13. 原论文 Figure 5：作者真正想比较的是“数据从哪里来”和“梯度系数怎样变”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#figure-6-iterative-rl">14. 原论文 Figure 6：Iterative RL 为什么第一轮提升最大？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#figure-7-rl-maj-k-pass-k">15. 原论文 Figure 7：RL 提高 Maj&#64;K，却没有明显提高 Pass&#64;K，这意味着什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#sft-rft-ppo-grpo">16. 从“梯度系数”角度，把 SFT / RFT / PPO / GRPO 放在同一条线上</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-reward-reasoning">17. GRPO 为什么特别适合“同题可多次采样 + reward 可比较”的 reasoning 场景？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id7">18. “Group std”其实是一个非常强的归一化操作</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id8">19. 论文细读：DeepSeekMath 为什么不是一篇“只提出 GRPO”的算法论文？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#reward">20. 论文细读：作者为什么先讲“资源问题”，再讲“相对 reward”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id9">21. 论文细读：哪些措辞是作者结论，哪些是我们不能擅自加强的？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#deepseekmath-deepseek-v2-v3-r1-grpo">22. 从 DeepSeekMath 回到 DeepSeek-V2 / V3 / R1：GRPO 是怎么变成主干技术的？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-trade-off-critic">23. GRPO 的真实 trade-off：删掉 Critic 后，成本和偏差被搬到了哪里？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id11">24. 一张表把 PPO 与原始 GRPO 真正的差别定死</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id12">25. 最后把整个逻辑链压成一遍</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id13">26. 读完本篇，你至少应该能自己回答这些问题</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id1">阅读导航</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#scaling-law">2. 先把所有符号钉死：Scaling Law 最容易混淆的就是“数据量”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id3">3. 下层仍然是普通语言模型，上层研究对象变成了“训练运行”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure-1">4. 原论文 Figure 1：最重要的发现是“很多数量级仍近似直线”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#log-log-power-law">5. 为什么 log-log 直线意味着 power law？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#power-law">6. 为什么 power law 对工程特别有用？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id4">7. 三条最著名的单资源 scaling law</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id7">8. 为什么控制瓶颈如此重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id8">9. 模型“形状”为什么不是第一主变量？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#non-embedding-parameters">10. 这里为什么使用 non-embedding parameters？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id9">11. 数据瓶颈：模型和数据不是两个可以独立无限扩展的旋钮</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-l-n-d-empirical-ansatz">12. Kaplan 的 (L(N,D)) 从哪里来？不是严格推导，是 empirical ansatz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#d-propto-n-0-74">13. (D\propto N^{0.74}) 到底在回答什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#compute-optimal-tokens-n-0-74">14. 这绝对不是“compute-optimal tokens 应该按 (N^{0.74}) 增长”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#flops-6n">15. 训练 FLOPs 的 (6N) 近似从哪里来？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#nd-gpu">16. 为什么 (6ND) 不是 GPU 账单公式？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#sample-efficiency">17. 为什么大模型“sample efficiency 更高”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#learning-curve-scaling">18. Learning Curve 也可以 scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#batch-size-scaling-law">19. Batch size 为什么也必须进入 scaling law？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#critical-batch-size-scaling">20. Critical Batch Size 的 scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#c-min-c">21. 为什么论文还引入 (C_{\min})，而不是直接用实测 (C)？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#compute-efficient-frontier">22. 原论文 Compute-Efficient Frontier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-compute">23. Kaplan 当时怎样解“固定 compute 应该做多大的模型”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure-compute-efficient">24. 原论文 Figure：为什么“更大模型 + 更早停”会看起来 compute-efficient？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#convergence-is-inefficient">25. “Convergence is inefficient”真正是什么意思？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-data-scaling-processed-token">26. 为什么 Kaplan 的 data scaling 会推出一个非常慢的 processed-token 增长？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id13">27. 为什么这个结论在 2020 年会显得合理？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#scaling-law-extrapolation-risk">28. Scaling law 为什么天然存在 extrapolation risk？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan">29. Kaplan 自己已经看到了内部“矛盾”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#contradiction">30. 原论文的“Contradiction”图为什么特别重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#chinchilla">31. 所以 Chinchilla 后来到底修正了什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-power-law">32. 为什么不能把 Kaplan 的失败理解成“power law 不存在”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#training-compute-optimal-vs-deployment-optimal">33. 一个必须区分的概念：training-compute optimal vs deployment optimal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#llama-3-8b-70b-compute-optimal">34. 为什么 Llama 3 8B / 70B 会故意训练超过 compute-optimal？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#inference-cost">35. 为什么 inference cost 会改变最优模型选择？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id14">36. 为什么 scaling law 与“涌现能力”并不矛盾？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id15">37. Scaling law 为什么适合做大模型研发“前置实验”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#qwen2-5-scaling-law-learning-rate-batch">38. Qwen2.5 为什么把 scaling law 用到 learning rate / batch？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#llama-3-scaling-runs">39. Llama 3 为什么又重新做自己的 scaling runs？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id16">40. “Scaling law 是经验规律”与“它很有工程价值”并不冲突</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id17">41. 哪些量不能跨论文直接比较？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#architecture-independence">42. 为什么 architecture independence 不能被过度解释？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id18">43. 为什么模型参数越多不一定代表训练 FLOPs 同比例增加？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#law">44. 一个具体的预算例子：为什么资源分配 law 会极大影响训练计划？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure">45. 为什么 Figure 里的直线不能成为“无限扩张许可证”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#exponent">46. 原论文最值得保留的不是某个 exponent，而是实验方法</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id23">47. 论文真正证明了什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id24">48. 论文没有证明什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id26">49. 从今天回头看，Kaplan 哪些结论“活下来了”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id30">50. 哪些结论被后续工作重新估计？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id31">51. 下一篇为什么必须马上读 Chinchilla？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id32">52. 一张因果图收束 Kaplan</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id33">53. 最容易学错的十个地方</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id37">54. 最终自检</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html">DPO：怎样把 KL-Regularized RLHF 消元成一个二分类损失</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id1">阅读导航</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preference-learning">1. 从问题场景开始：Preference Learning 缺的究竟是什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preferred-response-sft">2. 为什么只拿 preferred response 做 SFT 不够？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preferred-rejected">3. 那直接“preferred 加、rejected 减”不就行了？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rlhf-preference-reward-policy">4. 标准 RLHF 为什么要绕一圈：Preference → Reward → Policy？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model-scalar-reward">5. Reward Model 第一性原理：人类只给排序，为什么能学 scalar reward？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model-loss-log-sigma-delta-r">6. Reward Model loss 为什么是 (-\log\sigma(\Delta r))？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rlhf-kl">7. 经典 RLHF 的第二个核心：为什么必须加 KL？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-policy">8. DPO 最关键的一步：先别想 PPO，直接求这个优化问题的最优 policy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#policy">9. 用拉格朗日乘子推导最优 policy</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#closed-form">10. 这个 closed form 到底意味着什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-closed-form">11. (\beta) 在 closed form 中做什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#kl">12. 用 KL 重写再证明一次：为什么这是全局最优解？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id3">13. 为什么 closed form 还不能直接拿来训练？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#optimal-policy-reward">14. 从 optimal policy 反解 reward</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id4">15. reward 被拆成了哪两部分？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-preference">16. 为什么 reward 本来就不可能从 preference 中唯一确定？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-equivalence-class-reward">17. Reward Equivalence Class：我们真正能辨识的是一个 reward 类</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-class-kl-regularized-policy">18. 更关键：同一 reward class 连 KL-regularized 最优 policy 都一样</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-representative">19. DPO 选择了哪个 reward representative？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model">20. “语言模型就是 Reward Model”不能怎样理解？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-expressiveness">21. 这个重参数化有没有偷偷限制 reward expressiveness？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id5">22. partition function 为什么现在会严格消失？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#pi-trainable-pi-theta">23. 最后一步：把未知 (\pi^*) 换成 trainable (\pi_\theta)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-loss">24. 把 DPO loss 重写成最容易理解的形式</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id6">25. 一个数值例子：preferred 的绝对概率仍然可以比 rejected 小</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#response-probability">26. response probability 到底是什么？为什么一个完整回答会有极小概率？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-response-level-preference-token">27. DPO 是 response-level preference，为什么最终能训练每个 token？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-response-token">28. DPO 对一个 response 内的所有 token 权重都一样吗？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-implicit-reward-token">29. DPO 的 implicit reward 也可以展开到 token 级</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-policy-dpo">30. reference policy 到底在 DPO 中做了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-policy-sft-model">31. reference policy 为什么通常是 SFT model？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sft-model">32. 如果原始 SFT model 不可用怎么办？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-kl-dpo-logit">33. (\beta) 的“表面矛盾”：为什么 KL 越强，DPO logit 前的系数反而越大？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#policy-beta-loss">34. 再用最优 policy 看一遍 (\beta)，避免只盯 loss</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-gradient">35. DPO gradient：真正训练时到底在做什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#implicit-reward-gradient">36. 用 implicit reward 重写 gradient</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dynamic-weight">37. 为什么这个 dynamic weight 非常关键？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#naive-unlikelihood">38. 为什么 naive Unlikelihood 容易退化？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-classification">39. DPO 其实在做什么 classification？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-pytorch">40. DPO 的 PyTorch 核心为什么可以这么短？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-forward">41. 为什么 reference forward 可以冻结？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-policy-rollout">42. DPO 与 PPO 最大的结构差别：训练阶段不需要当前 policy rollout</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sampling">43. 但“DPO 不需要 sampling”这句话也要说完整</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-critic">44. DPO 为什么不需要 Critic？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#grpo-critic">45. 这和 GRPO“不需要 Critic”是一回事吗？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sft-absolute-imitation-relative-preference">46. DPO 与 SFT：一个是 absolute imitation，一个是 relative preference</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#pipeline-sft-dpo">47. 为什么现代 pipeline 常常先 SFT 再 DPO？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id9">48. 一个更完整的数值例子：DPO gradient 怎样自动衰减？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preferred-probability-rejected-probability">49. DPO 到底是在最大化 preferred probability，还是最小化 rejected probability？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-nll">50. 这也解释了为什么有些模型会给 DPO 再加 NLL</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-rlhf">51. DPO 和经典 RLHF 到底“等价”在哪里？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo">52. “DPO 与 PPO 完全等价”为什么是错误说法？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-exact-exact">53. DPO 的“exact”到底 exact 在哪里？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-offline-method-ppo-grpo">54. 为什么 DPO 是 offline method，而 PPO/GRPO 更容易在线更新？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#qwen2-5-offline-dpo-online-grpo">55. 为什么 Qwen2.5 要 Offline DPO → Online GRPO？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#llama-3-dpo">56. 为什么 Llama 3 会迭代刷新 DPO 数据？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sequence-log-prob">57. Sequence log-prob 求和会不会产生长度效应？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-subtraction-sequence-probability">58. 为什么 reference subtraction 比直接比较 sequence probability 更合理？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-absolute-utility">59. DPO 的 reward 是 absolute utility 吗？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rewardkl-frontier-controlled-evidence">60. 原论文实验 1：Reward–KL frontier 为什么是最重要的 controlled evidence？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#ppo-gt">61. PPO-GT 都被比较了，能说明什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#tl-dr-summarization">62. 原论文实验 2：TL;DR summarization 看什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#temperature-robustness">63. 为什么 temperature robustness 值得看？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dialogue-dpo-sentiment">64. Dialogue 实验：DPO 是否只能优化简单 sentiment？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#training-dynamics-step">65. Training dynamics：为什么几百 step 内就能看到明显变化？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#best-of-n-baseline">66. Best-of-N 为什么是一个重要 baseline？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id13">67. 原论文实验真正证明了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id14">68. 原论文实验没有证明什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#bradleyterry">69. Bradley–Terry 假设本身有什么边界？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-model-reward-parameterization">70. DPO 不是“无 Reward Model”，而是“隐式 reward parameterization”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo">71. DPO 的工程成本到底少在哪里？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sft">72. 但 DPO 仍然比普通 SFT 贵在哪里？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#response-pair-reference-policy">73. 为什么 response pair 最好来自接近 reference 的 policy？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preference-dataset">74. 为什么 DPO 特别适合“已有 preference dataset”的组织？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpoppogrpo">75. DPO、PPO、GRPO：把三条路线放到同一张表</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id16">76. 用“监督信号在哪里”重新统一三种方法</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id19">77. 什么时候 DPO 很自然？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#online-rl">78. 什么时候 Online RL 更自然？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-rl">79. 对具身智能的直接启示：DPO 可以学“轨迹偏好”，但不替代环境 RL</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id20">80. 原论文最核心的三层贡献</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id24">81. 一条完整因果链把 DPO 串起来</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id25">82. 最容易学错的八个地方</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id27">83. 从 Llama 3 再回看 DPO</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#qwen2-5-dpo">84. 从 Qwen2.5 再回看 DPO</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preference-methods">85. DPO 之后该如何理解后续 preference methods？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id33">86. 论文的证据边界</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id34">87. 为什么这篇论文现在仍然重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id35">88. 最终自检</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html">Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id1">阅读导航</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla">1. 先把问题写对：Chinchilla 研究的不是“模型多大最好”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute">2. 固定 compute 后为什么天然存在一个“太大”和“太小”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-kaplan">3. Chinchilla 为什么要重新研究 Kaplan？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#figure-1-token">4. 原论文 Figure 1：三种方法都把最优点推向“小模型 + 更多 token”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id4">5. Chinchilla 做了多大的实验矩阵？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id5">6. 三种方法分别在问什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-1-training-curve-compute">7. Approach 1：从 training curve 上找“同 compute 最低点”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-1">8. 原论文 Approach 1 图怎样读？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#learning-rate-schedule-scaling-law">9. 为什么 Learning-Rate Schedule 会影响 scaling-law 结论？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id6">10. 为什么这个问题如此隐蔽？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-isoflop-compute-optimal">11. Approach 2：IsoFLOP 为什么是最直观的 compute-optimal 实验？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-curve">12. IsoFLOP curve 为什么应该有谷底？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-valley">13. 原论文 Approach 2：真正应该盯着左图 valley</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-loss">14. IsoFLOP 比“模型越大 loss 越低”多了什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-l-n-d">15. Approach 3：为什么还要拟合显式 (L(N,D))？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id9">16. 三项分别代表什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id12">17. 为什么用“加法”分解？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3">18. 原论文 Approach 3 图：蓝线是什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#c-hat-l-n-d">19. 现在开始完整推导：固定 (C) 下怎样最小化 (\hat L(N,D))？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#n">20. 对 (N) 求偏导</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#d">21. 对 (D) 求偏导</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id13">22. 两个式子一对比，得到最优平衡条件</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#alpha-beta">23. 为什么这里出现 (\alpha) 和 (\beta)？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id14">24. 用约束消掉 (D)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#d-rm-opt-c">25. 再推出 (D_{\rm opt}(C))</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#fitted-exponent">26. 方法三的 fitted exponent 到底是多少？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id15">27. 三种方法放在一起，真正结论是什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-token">28. 为什么 Approach 3 更偏向 token？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#bootstrap-interval">29. 为什么作者还要做 bootstrap interval？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokens-per-parameter">30. “20 tokens per parameter”到底从哪里来？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id16">31. 为什么 20 不能被当作自然常数？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#optimal-tokens-vs-parameters">32. 原论文把 optimal tokens vs parameters 直接画出来了</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-undertrained">33. 为什么 Chinchilla 认为当时的大模型普遍“undertrained”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-gopher">34. 一个具体例子：为什么 280B Gopher 可能太大？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-40b">35. 为什么最终选 70B，而方法三甚至预测约 40B？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-architecture">36. Chinchilla 为什么不是一个新 architecture？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-gopher-n-d">37. 但是 Chinchilla 和 Gopher 又不只差 (N,D)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-chinchilla-flagship">38. 那 70B Chinchilla 的 flagship 对照还能证明什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-head-to-head">39. 原论文对 Kaplan 做了直接小规模 head-to-head</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-equal-scaling">40. 为什么 Chinchilla 的“equal scaling”会让模型显著变小？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#token-inference-economics">41. 为什么“小模型 + 更多 token”同时改善 inference economics？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id17">42. 这为什么改变了“大模型越大越好”的产业直觉？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokens-parameter">43. 为什么今天很多模型又训练得远超 20 tokens/parameter？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#training-compute-optimal-fixed-model-size-optimal">44. Training-compute optimal 和 fixed-model-size optimal</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#inference-heavy-chinchilla">45. 为什么 inference-heavy 产品甚至应该“比 Chinchilla 更偏小模型”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-ratio">46. 为什么数据质量会让 Chinchilla ratio 再次改变？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-token">47. Tokenizer 为什么也会改变“每参数多少 token”的意义？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-moe">48. 为什么 Chinchilla 的结果不能直接套到 MoE？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#context-length-6nd">49. 为什么 context length 也会破坏简单 (6ND)？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-loss-form-scaling">50. 为什么 Chinchilla 的第三种 loss form 对现代 scaling 仍有启发？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id20">51. 为什么三种方法比一个漂亮公式更重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-llama-3">52. 为什么 IsoFLOP 是后来 Llama 3 最值得继承的方法？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute-valley">53. 为什么大 compute 下 valley 会变平？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#flagship">54. 原论文的 flagship 结果为什么仍然重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#benchmark">55. 但 benchmark 不是这篇论文最核心的证据</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id21">56. Chinchilla 真正修正 Kaplan 的原因可以压成什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-chinchilla">57. Kaplan 和 Chinchilla 其实共享哪些结论？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-scaling-law">58. 为什么 Chinchilla 也不是 scaling law 的终点？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-chinchilla">59. 从 Llama 3 回看 Chinchilla</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-chinchilla">60. 从 Qwen2.5 回看 Chinchilla</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#training-design-objective">61. 一个更现代的 training design objective</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id24">62. 为什么这对本地部署模型尤其重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id25">63. 对具身智能有什么直接启示？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#quality-adjusted-scaling">64. 为什么机器人数据比文本更需要“quality-adjusted scaling”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id26">65. 为什么“训练数据越多越好”仍然不是 Chinchilla 的结论？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id27">66. 为什么“模型越小越好”同样不是结论？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#flops">67. 为什么“同 FLOPs”也不等于“同真实训练成本”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#availability-optimum">68. 为什么数据 availability 会把 optimum 推离数学前沿？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id28">69. 为什么 Chinchilla 之后高质量数据成为更关键的壁垒？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#modern-synthetic-data-chinchilla">70. 为什么 modern synthetic data 让 Chinchilla 问题更复杂？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#causal-evidence">71. 论文最强的 causal evidence 到底是哪几层？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id30">72. 论文哪些结论最不应该被过度扩张？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute-optimal">73. “Compute-optimal”这个词本身要带约束读</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id34">74. 一张图把 Kaplan → Chinchilla 的逻辑串起来</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id35">75. 为什么这两篇论文应该成对学习？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-llama-3">76. 从 Chinchilla 到 Llama 3：方法怎样进化？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-qwen2-5">77. 从 Chinchilla 到 Qwen2.5：变量怎样继续扩展？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-law-ai">78. 为什么 scaling law 不是“AI 玄学曲线拟合”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id36">79. 为什么 Chinchilla 的思维很适合工程师？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-study">80. 如果现在自己要做一个小规模 scaling study，流程应该是什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#grid-search">81. 为什么不要一开始就做超大 grid search？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id37">82. 最容易学错的十个地方</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id39">83. 论文真正证明了什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id40">84. 论文没有证明什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-laws">85. 两篇 Scaling Laws 专题最后应该留下什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-405b">86. 现在回看 Llama 3 的 405B 选择就不再抽象</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-scaling-law">87. 现在回看 Qwen2.5 的 scaling law 也更清晰</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id42">88. 下一步应该下钻什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id43">89. 最终自检</a></li>
 </ul>
 </li>
 </ul>
@@ -2001,8 +2029,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="../generated/papers/B/05-moe-complete-llm/B012-qwen2.5.html" class="btn btn-neutral float-left" title="Qwen2.5：从 18T 数据到 Offline DPO + Online GRPO，一套“模型家族化”的训练系统" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html" class="btn btn-neutral float-right" title="DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../generated/papers/A/04-efficient-attention/A020-gqa.html" class="btn btn-neutral float-left" title="GQA：在 MHA 表达能力与 MQA 推理效率之间折中" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" class="btn btn-neutral float-right" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
