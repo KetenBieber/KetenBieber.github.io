@@ -26,7 +26,7 @@
     <script src="../../../../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../../../../genindex.html" />
     <link rel="search" title="搜索" href="../../../../search.html" />
-    <link rel="next" title="DeepSeek 模型主线" href="../../../../models/index.html" />
+    <link rel="next" title="现代完整模型主线" href="../../../../models/index.html" />
     <link rel="prev" title="Switch Transformer：把 Top-K MoE 简化成 Top-1 路由" href="A033-switch-transformer.html" /> 
 </head>
 
@@ -57,10 +57,12 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#moe">第三阶段：稀疏 MoE</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id3">第四阶段：现代大模型主线</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#reasoning-post-training">第五阶段：Reasoning Post-training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id4">第六阶段：第二条现代模型主线</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../technology-map.html">技术图谱</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../technology-map.html#transformer-deepseek-r1">第一条主干：从 Transformer 到 DeepSeek-R1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../technology-map.html#dense-transformer">第二条主干：标准 Dense Transformer 的规模化路线</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../technology-map.html#id2">快速跳转</a></li>
 </ul>
 </li>
@@ -778,7 +780,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../../../../models/index.html">DeepSeek 模型主线</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../models/index.html">现代完整模型主线</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html">DeepSeek-V2：MLA 真正的关键不是低秩，而是让低维缓存直接参与 Decode</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v3-attention">阅读导航：这是 V3 的 Attention 技术下钻页</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#figure-1-v2">1. Figure 1 先告诉我们：V2 想把“训练贵”和“推理贵”拆开解决</a></li>
@@ -1044,6 +1046,111 @@
 <li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id15">继续阅读：按你的困惑分流</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html">Llama 3：当架构趋于朴素，数据、规模与系统工程成为主角</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id2">1. 先定性：Llama 3 不是一篇“新架构论文”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#herd-of-models">1.1 Herd of Models 是什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#token-transformer-token">2. 先看完整系统：真正的数据流不是 token → Transformer → token</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id3">3. 骨干架构：变化很少，但每个变化都对应明确成本</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#gqa-405b-8-kv-heads">4. GQA：为什么 405B 仍然只保留 8 个 KV heads？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#k-tokenizer">5. 128K tokenizer：分词器其实也是计算预算分配器</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#document-mask-packed-sequence">6. Document mask：为什么 packed sequence 不能让不同文档互相看见？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#t-tokens">7. 15.6T tokens：绝不是抓够数量就开训</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id4">7.1 三层去重解决的是不同问题</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#model-based-filtering">8. Model-based filtering：上一代模型开始参与制造下一代模型的数据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#data-mix">9. Data mix：互联网分布不等于训练分布</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#scaling-law-405b">10. Scaling Law：405B 不是先拍脑袋决定，再去找数据</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#b-16-55t-405b-15-6t">11. 为什么预测 402B / 16.55T，最后却训练 405B / 约 15.6T？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#scaling-law-benchmark-pretraining-loss">12. Scaling law 还能预测 benchmark，而不只是预测 pretraining loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#training-optimal-deployment-optimal">13. Training-optimal 不等于 deployment-optimal</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#t-token-loop">14. 预训练不是一段 15.6T token 从头跑到尾都不变的 loop</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#k-context-rope">15. 128K context：不是改一个 RoPE 参数，而是一次能力迁移</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#k-128k">16. 六阶段扩展：8K → 128K</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#distribution-shift">16.1 本质是 distribution shift</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#rope-theta-500000">17. RoPE theta=500000 到底扮演什么角色？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#b-16k-gpu">18. 训练系统：405B 的问题已经变成怎样让 16K GPU 像一台机器</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id5">19. 为什么需要四个并行维度？因为它们解决四种不同的“放不下”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#tp-layer">19.1 TP：一个 layer 内的矩阵太大</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#pp-layer-stack">19.2 PP：完整 layer stack 太深</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#cp-sequence">19.3 CP：sequence 太长</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#fsdp-dp">19.4 FSDP / DP：训练状态太大</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#d-parallelism">20. 三个真实配置，把 4D parallelism 看懂</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#mfu-gpu-flops">21. MFU：GPU 数量不是吞吐，真正关心有多少峰值算力变成模型 FLOPs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#parallelism">22. 网络拓扑不是基础设施附录，而是 parallelism 的一部分</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id6">23. 超大规模训练最现实的一课：不是会不会坏，而是坏了怎么继续</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#post-training-llama-3-ppo">24. Post-training：Llama 3 为什么没有把 PPO 当主线？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#reward-modelrssftdpo">25. 先把 Reward Model、RS、SFT、DPO 四个角色拆开</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#reward-model">25.1 Reward Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#rejection-sampling">25.2 Rejection Sampling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#sft">25.3 SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#dpo">25.4 DPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#llama-3-reward-model-ppo-critic">26. Llama 3 的 Reward Model 不是 PPO Critic</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id7">27. 为什么 Rejection Sampling 很适合已经很强的大模型？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#rs-pagedattention-serving-training-infrastructure">28. RS 为什么会把 PagedAttention 从 serving 技术变成 training infrastructure？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#dpo-llama-3">29. DPO：本文只讲它在 Llama 3 中承担什么</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#mask-formatting-tokens">29.1 Mask formatting tokens</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#chosen-sequence-nll-regularization">29.2 给 chosen sequence 增加 NLL regularization</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#post-training-sft-dpo">30. 六轮迭代：Post-training 不是一次 SFT + 一次 DPO</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#llama-3-reasoning">31. Llama 3 的 reasoning 提升究竟来自哪里？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#deepseek-r1-reasoning">32. 这和 DeepSeek-R1 的 reasoning 路线差在哪里？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id8">Llama 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#deepseek-r1">DeepSeek-R1</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#k-sft">33. 长上下文后训练：预训练学会 128K，不代表 SFT 后还保得住</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#tool-use-tool-layer">34. Tool use：工具能力首先是协议 + 数据，不是新增一个 tool layer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#b-bf16-8h100">35. 405B 推理：为什么 BF16 连一台 8×H100 都放不下？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#tp-pp">36. 为什么节点内 TP，节点间 PP？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#inference-pipeline-bubble-training">37. 为什么 inference pipeline bubble 和 training 不一样？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#fp8-inference-cast-fp8">38. FP8 inference：为什么不是所有矩阵直接 cast 成 FP8？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#benchmark">39. Benchmark 不掉点，仍然可能有严重量化问题</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#llama-3-deepseek-v3-llm">40. Llama 3 与 DeepSeek-V3：两条现代 LLM 设计路线</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id9">Llama 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#deepseek-v3">DeepSeek-V3</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#llama-3-moe">41. 为什么 Llama 3 没有用 MoE？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id10">42. 多模态部分应该怎样放进技术谱系？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#benchmark-table">43. 实验应该怎么读：不要把 benchmark table 读成排行榜</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id11">44. 论文的核心论证链到底是什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#claim-1-dense-transformer">Claim 1：标准 dense Transformer 仍然可以显著扩展</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#claim-2-data-engineering">Claim 2：Data engineering 是模型能力的重要决定变量</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#claim-3-scaling-law">Claim 3：Scaling law 可以进入真实研发决策</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#claim-4-16k-gpu">Claim 4：16K GPU 训练可行，但可靠性必须靠系统工程</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#claim-5-assistant-post-training">Claim 5：Assistant 能力来自迭代 post-training 数据飞轮</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id12">45. 最容易学错的五个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#llama-3-405b">错法 1：Llama 3 强主要是因为 405B 参数多</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#k-context-rope-theta-500000">错法 2：128K context 主要来自 RoPE theta=500000</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#reasoning-dpo">错法 3：Reasoning 主要来自 DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#reward-model-ppo-actor-critic">错法 4：用了 Reward Model，所以就是 PPO / Actor-Critic</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#scaling-law">错法 5：Scaling law 给出唯一正确模型尺寸</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id13">46. 把整篇论文压成一条因果链</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id14">47. 读完以后应该建立的三个新概念</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#data-engineering-model-engineering">47.1 Data engineering 就是 model engineering</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id15">47.2 Scaling law 是设计工具，不是自然定律</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#training-inference-post-training">47.3 Training / inference / post-training 正在合流</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id16">48. 从这里继续怎么读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B011-llama3.html#id17">49. 最终自检</a></li>
 </ul>
 </li>
 </ul>
@@ -2092,7 +2199,7 @@ ADOPTS / EXTENDS:
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
         <a href="A033-switch-transformer.html" class="btn btn-neutral float-left" title="Switch Transformer：把 Top-K MoE 简化成 Top-1 路由" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="../../../../models/index.html" class="btn btn-neutral float-right" title="DeepSeek 模型主线" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../../../../models/index.html" class="btn btn-neutral float-right" title="现代完整模型主线" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
