@@ -1,0 +1,3152 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh-CN" data-content_root="../../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization &mdash; LLM Technology Atlas</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/copybutton.css?v=76b2166b" />
+      <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=bc003058" />
+
+  
+      <script src="../../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../../_static/documentation_options.js?v=5a3306de"></script>
+      <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="../../../../_static/clipboard.min.js?v=a7894cd8"></script>
+      <script src="../../../../_static/copybutton.js?v=6dbb43f8"></script>
+      <script src="../../../../_static/translations.js?v=beaddf03"></script>
+      <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="索引" href="../../../../genindex.html" />
+    <link rel="search" title="搜索" href="../../../../search.html" />
+    <link rel="prev" title="推理后训练" href="../../../../post-training/index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            LLM Technology Atlas
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="搜索文档" aria-label="搜索文档" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="导航菜单">
+              <p class="caption" role="heading"><span class="caption-text">开始</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../reading-path.html">学习路线</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id2">第一阶段：训练与网络基础</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#transformer">第二阶段：Transformer 与高效注意力</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#moe">第三阶段：稀疏 MoE</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id3">第四阶段：现代大模型主线</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#reasoning-post-training">第五阶段：Reasoning Post-training</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../technology-map.html">技术图谱</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../technology-map.html#transformer-deepseek-r1">第一条主干：从 Transformer 到 DeepSeek-R1</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../technology-map.html#id2">快速跳转</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">技术专题</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../../foundations/index.html">训练与网络基础</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A001-backpropagation.html">反向传播：多层网络为什么能够端到端学习</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id2">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id3">论文类型与问题边界</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id4">在技术树中的位置</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id5">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id6">从论文的逐样本网络转为现代张量记号</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id7">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id8">原文五幅图：不是插图装饰，而是对应五种证据角色</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#fig-1">Fig.1：对称检测的内部权重——为什么它证明的是「特征发现」</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#fig-2">Fig.2：两棵同构家谱——先让读者看见任务结构，才能谈表征泛化</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#fig-3">Fig.3：隐藏单元活动——从外部答案走到内部证据</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#fig-4">Fig.4：隐藏连接的特征分工——结构相同的名字怎样聚到一起</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#fig-5">Fig.5：展开迭代网络——从「层」转到「时间」必须保留共享权重</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id9">整个计算图</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id10">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id11">1. 从单层梯度出发：输出层为什么容易学</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id12">2. 隐藏层没有标签，却能准确获得梯度</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id13">3. 手算一次：一条输入路径如何收到最终输出误差</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id14">4. 原文的参数更新、表示学习与现代自动微分的差异</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#pytorch-autograd">5. 最小可执行 PyTorch：手写反传与 autograd 对照</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id15">6. 原文实验到底证明了什么</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id16">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id17">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id18">技术 → 模型（带关系的知识索引）</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id19">模型 → 技术（反向索引）</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id20">论文细读</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id21">从摘要到结论：逐段追踪论证与措辞</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#p-533">p.533 摘要：先交代可观察的训练行为，再上升到表示学习</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id22">p.533 正文第一段：把历史工作的共同愿望写成一个明确缺口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#p-534">p.534 左栏：在讲算法前，先告诉读者要压低什么误差</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#p-534-p-535">p.534 右栏 → p.535 右栏：从输出层梯度到隐藏层梯度，一步也不能跳</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#p-535">p.535 实验与讨论：为什么作者先选极小的对称任务，再选结构性泛化任务？</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A001-backpropagation.html#id23">连起来重读全文：一条完整的作者论证链</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A002-adam.html">Adam：一阶矩、二阶矩与偏差校正到底在做什么</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id2">不是新网络，而是「拿到梯度以后怎样走下一步」</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id3">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id4">精确定义一轮优化的接口</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#algorithm-1">用作者的 Algorithm 1 读输入条件</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id5">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#transformer">按训练时间而非 Transformer 层画数据流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id6">两种尺度为何须同时存在？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id7">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#ema-1-beta-t">1. 推导 EMA 的偏差修正：为什么偏偏是 (1-\beta^t)？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id8">2. 一个必须手算的两步例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#epsilon">3. 梯度缩放的边界和 (\epsilon) 的实际作用</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id9">4. 收敛讨论真正分析的是什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id10">5. 代码：按原文 Algorithm 1 实现，验证教学算例</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id11">6. 四幅实验图：每张图都回答不同的问题</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#fig-1">Fig.1：凸任务与稀疏输入，不要把两幅子图混读</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#fig-2-mlp-dropout">Fig.2：MLP 下，非凸目标与 dropout 的干扰如何控制？</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#fig-3">Fig.3：前几轮快，不代表最终收敛快</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#fig-4">Fig.4：把偏差校正从数学推导带回实验</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id12">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id13">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id14">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id15">模型 → 技术</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A002-adam.html#id16">论文细读</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A002-adam.html#id17">阅读地图：作者怎样把六种主张排成一条证据链</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#abstract-pdf-1">Abstract（PDF 第 1 页）：作者怎样在一个段落里安排不同强度的证据</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-1">§1 第一自然段（PDF 第 1 页）：先合法化随机梯度问题</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#id18">§1 第二自然段（PDF 第 1 页）：从背景收束到新方法</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#algorithm-1-2-pdf-2">Algorithm 1 图注 + §2 第一自然段（PDF 第 2 页）：先定义可复现接口</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-2-ema">§2 第二自然段（PDF 第 2 页）：刻意把两个 EMA 和初始偏差摆在一起</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-2">§2 第三自然段（PDF 第 2 页）：工程等价变形为何放在主算法之后</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-23-snr">§2.1（PDF 第 2–3 页）：为什么先谈步幅，再谈所谓 SNR</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-3">§3 第一自然段（PDF 第 3 页）：从定义上定位错误来源</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#eq-2-4-pdf-3">§3 第二至三自然段 + Eq.(2)–(4)（PDF 第 3 页）：从精确等式区分稳定与非稳定分布</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#id19">§3 末段（PDF 第 3 页）：把推导结果回扣稀疏梯度</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-4">§4 第一自然段（PDF 第 4 页）：为何转换为在线凸优化语言</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#id20">§4 定理与推论（PDF 第 4 页）：把作者结论与后来的纠错分开</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#rmsprop-pdf-45">§5 导言与 RMSProp 对照段（PDF 第 4–5 页）：不是列参考文献，而是澄清「看起来一样」的误会</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#adagrad-pdf-5">§5 AdaGrad 对照段（PDF 第 5 页）：以极限关系定义谱系</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#pdf-5">§6 总起段（PDF 第 5 页）：实验证据的可比性先于曲线高低</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#mnist-imdb-pdf-56">§6.1 MNIST → IMDB 两组自然段（PDF 第 5–6 页）：由凸、稠密到稀疏、带噪声</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#mlp-pdf-67">§6.2 MLP 相关自然段（PDF 第 6–7 页）：从理论覆盖之外的非凸场景寻找实际证据</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#cnn-fig-3-pdf-7">§6.3 CNN 与 Fig.3（PDF 第 7 页）：从早期下降速度修正读者的第一印象</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#fig-4-pdf-8">§6.4 偏差修正 + Fig.4（PDF 第 8 页）：把理论弱点单独做成消融实验</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A002-adam.html#adamax-pdf-89">主文结尾与 AdaMax（PDF 第 8–9 页）：收束贡献，而不是暗示通用最优</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A003-adamw.html">AdamW：为什么 Weight Decay 必须从自适应梯度里解耦</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#adamw">1. 先把问题放对层级：AdamW 改的是参数更新接口</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#adam">2. 为什么这篇必须接在 Adam 后面读？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id2">3. 前代、本文、后续要严格分开</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id3">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id4">1. 一步 AdamW 的精确接口</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#lambda-weight-decay">2. 原论文的 <span class="math notranslate nohighlight">\(\lambda\)</span> 与现代框架的 <code class="docutils literal notranslate"><span class="pre">weight_decay</span></code> 口径</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#shape-adamw">3. 参数 Shape 并没有因为 AdamW 改变</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id5">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#algorithm-2">1. Algorithm 2 的关键不是“多一项”，而是它接在哪条边上</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#figure-2">2. 原论文 Figure 2：把“耦合”画成超参数地形</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#adam-coupled-l-2">Adam + coupled <span class="math notranslate nohighlight">\(L_2\)</span></a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#id6">AdamW</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#figure-1-learning-rate-schedule">3. Figure 1：为什么论文还要先研究 learning-rate schedule？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id7">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#sgd-l-2-weight-decay">1. 从零推导：为什么标准 SGD 中 <span class="math notranslate nohighlight">\(L_2\)</span> 与 weight decay 可以等价？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#id8">这个等价有哪些前提？</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#proposition-2">2. Proposition 2：自适应预条件器为什么必然破坏一般等价？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id9">3. 二维数字例子：让“不等价”看得见</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#adam-v-t">4. 真实 Adam 的耦合甚至更深：<span class="math notranslate nohighlight">\(v_t\)</span> 也被污染</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id10">5. 完整 AdamW 更新</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#id11">为什么两条支路都应该读旧参数？</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#weight-decay">6. “用了 weight decay，权重每一步一定变小”吗？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#pytorch-m-v">7. 最小 PyTorch 实现：只让数据梯度进入 <span class="math notranslate nohighlight">\(m,v\)</span></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#figure-1-figure-2">8. 实验：Figure 1 和 Figure 2 不是在回答同一个问题</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#figure-1">Figure 1 的因果边界</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#id12">Figure 2 的因果边界</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id13">预训练与后训练</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#bias-norm-decay">参数组为什么常把 bias / Norm 排除出 decay？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id14">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id15">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id16">模型 → 技术</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A003-adamw.html#id17">论文细读</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#abstract">1. Abstract：先制造“两个概念一直被当成同一件事”的冲突</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A003-adamw.html#id18">措辞强度</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#introduction-adam">2. Introduction 开头：先承认 Adam 很成功，再用转折提出异常</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#introduction-observation">3. Introduction 的 observation 列表：其实是全文证据目录</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#sgd">4. §2 为什么先证明一个“大家都知道”的 SGD 结论？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#proposition-1-proposition-2">5. 从 Proposition 1 到 Proposition 2：只改变一个条件</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id19">6. Proposition 2：全文的“硬证据核心”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#proposition-3-coupled-l-2">7. Proposition 3：从“否定等价”转向“解释 coupled <span class="math notranslate nohighlight">\(L_2\)</span> 到底做了什么”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#bayesian-filtering">8. §3 Bayesian filtering：为什么应该后读？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#learning-rate-schedule">9. §4.1：为什么先清理 learning-rate schedule 这个混杂因素？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id20">10. §4.2 + Figure 2：公式中的耦合怎样变成图上的斜盆地？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#training-loss-test-error">11. §4.3：为什么还要比较相似 training loss 下的 test error？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#conclusion">12. Conclusion：作者自己给结论踩了刹车</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A003-adamw.html#id21">本篇最小闭环</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html">Batch Normalization：算法、反向传播与机制解释边界</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#batchnorm">1. BatchNorm 不是优化器，而是进入前向函数的一层运算</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id2">2. 原论文的问题链条</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id3">3. 从全白化退到逐特征归一化，不是“少做一点”这么简单</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id4">4. 技术树定位</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id5">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id6">1. 全连接场景：对哪个轴统计？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#b">2. 卷积场景：为什么不是只对 <span class="math notranslate nohighlight">\(B\)</span> 个数求均值？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id7">3. 训练与推理不是同一个统计过程</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#gamma-beta">4. 为什么 <span class="math notranslate nohighlight">\(\gamma,\beta\)</span> 必须存在？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id8">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#algorithm-1">1. 原论文 Algorithm 1 的真实数据流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#figure-1-a-epoch">2. Figure 1(a)：先看训练速度，不要把横轴误读成 epoch</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#figure-1-b-bn-sigmoid">3. Figure 1(b)：没有 BN，sigmoid 输入的分位数不断漂移</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#figure-1-c-bn">4. Figure 1(c)：有 BN，分位数更稳定</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#figure-2-bn-baseline-bn-x5">5. Figure 2：BN-Baseline 与 BN-x5 不是同一种消融</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id9">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#normalization-preprocessing">1. 为什么不能把 normalization 当成训练前一次性 preprocessing？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#bn">2. 从全白化到标量 BN 的两步简化</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#covariance-whitening">简化 1：不做完整 covariance whitening</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#minibatch">简化 2：不用完整数据集统计，改用 minibatch</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#epsilon">3. 为什么 <span class="math notranslate nohighlight">\(\epsilon\)</span> 不只是“防止除零”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id10">4. 从链式法则完整推导 BN 的输入梯度</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id11">对方差求导</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id12">对均值求导</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#x-j">对某个 <span class="math notranslate nohighlight">\(x_j\)</span> 求导</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id13">5. 一个可以手算的前向例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#effective-batch">6. 为什么极小 effective batch 可能退化？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#pytorch-bn2d">7. 最小 PyTorch：手写 BN2d 并核对公式语义</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#imagenet">8. 原论文 ImageNet 实验：必须拆开哪些变量同时改变了</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id14">预训练与后训练</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#gamma-beta-running-statistics"><span class="math notranslate nohighlight">\(\gamma,\beta\)</span> 与 running statistics 是两类完全不同的状态</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#layernorm-rmsnorm">为什么大语言模型后来更常用 LayerNorm / RMSNorm？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id15">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#conv-bn">1. 推理时为什么 Conv + BN 可以融合？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id16">2. 为什么训练时不能提前这样融合？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#flops">3. FLOPs 不是全部成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id17">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id18">模型 → 技术</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id19">论文细读</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#abstract">1. Abstract：先给“训练深网很难”，再立刻给一个机制名字</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#abstract-learning-rateregularization">2. Abstract 后半：为什么作者一次列出高 learning rate、少初始化敏感、regularization？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#introduction">3. Introduction 第一个关键转折：为什么从“参数更新”谈到“数据分布变化”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#introduction-sigmoid">4. 为什么 Introduction 特别拿 sigmoid 饱和做例子？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#normalize">5. §2：为什么作者先批评“训练后再 normalize 一下”的朴素方案？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#full-whitening">6. §3 开头：为什么作者先说 full whitening 太贵，再给两次简化？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#gamma-beta-normalization">7. <span class="math notranslate nohighlight">\(\gamma,\beta\)</span> 为什么紧跟 normalization 出现？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#bn-transform-does-not-independently-process-each-example">8. “BN transform does not independently process each example” 为什么重要？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id20">9. 反向传播公式放在方法章的意义</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id21">10. 卷积 BN 段落：为什么统计还要跨空间位置？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#inference">11. §3.2 / inference：为什么训练结束后必须换统计量？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#gradient-propagation">12. §3.3 中关于 gradient propagation 的措辞为什么要谨慎？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#batch-regularizer">13. §3.4：为什么作者把 batch 随机性也看成 regularizer？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#figure-1">14. §4.1 + Figure 1：作者怎样把“机制”与“结果”连起来？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#faster">15. §4.2：最容易被误读的“14× faster”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#conclusion">16. Conclusion 与后续机制研究：哪些东西今天应保留，哪些应修正？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A004-batch-normalization.html#id22">本篇最小闭环</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A005-resnet.html">ResNet：残差学习为什么缓解深层网络的退化问题</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id2">1. 论文解决的不是“如何让网络更深”，而是“为什么更深反而训练得更差”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#sgd">2. “存在更好的解”为什么不等于“SGD 找得到”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#residual-learning">3. Residual Learning 的第一性原理</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id3">4. 技术树</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id4">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#imagenet">1. ImageNet 输入输出</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#basic-block-shape">2. Basic Block 的 Shape</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#shortcut">3. 维度变化时为什么需要特殊 shortcut？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#option-a-identity-zero-padding">Option A：identity + zero padding</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#option-b-projection">Option B：只在维度变化处做 projection</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#option-c-shortcut-projection">Option C：所有 shortcut 都做 projection</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#resnet-34-shape">4. ResNet-34 的完整 Shape 流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#bottleneck-shape">5. Bottleneck 的 Shape</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id5">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-1-degradation-problem">1. Figure 1：degradation problem 的第一张证据图</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-2">2. Figure 2：整篇论文最重要的一张结构图</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-3-plain-34-resnet-34">3. Figure 3：为什么 plain-34 与 ResNet-34 可以做较干净对照？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-4-imagenet-plain-residual">4. Figure 4：ImageNet 上 plain / residual 的训练轨迹</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-5-resnet-bottleneck">5. Figure 5：为什么深层 ResNet 要换 bottleneck？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id6">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#constructed-solution">1. 最关键的逻辑：constructed solution 是存在性论证，不是训练保证</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#residual-identity">2. 为什么学习 residual 可能比直接学习 identity 更容易？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#identity">3. 梯度为什么多了一条 identity 路径？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#resnet-v1-1">但原始 ResNet v1 不能写成“梯度永远等于 1”</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#projection-shortcut">4. Projection shortcut 时梯度公式怎样改？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id7">5. 一个二维例子：主路学的是改变量</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#identity-shortcut-projection">6. 为什么 identity shortcut 的实验价值比 projection 更大？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#f">7. 为什么 <span class="math notranslate nohighlight">\(F\)</span> 不是一层线性层？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#bottleneck">8. Bottleneck 为什么主要是算力问题？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-4-residual-learning">9. 原文训练控制：为什么 Figure 4 比榜单更能说明 residual learning？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#pytorch-v1-basicblock">10. 最小 PyTorch：原始 v1 BasicBlock</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id8">11. 实验：真正需要保留哪些控制变量？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#imagenet-plain-vs-residual">ImageNet plain vs residual</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#shortcut-a-b-c">Shortcut A / B / C</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id9">50 / 101 / 152 层</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#cifar-10">CIFAR-10 超深实验</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id10">预训练与后训练</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#imagenet-recipe">原文 ImageNet 训练 recipe</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#detection">Detection 迁移怎样读？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id11">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#identity-shortcut">1. Identity shortcut 真的“零成本”吗？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id12">2. Projection shortcut 有真实额外成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#flops-macs">3. FLOPs / MACs 计数口径</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#bn-inference-residual-add">4. BN 可以在 inference 融合，但 residual add 仍存在</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id13">5. 边缘部署为什么不能只看“层数”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id14">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id15">模型 → 技术</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A005-resnet.html#id16">论文细读</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#abstract-deeper-neural-networks-are-more-difficult-to-train">1. Abstract：第一句为什么是 “Deeper neural networks are more difficult to train”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#abstract-152-layersvgg-complexity">2. Abstract 后半为什么把 152 layers、VGG complexity、竞赛结果连续写在一起？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#introduction-13-depth">3. Introduction 第 1–3 段：为什么先强调“depth 很重要”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#is-learning-better-networks-as-easy-as-stacking-more-layers">4. “Is learning better networks as easy as stacking more layers?” 是全文真正的问题句</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-1-unexpectedly">5. Figure 1 前后的 “Unexpectedly” 为什么重要？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#there-exists-a-solution-by-construction">6. “There exists a solution by construction” 是全文最漂亮的一段逻辑</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#we-hypothesize">7. “We hypothesize” 必须原样保留其证据强度</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-2-identity-shortcut-neither-extra-parameter-nor-complexity">8. Figure 2 段落：为什么作者强调 identity shortcut “neither extra parameter nor complexity”？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id17">工程层</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id18">实验层</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#related-work-residual-representations-shortcut-connections">9. Related Work 为什么分成 Residual Representations 与 Shortcut Connections 两条线？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id19">10. §3.1 脚注为什么值得注意？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#identity-optimal-real-cases">11. §3.1 从 “identity optimal” 到 “real cases” 的让步结构</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#eq-1-eq-2">12. §3.2 为什么 Eq.(1) 后马上补 Eq.(2)？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#single-layer-residual-function">13. “single-layer residual function 没观察到优势”为什么值得保留？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-3-3-3-plain-baseline-shortcut">14. Figure 3 / §3.3：为什么先设计 plain baseline，再从它加 shortcut？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#recipe">15. §3.4：为什么训练 recipe 要写得这么具体？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#plain-networks-plain-residual">16. §4.1 Plain Networks：作者为什么先只分析 plain，再转 residual？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#we-conjecture-that-deep-plain-nets-may-have-exponentially-low-convergence-rates">17. “We conjecture that deep plain nets may have exponentially low convergence rates” 为什么不能写成结论？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#residual-networks-three-major-observations">18. Residual Networks 的 “three major observations” 是实验章最核心的段落</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id20">第一</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id21">第二</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#id22">第三</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id23">19. Shortcut A/B/C：为什么这个消融非常关键？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#figure-5-practical-considerations">20. Figure 5 与 “practical considerations” 是工程论文写法的典型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#cifar-100-1000-1202-layer">21. CIFAR 100/1000 层：为什么 1202-layer 结果反而是论文的优点？</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#optimization-degradation">Optimization degradation</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../01-foundations/A005-resnet.html#overfitting">Overfitting</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id24">22. Detection 结果：什么可以归因，什么不能？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A005-resnet.html#id25">本篇最小闭环</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html">Scalable Muon：矩阵优化器怎样扩展到大模型训练</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id2">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#muon-token">Muon 处理的是<strong>二维参数矩阵</strong>，不是 token</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id3">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#batch">从模型 batch 到一次参数更新</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#muon">1. 原始 Muon 为什么偏要把一个矩阵整体正交化？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#svd-newtonschulz">2. 矩阵极分解到底如何得到：从 SVD 到 Newton–Schulz</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id5">3. 为什么到了大模型会暴露权重长期增长的问题</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#muon-update-rms">4. 形状不一致使 Muon 的 update RMS 天生不一致：完整推导</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#zero-1-adamw-muon">5. 分布式陷阱：为什么 ZeRO-1 对 AdamW 成立，不等于对 Muon 成立</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#gpu-svd-newtonschulz">6. 单 GPU 可运行代码：精确 SVD 参照与五次 Newton–Schulz</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id6">7. 实验与证据区分：哪些改造各自带来改善</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id7">预训练与后训练</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#moonlight">优化器创新与 Moonlight 模型训练配方必须分开</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id8">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id9">训练显存与通信：把优化器开销从整网计算中拆出来</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id10">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../01-foundations/A006-scalable-muon.html#id11">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../transformer/index.html">Transformer 核心与高效注意力</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html">Transformer：Attention 如何替代循环序列建模</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id2">论文属于哪一类，究竟替换了什么</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id3">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#decoder">首先区分翻译模型与今天的纯 Decoder 语言模型</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id4">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#encoder-decoder">标准原始六层 Encoder + 六层 Decoder</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id5">如果删去某个模块会怎样</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id6">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#q-k-v">1. 从注意力的一般概率读取需求推导 Q/K/V</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#sqrt-d-k">2. 为什么除以 <code class="docutils literal notranslate"><span class="pre">\sqrt{d_k}</span></code>：方差必须具体算出来</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#key">两个 Key 的小数字例子</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#attention-8">3. 多头为何不等于「把相同 Attention 重复 8 次」</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id7">4. 自注意力没有时间递推，为什么位置编码不能省</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#ffnresidual-post-ln">5. 逐位置 FFN、Residual 和 Post-LN：注意力之外还做了什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#pytorch-qkv-attention-post-ln">6. PyTorch 最小程序：完整显式 QKV、自/交叉 Attention 与 Post-LN 的张量流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id8">7. 实验解读：作者真正控制了哪些因素</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id9">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id10">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#hbm">不许混淆数学计算、注意力矩阵存储和 HBM 访存</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id11">一次实际的机器翻译请求</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id12">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A013-transformer-attention-is-all-you-need.html#id13">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html">RoPE：把相对位置信息写进旋转内积</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id1">模型定位与谱系</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#attention-q-k">不是新的 Attention 算法：论文只改动 Q/K 的位置注入方式</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id2">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#tokenattention-head">三种空间必须分开：token、Attention head、二维旋转对子空间</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id3">骨干架构与信息交互</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id5">1. 先把需求写成数学约束，而不是直接背公式</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id6">2. 从一个二维向量推到相对位移：不跳过转置和三角恒等式</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#tensor">3. 为什么可以用复数写，且不是必须使用复数 tensor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#d-h-block-diagonal-rotation">4. 从二维推广到 <code class="docutils literal notranslate"><span class="pre">d_h</span></code> 维：Block Diagonal Rotation 的代价</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id7">5. 长距离衰减：论文说的是多频率振荡和一个上界，不是严格单调</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#pytorch-interleaved-rope-decode-offset">6. 可运行 PyTorch：interleaved RoPE、位置平移不变与正确的 Decode offset</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#rope-bert">7. 原文实验：哪些支持 RoPE，哪些不能被概括成「全面超过 BERT」</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id8">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id9">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#rope-attention">为什么 RoPE 能保持 Attention 的主复杂度，又增加少量运算</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#prefill-decode-position-id">Prefill 与 Decode：绝对 position_id 是真正的工程陷阱</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id10">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A014-roformer-rope.html#id11">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html">RMSNorm：为什么只做均方根缩放也能稳定 Transformer</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id2">输入、输出与任务</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id3">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#layernorm-rmsnorm">LayerNorm 与 RMSNorm 的数据流</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#layernorm-invariance">1. LayerNorm 到底提供哪两种 invariance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#rms">2. RMS 与标准差不是一回事</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#rmsnorm">3. 为什么说 RMSNorm 带来隐式尺度调节</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id5">4. 反向传播完整推导</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#mean-reduction">5. 为什么少一个 mean reduction 可能更快</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#prmsnorm">6. pRMSNorm</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#pytorch">7. 最小 PyTorch 实现</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id6">8. 实验结果与证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id7">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id8">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id9">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../03-transformer/A016-rmsnorm.html#id10">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html">MQA：为什么共享 K/V 能显著降低 Decode Cache</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id2">输入、输出与任务</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#mha">MHA</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#mqa">MQA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id3">骨干架构与信息交互</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id4">MHA</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id5">MQA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id6">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#decode">1. 为什么 Decode 与训练阶段的瓶颈不同</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#kv-cache">2. KV Cache 大小完整推导</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id7">MHA</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id8">MQA</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id9">3. 具体 32 层例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#decode-token-hbm">4. 每个 Decode token 为什么也减少 HBM 读取</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#mqa-attention-token">5. MQA 没有把 Attention 的 token 复杂度降阶</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#k-v">6. 为什么共享 K/V 可能损失质量</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#mha-mqa">7. MHA 参数量与 MQA 参数量</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#pytorch-k-v">8. 最小 PyTorch：真正只共享 K/V</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id10">9. 原文实验的证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id11">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id12">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#prefill">Prefill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id13">Decode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#batch">Batch 服务</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id14">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A019-mqa.html#id15">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html">GQA：在 MHA 表达能力与 MQA 推理效率之间折中</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id2">输入、输出与任务</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id3">骨干架构与信息交互</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#mhagqamqa-h-kv">1. 统一公式：MHA、GQA、MQA 只是 H_KV 不同</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#mha">MHA</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#gqa">GQA</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#mqa">MQA</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#query-k-v">2. 为什么多个 Query 共享 K/V 仍有表达能力</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#k-v-heads">3. 为什么不能随便删 K/V heads</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#compute-uptrain">4. 为什么只用约 5% 原预训练 compute 就能 uptrain</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id5">5. GQA 的参数量推导</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id6">MHA</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#gqa-8-32">GQA 8/32</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id7">MQA</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#kv">6. 具体 KV 数字</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#pytorch-gqa">7. 最小 PyTorch GQA</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id8">8. GQA 的真正质量—速度连续谱</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id9">9. 实验结果如何读</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id10">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id11">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id12">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../04-efficient-attention/A020-gqa.html#id13">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../moe/index.html">Mixture-of-Experts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html">Sparsely-Gated MoE：条件计算怎样扩大模型容量</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id2">输入、输出与任务</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id3">骨干架构与信息交互</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#dense-ffn-flops">1. Dense FFN 为什么把容量和 FLOPs绑在一起</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id5">2. 具体数字例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#top-k-experts">3. 为什么最简单 Top-k 会崩成少数 experts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#noisy-top-k">4. Noisy Top-k 为什么有探索作用</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#importance-loss-gate-mass">5. Importance loss 为什么要看 gate mass</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#load-importance">6. 为什么 Load 和 Importance 是两个概念</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#capacity">7. Capacity 为什么是系统约束而不仅是模型超参</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#expert-parallel-all-to-all">8. Expert Parallel 为什么自然需要 All-to-All</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#router">9. 为什么稀疏路由梯度仍能训练 Router</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#pytorch-top-2-moe">10. 最小 PyTorch：Top-2 MoE 信息流</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id6">11. 实验结果与证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id7">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id8">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#active-parameters">Active Parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#prefill-decode">Prefill / Decode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#weight-hbm">Weight HBM</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#expert-parallel-communication">Expert Parallel Communication</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id9">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A032-sparsely-gated-moe.html#id10">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../05-moe/A033-switch-transformer.html">Switch Transformer：把 Top-K MoE 简化成 Top-1 路由</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id1">模型定位与谱系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id2">输入、输出与任务</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id3">骨干架构与信息交互</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id4">关键技术</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#top-1">1. 为什么 Top-1 可以显著降低系统复杂度</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#top-1-router">2. 为什么 Top-1 不等于 Router 不需要概率</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#capacity-factor">3. Capacity Factor 完整推导</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#capacity-factor-trade-off">4. 为什么 capacity factor 是效率—质量 trade-off</a><ul>
+<li class="toctree-l5"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#c-1-0">c=1.0</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#c-2-0">c=2.0</a></li>
+</ul>
+</li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#switch-load-balancing-loss">5. Switch load-balancing loss 为什么同时看概率与实际分配</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#bfloat16-router">6. 为什么 bfloat16 训练 Router 可能不稳定</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#router-z-loss-logits">7. Router z-loss 为什么抑制过大 logits</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#top-1-specialization">8. 为什么 Top-1 仍然可以形成专家 specialization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#expert">9. 一个 4-expert 数字例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#pytorch-switch-top-1-balancing">10. 最小 PyTorch：Switch Top-1 + balancing</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id5">11. 实验结果与证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id6">预训练与后训练</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id7">推理与部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#active-compute">Active compute</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#total-parameters">Total parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#small-batch-decode">Small-batch Decode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#large-batch-prefill">Large-batch Prefill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#capacity-at-inference">Capacity at inference</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id8">技术 → 模型</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A033-switch-transformer.html#id9">模型 → 技术</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html">DeepSeekMoE：MoE 真正浪费的，可能不是“算了太多专家”，而是“每个专家都不够专”</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#v2-v3-ffn">阅读导航：这是 V2 / V3 的 FFN 技术下钻页</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#moe-router-expert-expert">1. 先把传统 MoE 写清楚：Router 能选 expert，但不能选 expert 内部的知识子块</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#knowledge-hybridity-expert">2. Knowledge Hybridity：专家数量太少时，一个 expert 很容易变成小型杂货铺</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#fine-grained-expert-segmentation-active-compute">3. Fine-Grained Expert Segmentation：专家切小以后，为什么总参数和 active compute 都能不变？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#figure-2">4. 原论文 Figure 2：三种结构的预算其实是对齐的</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id1">5. 为什么专家切细以后，组合自由度会爆炸？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#fine-grained-segmentation">6. 从函数角度看，Fine-Grained Segmentation 增加的是什么自由度？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id2">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id3">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#shared-expert-isolation-expert">7. Shared Expert Isolation：既然已经切细，为什么还要让一部分 expert 永远激活？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#deepseek-shared-expert">7.1 这不是“DeepSeek 第一次发明 shared expert”</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#specialization-load-balancing">8. Specialization 和 Load Balancing 是两个不同问题，不要混在一起</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#a-expert">问题 A：expert 学得够不够“专”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#b-router-token-experts">问题 B：router 会不会把 token 全挤到少数 experts</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#figure-3-controlled-ablation">9. 原论文 Figure 3：作者怎样把两个设计拆开做 controlled ablation？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id4">这张图支持什么？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id5">它没有直接证明什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#figure-4">10. 原论文 Figure 4：作者怎样把“参数冗余”变成一个可干预的实验问题？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id6">但仍然要保留证据边界</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#scaling-controlled-evidence">11. 最终 scaling 结果应该怎样读：先区分 controlled evidence 与整模型对比</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#figure-3">Figure 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#scaling-benchmark">跨模型 scaling / benchmark</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id7">12. 论文细读：作者其实是先造出两个“失败模式”，再让两个设计一一对应</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#introduction-knowledge-hybridity-redundancy">12.1 Introduction 为什么先命名 Knowledge Hybridity / Redundancy？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#ultimate-expert-specialization">12.2 “Ultimate Expert Specialization” 更像研究目标，不是已经被严格证明的终点</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#shared-expert-novelty">12.3 作者主动引用 shared expert 原型，反而帮助我们划清 novelty</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id8">12.4 工程翻译：这篇论文真正教的是“把参数容量重新组织”</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#deepseek-v2-v3">13. 回到 DeepSeek-V2 / V3：原始方法最后怎样变成大模型里的具体配置？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#deepseek-v2">DeepSeek-V2</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#deepseek-v3">DeepSeek-V3</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#deepseekmoe">14. 读完 DeepSeekMoE 后，应该把问题带回哪一篇？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#expert">如果你卡在“为什么 expert 切小仍不增加计算”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#shared-expert">如果你卡在“shared expert 到底有什么用”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#specialization-load-balance">如果你卡在“specialization 和 load balance 有什么区别”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id9">如果你卡在“这些方法在完整大模型哪里执行”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id10">如果你现在想继续模型主线</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../05-moe/A034-deepseekmoe.html#id11">读完本篇至少应该能回答</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../models/index.html">DeepSeek 模型主线</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html">DeepSeek-V2：MLA 真正的关键不是低秩，而是让低维缓存直接参与 Decode</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v3-attention">阅读导航：这是 V3 的 Attention 技术下钻页</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#figure-1-v2">1. Figure 1 先告诉我们：V2 想把“训练贵”和“推理贵”拆开解决</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mla-deepseekmoe-transformer">2. 先看完整模型：MLA 和 DeepSeekMoE 分别改了 Transformer 的哪一半</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mha-kv-cache-decode">3. 从 MHA 开始：KV Cache 为什么会变成 Decode 瓶颈？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mqa-gqa-kv-mla">4. MQA/GQA 已经能减 KV，为什么还需要 MLA？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mla-k-v-latent">5. MLA 第一步：K/V 可以很多，但缓存只存一个低维 latent</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mla-k-v">6. MLA 的灵魂：为什么历史 K/V 根本不需要显式重建？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#key-up-projection-query">6.1 Key up-projection 可以吸收到 Query 路径</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#value-up-projection-output">6.2 Value up-projection 可以吸收到 Output 路径</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mla">6.3 这才是 MLA 与普通“压缩-解压”的真正差别</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#rope">7. 然而一加 RoPE，刚才的矩阵吸收就坏了</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#rope-low-rank-kv-compression">7.1 为什么论文说 RoPE 和 low-rank KV compression “不兼容”？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#decoupled-rope">8. Decoupled RoPE：把内容与位置拆成两条子空间</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#content-query">8.1 Content Query</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#positional-query">8.2 Positional Query</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#positional-key">8.3 Positional Key</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mlagqamqa">9. MLA、GQA、MQA 到底在压缩什么不同的自由度？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mqa-gqa">MQA/GQA</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id1">MLA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#query-kv-cache">10. Query 也做低秩压缩，但它解决的不是 KV Cache</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#deepseekmoe-v2-ffn">11. DeepSeekMoE：V2 把 FFN 的计算问题改成了“容量、路由和通信”的问题</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#device-limited-routing-router">11.1 Device-limited routing：Router 已经被硬件拓扑约束</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v2-balance-loss">11.2 为什么 V2 设计了三种 balance loss？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#token-dropping">11.3 为什么还有 token dropping？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v2-v3-dualpipe">12. 训练系统：V2 已经有 V3 DualPipe 的前奏</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#t-tokens-mla">13. 预训练：8.1T tokens 不是重点，重点是 MLA 还改变了长上下文扩展应该作用在哪条路径</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#k-128k">13.1 4K 怎么扩到 128K？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#post-training-grpo-v2-v2-r1">14. Post-training：GRPO 已经在 V2 出现，但 V2 还不是 R1</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#cache-93-3-5-76">15. 推理效率：理论 cache、论文的 93.3% 和 5.76× 吞吐是三个不同层次</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#cache">15.1 架构级理论 cache</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#deployment-cache">15.2 实际 deployment cache</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#throughput">15.3 实际 throughput</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id2">16. 论文细读：作者是怎样一步步“逼出” MLA 的？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#introduction-scaling">16.1 Introduction 先建立 scaling 的双重税</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#introduction-mqa-gqa-mla">16.2 为什么 Introduction 先提 MQA/GQA，再提 MLA？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#mha-attention">16.3 §2.1.1 重新讲标准 MHA，不是因为作者怕读者不会 Attention</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#low-rank-joint-compression">16.4 §2.1.2 最重要的句子不是 “low-rank joint compression”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id3">16.5 §2.1.3 是一段很典型的“方法刚成立，作者马上主动找反例”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#figure-3-figure-2-mla">16.6 Figure 3 为什么比 Figure 2 更适合第一次理解 MLA？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id4">16.7 V2 的三个 balance loss 为什么今天读起来显得很重？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#discussion-base-modelreasoning-post-training">16.8 Discussion 已经把路线从“高效 base model”指向“reasoning post-training”</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v2-v3">17. 从 V2 回看 V3：哪些是继承，哪些是改造？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id5">MLA</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#deepseekmoe">DeepSeekMoE</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#load-balance">Load balance</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#training-system">Training system</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id6">18. MLA 分支闭环以后，当前该往哪里走？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#v2">18.1 读完 V2 后至少应能回答</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html#id7">继续阅读：按你的困惑分流</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html">DeepSeek-V3：真正值得拆的不是“671B”，而是这 671B 怎样被做成可训练、可推理的系统</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#v3">阅读导航：把 V3 当成主干，不要把所有技术摊平成清单</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#deepseek-v3-deepseek-v3">1. 先把 DeepSeek-V3 放回 DeepSeek 谱系：哪些是 V3 新东西，哪些不是？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#b-37b">1.1 671B 和 37B 是两个完全不同的量</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#token-deepseek-v3">2. 一条 token 在 DeepSeek-V3 里到底怎么走？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id1">2.1 模型级读法：不要把所有技术都摊平</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id2">这一节先记住三件事</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#mla-mha-decode">3. MLA：先别背公式，先问普通 MHA 在 decode 时到底贵在哪里</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#token-99999-token-k-v">3.1 为什么生成第 100000 个 token 时，还需要前 99999 个 token 的 K/V？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#k-v-hidden-state-k-v">3.2 最朴素的想法：既然 K/V 都从 hidden state 线性投影出来，能不能别缓存完整 K/V？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#rope">3.3 为什么 RoPE 不能简单和所有低秩投影一起“吸收”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id3">3.4 理论缓存量能压多少？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#query">3.5 Query 为什么也压缩？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id4">3.6 这一节先到哪里为止？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#deepseekmoe-671b-token-671b">4. DeepSeekMoE：671B 为什么不是每个 token 都算 671B？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#dense-ffn">4.1 先看 dense FFN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#moe-ffn">4.2 MoE 的朴素想法：把一个巨大 FFN 换成很多专家，只选少数几个</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#shared-expert">4.3 为什么还要 shared expert？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#router">4.4 Router 在做什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#moe">5. 负载均衡：MoE 最大的问题之一，不是“不会选专家”，而是“太会选某几个专家”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id5">5.1 V3 的关键想法：把“选谁”与“专家输出权重”拆开</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#auxiliary-loss-free-loss">5.2 为什么这叫 auxiliary-loss-free，却又不是“完全没有辅助 loss”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#batch-wise-sequence-wise-specialization">5.3 为什么 batch-wise 比 sequence-wise 更允许专家 specialization？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id6">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id7">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#mtp-next-token-prediction">6. MTP：为什么 next-token prediction 还嫌监督不够密？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#v3-head">6.1 V3 实际不是并行放很多独立 head</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#v3-d-1">6.2 V3 实际 <span class="math notranslate nohighlight">\(D=1\)</span></a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id8">6.3 训练损失</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id9">6.4 为什么推理时可以直接删？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#speculative-decoding-v3">6.5 speculative decoding 是副产品，不是 V3 主部署方案的必需条件</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#moe-gemm-token">7. 一个 MoE 模型真正难训练的地方：不是 GEMM，而是 token 在机器之间乱跑</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id10">7.1 训练并行配置先看清</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#dualpipe">7.2 DualPipe 的目标不是减少通信字节，而是把通信藏到计算下面</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#backward-input-grad-weight-grad">7.3 为什么 backward 要拆 input grad 和 weight grad？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id11">7.4 训练系统为什么属于模型论文，而不只是“运维附录”？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#fp8-bf16-8-bit">8. FP8：低精度训练绝不是“把 BF16 改成 8 bit”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#gemm-fp8">8.1 哪些核心 GEMM 用 FP8？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id12">8.2 哪些地方仍保留高精度？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#fine-grained-quantization">8.3 为什么 fine-grained quantization 很关键？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#accumulation-fp32">8.4 为什么 accumulation 还要“升回” FP32？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id13">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id14">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#t-tokens-recipe">9. 预训练：14.8T tokens 只是一个数字，真正该看的是完整训练 recipe</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id15">9.1 数据不是“多一点”，而是有方向地改</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id16">9.2 模型超参数</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#optimizer-schedule">9.3 optimizer 和 schedule</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#k-128k">9.4 128K 不是从头用 128K 预训练</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#v3-chat-base-checkpoint">10. 后训练：V3 的 chat 能力不是 Base checkpoint 自然长出来的</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#sft-reasoning-data-r1">10.1 SFT reasoning data：这已经开始和 R1 主线相连</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#m-sft-instances">10.2 1.5M SFT instances</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#rl-learned-reward-model">10.3 为什么 RL 不只用一个 learned reward model？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#grpo">10.4 GRPO 在这里先只讲模型级意义</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id17">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id18">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#prefill-decode-v3">11. 推理部署：Prefill 和 Decode 不是同一种工作负载，所以 V3 干脆分开部署</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#prefill">11.1 Prefill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#decode">11.2 Decode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#expert">11.3 为什么冗余 expert 不是“浪费参数”？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id19">12. 实验：哪些证据真的能支持“这个设计有效”？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#mtp">12.1 MTP：这是相对干净的消融</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#auxiliary-loss-free">12.2 auxiliary-loss-free：也有较强控制</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#b-benchmark">12.3 671B 最终 benchmark 不能用于单独证明某个组件</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id20">12.4 训练成本数字必须带上作者自己的限定条件</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id21">13. 论文细读：这篇报告的写法本身就在告诉我们“什么是主贡献，什么只是继承”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#abstract">13.1 Abstract 第一段其实已经把整篇论文拆成三层</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#introduction-still-adopts-mla-and-deepseekmoe">13.2 Introduction 为什么先说 “still adopts MLA and DeepSeekMoE”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#pioneers-auxiliary-loss-free-we-have-observed-mtp-improves">13.3 “pioneers auxiliary-loss-free” 和 “we have observed MTP improves…” 的证据强度不同</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#architecture-infrastructure-pre-training">13.4 为什么 Architecture 后面立刻是 Infrastructure，而不是 Pre-training？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#fp8">13.5 FP8 章节为什么写到了未来芯片建议？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#training-cost-only">13.6 “training cost only …” 要把限定语一起读</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#deepseek-v3">14. 从 DeepSeek-V3 反向生成下一步技术依赖树</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id22">14.1 下一篇不应该是谁？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id23">14.2 从这里应该往哪里走？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id24">15. 读完这一篇，至少应该能不看论文回答这些问题</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html#id25">继续阅读：按你的困惑分流</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html">DeepSeek-R1：真正值得读的不是“会思考”，而是推理能力如何被 RL 激发出来</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-rl-v3">阅读导航：R1 不是一个孤立的 RL 技巧，而是 V3 之后的一整条后训练主线</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-v3-r1-base-model">1. 先把 R1 和 V3 的关系摆正：R1 不是重新训练一个新 Base Model</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero">2. R1-Zero 才是整篇论文最重要的科学实验</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#reward">3. 为什么“只给最终答案 reward”居然可能学出中间推理？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#grpo-ppo-critic">4. GRPO 先解决的其实是一个很现实的问题：PPO 的 Critic 太贵</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id1">这一节先记住三件事</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#grpo-critic">5. GRPO：同一道题采一组答案，用“组内相对表现”代替 Critic</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#prompt">5.1 为什么一定要“同一个 prompt 内比较”？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#ppo">5.2 它和 PPO 完全无关了吗？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero-rule-based-reward-reward-model">6. R1-Zero 为什么尽量使用 rule-based reward，而不是神经 Reward Model？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#accuracy-reward">Accuracy Reward</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#format-reward">Format Reward</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id2">7. 一个非常重要的控制：只约束输出格式，不教“应该怎么推理”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero-aime">8. R1-Zero 的训练曲线：真正有意思的不是最终 AIME 分数，而是行为怎样变</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#aha-moment">9. “Aha Moment”到底是什么？不要神秘化</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#pure-rl-r1-zero">10. 到这里已经证明 Pure RL 足够了吗？R1-Zero 马上给了一个反例</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id3">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id4">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#deepseek-r1-zero-zero">11. DeepSeek-R1：不是推翻 Zero，而是在 Zero 的发现上加入“行为塑形”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#cold-start">12. 第一阶段为什么需要 Cold Start？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#reasoning-rl-r1-zero">13. 第二阶段：Reasoning RL，真正继承 R1-Zero 的实验结论</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#rejection-sampling-rl-sft">14. 第三阶段为什么要 Rejection Sampling？RL 生成的数据又被拿回去做 SFT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#non-reasoning-data">15. 为什么第三阶段要混入 non-reasoning data？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#rl">16. 第四阶段：为什么还需要第二次 RL？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#helpful-reward-safety-reward">17. Helpful Reward 和 Safety Reward 为什么评价范围还不一样？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#helpfulness">Helpfulness</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#harmlessness">Harmlessness</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id5">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id6">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-reasoning-pattern">18. R1 最值得注意的第二条结论：大模型发现的 reasoning pattern 可以蒸馏</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id7">19. 为什么“小模型直接 RL 不如蒸馏”是一个很有价值的信号？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-671b-32b">20. 但是“蒸馏”不是把 R1 的 671B 权重低秩压成 32B</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id8">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id9">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1">21. R1 的实验应该怎样读？先把“科学问题”与“榜单”分开</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero-base-pure-rl">21.1 R1-Zero：Base → Pure RL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero-response-length">21.2 R1-Zero response length</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#distillation-vs-small-model-rl">21.3 Distillation vs small-model RL</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-rl">22. 为什么 R1 的“纯 RL”不等于完全没有人类先验？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#cot">23. 为什么这篇论文并没有证明“人类 CoT 会限制模型上限”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#introduction-rl">24. 论文细读：Introduction 的论证非常有意思，它先攻击“示范依赖”，再把 RL 变成探索机制</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#cot-human-demonstration">24.1 开头为什么先谈 CoT 与 human demonstration？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#minimal-reliance-on-human-labeling-no-human-supervision">24.2 “minimal reliance on human labeling” 比 “no human supervision” 更准确</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-zero-r1">24.3 为什么先讲 R1-Zero，再讲 R1？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id10">25. “Aha Moment”为什么在论文里这么吸睛，但又最容易被过度解读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-pipeline">26. R1 Pipeline 图为什么是整篇文章最值得保存的一张图？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#grpo-r1">27. GRPO 在 R1 中到底应该学到什么程度？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#critic">第一：为什么不用 Critic</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#group-relative-advantage">第二：group relative advantage 怎么来</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#ppo-style-clipped-update-reference-regularization">第三：仍保留 PPO-style clipped update 与 reference regularization</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#r1-reasoning-post-training">28. R1 给“Reasoning Post-training”提供了一个非常清楚的模块化视角</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#exploration">28.1 Exploration</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#credit-selection">28.2 Credit / Selection</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#behavior-shaping">28.3 Behavior Shaping</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#compression-transfer">28.4 Compression / Transfer</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id11">29. 从 R1 反向生成下一步技术依赖树</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id12">当前最优先下钻节点</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id13">30. 最后把 R1 压成一句真正准确的话</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id14">读完本篇，至少应该能自己回答</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html#id15">继续阅读：按你的困惑分流</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 current"><a class="reference internal" href="../../../../post-training/index.html">推理后训练</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ppo-grpo">阅读导航：这是一篇“从 PPO 到 GRPO”的方法页</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-ppo-critic">1. 先别急着看 GRPO：PPO 为什么要有 Critic？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#baseline">1.1 为什么 baseline 可以减掉而不改变期望？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#llm-value-model">1.2 为什么 LLM 里的 Value Model 很重？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-4-grpo-value-model">2. 原论文 Figure 4：GRPO 删除的是 Value Model 这条支路</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id1">这一组你应该记住什么</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id2">如果你卡在这里</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-baseline">3. GRPO 的核心：同一道题采一组答案，让“同题相对表现”成为 baseline</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id3">3.1 一个最小数值例子</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#prompt">3.2 为什么一定强调“同一个 prompt”？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#group-mean-v-s-t-baseline">4. 但 group mean 不是 <span class="math notranslate nohighlight">\(V(s_t)\)</span>：两种 baseline 的信息粒度不同</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#group-baseline-baseline">5. 一个经常被忽略的问题：group baseline 自己包含当前样本，它还是标准的无偏 baseline 吗？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id4">5.1 先看“不除标准差”的简化版本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group-std">5.2 一旦再除以 group std，事情更复杂</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leave-one-out-mean">5.3 如果用 leave-one-out mean 会怎样？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-ppo-clipping-ratio">6. GRPO 并没有删除 PPO clipping：ratio 仍然是核心</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#hat-a-0">6.1 当 <span class="math notranslate nohighlight">\(\hat A&gt;0\)</span></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5">6.2 当 <span class="math notranslate nohighlight">\(\hat A&lt;0\)</span></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-objective">7. 把完整 GRPO objective 写出来：它其实是三块拼起来的</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#group-relative-advantage">第一块：group-relative advantage</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ppo-ratio-clip">第二块：PPO ratio + clip</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reference-kl">第三块：reference KL</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#ppo-grpo-kl">8. PPO 与 GRPO 的 KL 放置位置不同，这不是排版细节</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#deepseekmath-kl-estimator">8.1 DeepSeekMath 使用的单样本 KL estimator</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6">8.2 为什么它逐样本非负？</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pi-theta-forward-kl-estimator">8.3 为什么它在 <span class="math notranslate nohighlight">\(\pi_\theta\)</span> 采样下是 forward KL 的无偏 estimator？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#outcome-supervision-response-token">9. Outcome supervision 的真正代价：整条 response 的 token 共用一个信用信号</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#process-supervision-reasoning-step-reward">10. Process Supervision：把“整条轨迹一个分数”改成“每个 reasoning step 有 reward”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#outcome-process-vs">10.1 Outcome 与 Process 的区别不要写成“稀疏 vs 稠密”这么简单</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#iterative-grpo-policy-reward-model">11. Iterative GRPO：Policy 在变，Reward Model 也不能永远停在最初分布</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deepseekmath-grpo">12. DeepSeekMath 实际怎么训练 GRPO？先把实验规模摆出来</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-5">13. 原论文 Figure 5：作者真正想比较的是“数据从哪里来”和“梯度系数怎样变”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#offline-vs-online">13.1 Offline vs Online</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#grpo-online-rft">13.2 为什么 GRPO 又优于 Online RFT？</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-6-iterative-rl">14. 原论文 Figure 6：Iterative RL 为什么第一轮提升最大？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#figure-7-rl-maj-k-pass-k">15. 原论文 Figure 7：RL 提高 Maj&#64;K，却没有明显提高 Pass&#64;K，这意味着什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#pass-k">Pass&#64;K</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#maj-k">Maj&#64;K</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#sft-rft-ppo-grpo">16. 从“梯度系数”角度，把 SFT / RFT / PPO / GRPO 放在同一条线上</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#sft">SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rft">RFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ppo">PPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#grpo">GRPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-reward-reasoning">17. GRPO 为什么特别适合“同题可多次采样 + reward 可比较”的 reasoning 场景？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id7">18. “Group std”其实是一个非常强的归一化操作</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id8">19. 论文细读：DeepSeekMath 为什么不是一篇“只提出 GRPO”的算法论文？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#reward">20. 论文细读：作者为什么先讲“资源问题”，再讲“相对 reward”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id9">21. 论文细读：哪些措辞是作者结论，哪些是我们不能擅自加强的？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id10">21.1 “显著减少训练资源”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group-score-baseline">21.2 “group score 估 baseline”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#process-supervision">21.3 “Process Supervision 更好”</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#rl">21.4 “RL 为什么有效”</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#deepseekmath-deepseek-v2-v3-r1-grpo">22. 从 DeepSeekMath 回到 DeepSeek-V2 / V3 / R1：GRPO 是怎么变成主干技术的？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#deepseekmath">DeepSeekMath</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#deepseek-v2">DeepSeek-V2</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#deepseek-v3">DeepSeek-V3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#deepseek-r1">DeepSeek-R1</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#grpo-trade-off-critic">23. GRPO 的真实 trade-off：删掉 Critic 后，成本和偏差被搬到了哪里？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#group-rollout">23.1 Group rollout</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#credit-assignment">23.2 Credit assignment 更粗</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#group-statistics">23.3 Group statistics 引入有限样本效应</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#reward-quality">23.4 Reward quality 变得更关键</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#id11">24. 一张表把 PPO 与原始 GRPO 真正的差别定死</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id12">25. 最后把整个逻辑链压成一遍</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id13">26. 读完本篇，你至少应该能自己回答这些问题</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#id14">继续阅读：按你的困惑分流</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="移动版导航菜单" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">LLM Technology Atlas</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content style-external-links">
+          <div role="navigation" aria-label="页面导航">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../../post-training/index.html">推理后训练</a></li>
+      <li class="breadcrumb-item active">DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section class="tex2jax_ignore mathjax_ignore" id="deepseekmath-grpo-critic-ppo-policy-optimization">
+<h1>DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization<a class="headerlink" href="#deepseekmath-grpo-critic-ppo-policy-optimization" title="Link to this heading"></a></h1>
+<blockquote>
+<div><p><strong>论文</strong>：DeepSeek-AI, <a class="reference external" href="https://arxiv.org/abs/2402.03300">DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models</a>，本文以 arXiv v3（2024-04-27）为基线。<br />
+<strong>类型</strong>：A · 原始方法论文下钻。DeepSeekMath 本身同时包含数学预训练与完整模型实验，但本文只把其中 <strong>GRPO / RL 方法线</strong> 拆透。<br />
+<strong>一句话定位</strong>：GRPO 保留 PPO-style importance ratio 与 clipping，却不再训练 learned value model；它对同一 prompt 一次采样一组 responses，用组内 reward 的相对位置构造 advantage，再直接做 policy update。<br />
+<strong>为什么现在读它</strong>：<a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html"><span class="std std-doc">DeepSeek-V3</span></a> 和 <a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html"><span class="std std-doc">DeepSeek-R1</span></a> 都已经把 GRPO 当作后训练组件使用。模型报告只需要知道“它省掉 Critic”；到这里我们必须继续追问：<strong>Critic 原来到底干什么？组内 baseline 是否等于 Value Function？clip 和 KL 为什么还在？group normalization 有没有统计代价？</strong></p>
+</div></blockquote>
+<section id="ppo-grpo">
+<h2>阅读导航：这是一篇“从 PPO 到 GRPO”的方法页<a class="headerlink" href="#ppo-grpo" title="Link to this heading"></a></h2>
+<p><strong>从哪里来</strong></p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html"><span class="std std-doc">DeepSeek-R1</span></a> —— 先看 GRPO 为什么在 reasoning RL 中重要；</p></li>
+<li><p><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html"><span class="std std-doc">DeepSeek-V3</span></a> —— 看 GRPO 在更早的 DeepSeek post-training 中处于什么位置；</p></li>
+<li><p><a class="reference external" href="https://arxiv.org/abs/1707.06347">PPO 原论文</a> —— 如果 ratio / clip 的基本动机仍不牢，可作为更底层的算法依赖。</p></li>
+</ul>
+<p><strong>读完往哪里去</strong></p>
+<ul class="simple">
+<li><p>回 <a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html"><span class="std std-doc">DeepSeek-R1</span></a>，你会真正知道 R1-Zero / R1 的 group-relative update 在算什么；</p></li>
+<li><p>后续可继续进入 DAPO / GSPO / verifier-based RL，观察 reasoning post-training 怎样围绕 GRPO 的长度偏置、采样效率与 token-level credit 继续演化；</p></li>
+<li><p>若要系统回顾 PPO 的 GAE、Critic 与 old-policy 多轮更新，可再单开 PPO 原始方法专题，而不是把整篇 PPO 历史重复塞在这里。</p></li>
+</ul>
+<p><strong>本文重点</strong></p>
+<ol class="arabic simple">
+<li><p>PPO 的 Critic / Value Model 究竟承担什么数学职责；</p></li>
+<li><p>为什么“去掉 Critic”不等于“去掉 baseline”；</p></li>
+<li><p>group-relative advantage 是怎样从同一 prompt 的一组回答得到的；</p></li>
+<li><p>GRPO 为什么仍然保留 ratio、clip 与 reference-policy KL；</p></li>
+<li><p>outcome supervision 为什么把同一个 response-level advantage 广播给所有 token；</p></li>
+<li><p>process supervision 怎样重新获得更细的 credit assignment；</p></li>
+<li><p>group mean 不是严格意义上的 <span class="math notranslate nohighlight">\(V(s_t)\)</span>，也不能随口宣称“完全无偏”；</p></li>
+<li><p>DeepSeekMath 的实验究竟支持了 online sampling、gradient coefficient、process reward 与 iterative RL 的哪些结论。</p></li>
+</ol>
+<p><img alt="自制解释图：从 PPO 到 GRPO" src="../../../../_images/A051-ppo-to-grpo.svg" /></p>
+<p><em>自制解释图，不是原论文 Figure。先抓住最关键的结构变化：PPO 用 learned Value Model 估计 baseline；GRPO 改用同一 prompt 下多条 response 的组内相对 reward。Policy update 本身仍然是 PPO-style clipped surrogate。</em></p>
+</section>
+<hr class="docutils" />
+<section id="grpo-ppo-critic">
+<h2>1. 先别急着看 GRPO：PPO 为什么要有 Critic？<a class="headerlink" href="#grpo-ppo-critic" title="Link to this heading"></a></h2>
+<p>理解 GRPO 最容易犯的错误，是从一句：</p>
+<blockquote>
+<div><p>“GRPO 不需要 Value Model。”</p>
+</div></blockquote>
+<p>直接跳到：</p>
+<blockquote>
+<div><p>“所以 Value Model 原来是多余的。”</p>
+</div></blockquote>
+<p>不是。</p>
+<p>Critic 在 PPO 里不是为了“让梯度存在”，而是为了得到一个<strong>低方差、尽量贴近当前 state 的 advantage estimate</strong>。</p>
+<p>先从最原始的 policy gradient 开始。</p>
+<p>给定 prompt：</p>
+<div class="math notranslate nohighlight">
+\[
+q,
+\]</div>
+<p>模型生成 response：</p>
+<div class="math notranslate nohighlight">
+\[
+o=(o_1,o_2,\ldots,o_T).
+\]</div>
+<p>在语言模型里可以定义：</p>
+<div class="math notranslate nohighlight">
+\[
+s_t=(q,o_{&lt;t}),
+\qquad
+a_t=o_t.
+\]</div>
+<p>整个 response 的概率：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_\theta(o\mid q)
+=
+\prod_{t=1}^{T}
+\pi_\theta(o_t\mid q,o_{&lt;t}).
+\]</div>
+<p>假设最终 return 是：</p>
+<div class="math notranslate nohighlight">
+\[
+R(q,o).
+\]</div>
+<p>目标：</p>
+<div class="math notranslate nohighlight">
+\[
+J(\theta)
+=
+\mathbb E_{o\sim\pi_\theta(\cdot\mid q)}
+[R(q,o)].
+\]</div>
+<p>使用 log-derivative trick：</p>
+<div class="math notranslate nohighlight">
+\[
+\nabla_\theta J
+=
+\mathbb E
+\left[
+R(q,o)
+\nabla_\theta
+\log\pi_\theta(o\mid q)
+\right].
+\]</div>
+<p>又因为：</p>
+<div class="math notranslate nohighlight">
+\[
+\log\pi_\theta(o\mid q)
+=
+\sum_{t=1}^{T}
+\log\pi_\theta(o_t\mid q,o_{&lt;t}),
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\nabla_\theta J
+=
+\mathbb E
+\left[
+\sum_{t=1}^{T}
+R(q,o)
+\nabla_\theta
+\log\pi_\theta(o_t\mid s_t)
+\right]
+}
+\]</div>
+<p>从这个式子看，<strong>没有 Critic 也能做 policy gradient</strong>。</p>
+<p>真正的问题是：</p>
+<blockquote>
+<div><p>同一个 state 下 rollout return 波动可能极大，直接拿 <span class="math notranslate nohighlight">\(R\)</span> 乘 score function，variance 很高。</p>
+</div></blockquote>
+<section id="baseline">
+<h3>1.1 为什么 baseline 可以减掉而不改变期望？<a class="headerlink" href="#baseline" title="Link to this heading"></a></h3>
+<p>如果 baseline：</p>
+<div class="math notranslate nohighlight">
+\[
+b(s_t)
+\]</div>
+<p>只依赖 state，不依赖当前 action，那么：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E_{a_t\sim\pi_\theta}
+[
+b(s_t)
+\nabla_\theta\log\pi_\theta(a_t\mid s_t)
+\mid s_t
+]
+\]</div>
+<p>等于：</p>
+<div class="math notranslate nohighlight">
+\[
+b(s_t)
+\sum_a
+\pi_\theta(a\mid s_t)
+\nabla_\theta
+\log\pi_\theta(a\mid s_t).
+\]</div>
+<p>利用：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi\nabla\log\pi=\nabla\pi,
+\]</div>
+<p>得到：</p>
+<div class="math notranslate nohighlight">
+\[
+b(s_t)
+\sum_a
+\nabla_\theta
+\pi_\theta(a\mid s_t)
+=
+b(s_t)
+\nabla_\theta 1
+=
+0.
+\]</div>
+<p>因此：</p>
+<div class="math notranslate nohighlight">
+\[
+R_t
+\rightarrow
+R_t-b(s_t)
+\]</div>
+<p>不会改变理想 policy-gradient 的期望，只会改变 variance。</p>
+<p>最自然的 baseline 就是：</p>
+<div class="math notranslate nohighlight">
+\[
+V^\pi(s_t)
+=
+\mathbb E[R_t\mid s_t].
+\]</div>
+<p>这就是 Critic / Value Function 的角色。</p>
+</section>
+<section id="llm-value-model">
+<h3>1.2 为什么 LLM 里的 Value Model 很重？<a class="headerlink" href="#llm-value-model" title="Link to this heading"></a></h3>
+<p>对一个大语言模型，state 是一整段 prefix：</p>
+<div class="math notranslate nohighlight">
+\[
+s_t=(q,o_{&lt;t}).
+\]</div>
+<p>Value Model 要对几乎每一个 token prefix 预测：</p>
+<div class="math notranslate nohighlight">
+\[
+V_\psi(s_t).
+\]</div>
+<p>PPO 还通常需要：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Policy / Actor
+Reference Model
+Reward Model
+Value / Critic Model
+</pre></div>
+</div>
+<p>DeepSeekMath 特别指出，Value Model 通常与 Policy Model 规模相当，因此会带来显著的：</p>
+<ul class="simple">
+<li><p>参数显存；</p></li>
+<li><p>optimizer state；</p></li>
+<li><p>activation；</p></li>
+<li><p>前向 / 反向计算；</p></li>
+<li><p>分布式训练状态。</p></li>
+</ul>
+<p>更麻烦的是，在 LLM RL 中，任务 reward 往往主要出现在 response 末端，而 Value Model 却要学习每个 prefix 的价值。</p>
+<p>于是出现一个非常自然的问题：</p>
+<blockquote>
+<div><p><strong>既然同一道题本来就会采多个答案，能不能不用另一个大模型预测 baseline，而直接拿这些答案互相比较？</strong></p>
+</div></blockquote>
+<p>这就是 GRPO 的入口。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="figure-4-grpo-value-model">
+<h2>2. 原论文 Figure 4：GRPO 删除的是 Value Model 这条支路<a class="headerlink" href="#figure-4-grpo-value-model" title="Link to this heading"></a></h2>
+<p><img alt="DeepSeekMath 原论文 Figure 4：PPO 与 GRPO" src="../../../../_images/fig4-ppo-vs-grpo.svg" /></p>
+<p>这张图应该先看模型数量，而不是先看公式。</p>
+<p>PPO 上半部分：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>q
+↓
+Policy Model
+↓
+response
+├── Reference Model → KL
+├── Reward Model → reward
+└── Value Model → value
+          ↓
+         GAE
+          ↓
+       Advantage
+</pre></div>
+</div>
+<p>GRPO 下半部分：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>q
+↓
+Policy Model
+↓
+同题采样 G 条 response
+↓
+Reward Model
+↓
+G 个 rewards
+↓
+Group Computation
+↓
+G 个 relative advantages
+</pre></div>
+</div>
+<p>Value Model 消失了。</p>
+<p>但是下面这些东西<strong>没有消失</strong>：</p>
+<ul class="simple">
+<li><p>Policy Model；</p></li>
+<li><p>old policy；</p></li>
+<li><p>reward signal；</p></li>
+<li><p>reference policy / KL regularization；</p></li>
+<li><p>importance ratio；</p></li>
+<li><p>PPO-style clipping；</p></li>
+<li><p>rollout sampling。</p></li>
+</ul>
+<p>所以更准确的描述是：</p>
+<blockquote>
+<div><p><strong>GRPO 是 critic-free 的 PPO-style policy optimization，而不是“把 PPO 整套扔掉换了一种完全不同的 RL”。</strong></p>
+</div></blockquote>
+<section id="id1">
+<h3>这一组你应该记住什么<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Critic 的核心数学角色是 baseline / advantage estimation；</p></li>
+<li><p>去掉 Critic 不意味着 policy gradient 不再需要相对好坏信号；</p></li>
+<li><p>GRPO 用“同题多样本的相对 reward”取代 learned state-value baseline；</p></li>
+<li><p>节省的是 Value Model 相关训练状态，不代表 rollout compute 自动变成零。</p></li>
+</ul>
+</section>
+<section id="id2">
+<h3>如果你卡在这里<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>不懂 baseline 为什么不改期望 → 重读 §1.1；</p></li>
+<li><p>不懂 Value Model 为什么会接近 Policy 规模 → 回忆语言模型中每个 prefix 都是 state；</p></li>
+<li><p>不懂为什么还要 old policy / ratio / clip → 继续读 §5。</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="grpo-baseline">
+<h2>3. GRPO 的核心：同一道题采一组答案，让“同题相对表现”成为 baseline<a class="headerlink" href="#grpo-baseline" title="Link to this heading"></a></h2>
+<p>对每个 question：</p>
+<div class="math notranslate nohighlight">
+\[
+q,
+\]</div>
+<p>从 old policy：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_{\theta_{\mathrm{old}}}
+\]</div>
+<p>采样：</p>
+<div class="math notranslate nohighlight">
+\[
+\{o_1,o_2,\ldots,o_G\}.
+\]</div>
+<p>得到 rewards：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbf r
+=
+(r_1,r_2,\ldots,r_G).
+\]</div>
+<p>Outcome supervision 下，DeepSeekMath 定义：</p>
+<div class="math notranslate nohighlight">
+\[
+\mu_r
+=
+\operatorname{mean}(\mathbf r),
+\]</div>
+<div class="math notranslate nohighlight">
+\[
+\sigma_r
+=
+\operatorname{std}(\mathbf r),
+\]</div>
+<p>并令：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\hat A_{i,t}
+=
+\tilde r_i
+=
+\frac{r_i-\mu_r}{\sigma_r}
+}
+\]</div>
+<p>这里最反直觉的一点是：</p>
+<blockquote>
+<div><p>对同一个 response <span class="math notranslate nohighlight">\(o_i\)</span>，所有 token 的 <span class="math notranslate nohighlight">\(\hat A_{i,t}\)</span> 都一样。</p>
+</div></blockquote>
+<p>也就是说：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A_{i,1}
+=
+\hat A_{i,2}
+=
+\cdots
+=
+\hat A_{i,T_i}.
+\]</div>
+<section id="id3">
+<h3>3.1 一个最小数值例子<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
+<p>假设同一道题采 4 个回答：</p>
+<div class="math notranslate nohighlight">
+\[
+G=4,
+\]</div>
+<p>reward：</p>
+<div class="math notranslate nohighlight">
+\[
+(1,1,0,0).
+\]</div>
+<p>为了便于直觉，若这里用 population standard deviation：</p>
+<div class="math notranslate nohighlight">
+\[
+\mu=0.5,
+\qquad
+\sigma=0.5.
+\]</div>
+<p>于是：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A
+=
+(+1,+1,-1,-1).
+\]</div>
+<p>前两个 response：</p>
+<blockquote>
+<div><p>比这一组的平均表现好。</p>
+</div></blockquote>
+<p>后两个：</p>
+<blockquote>
+<div><p>比这一组的平均表现差。</p>
+</div></blockquote>
+<p><img alt="自制解释图：group-relative advantage 数值例子" src="../../../../_images/A051-group-advantage-example.svg" /></p>
+<p><em>自制解释图，不是原论文 Figure。它刻意强调两个事实：第一，比较发生在同一个 prompt 内；第二，outcome supervision 把 response-level 相对优势广播给整条 token trajectory。</em></p>
+</section>
+<section id="prompt">
+<h3>3.2 为什么一定强调“同一个 prompt”？<a class="headerlink" href="#prompt" title="Link to this heading"></a></h3>
+<p>假设有两道题：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>题 A：非常简单
+大多数回答 reward≈1
+
+题 B：非常困难
+大多数回答 reward≈0
+</pre></div>
+</div>
+<p>如果直接跨题比较绝对 reward：</p>
+<blockquote>
+<div><p>B 上偶尔答对一次的高价值探索，很容易被 A 上普遍的高分淹没。</p>
+</div></blockquote>
+<p>group-relative normalization 改成：</p>
+<blockquote>
+<div><p>你不是问“这个回答绝对有多高分”，而是问“对这道题而言，它比同题其他尝试好多少”。</p>
+</div></blockquote>
+<p>因此它天然带有：</p>
+<blockquote>
+<div><p><strong>prompt-conditioned relative baseline</strong></p>
+</div></blockquote>
+<p>的味道。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="group-mean-v-s-t-baseline">
+<h2>4. 但 group mean 不是 <span class="math notranslate nohighlight">\(V(s_t)\)</span>：两种 baseline 的信息粒度不同<a class="headerlink" href="#group-mean-v-s-t-baseline" title="Link to this heading"></a></h2>
+<p>这是理解 GRPO 最关键的边界。</p>
+<p>PPO Critic 试图预测：</p>
+<div class="math notranslate nohighlight">
+\[
+V(s_t)
+=
+V(q,o_{&lt;t}).
+\]</div>
+<p>它看到的是：</p>
+<blockquote>
+<div><p>当前已经生成到哪个 prefix。</p>
+</div></blockquote>
+<p>因此不同 token 时刻：</p>
+<div class="math notranslate nohighlight">
+\[
+V(s_1),V(s_2),\ldots,V(s_T)
+\]</div>
+<p>理论上都可以不同。</p>
+<p>而 outcome-GRPO 的 group baseline：</p>
+<div class="math notranslate nohighlight">
+\[
+\bar r
+=
+\frac1G
+\sum_{j=1}^{G}r_j
+\]</div>
+<p>主要是：</p>
+<blockquote>
+<div><p>对同一个 question 的一批完整 response 做统计。</p>
+</div></blockquote>
+<p>它并不知道 response 中：</p>
+<ul class="simple">
+<li><p>第 10 个 token 是好转折；</p></li>
+<li><p>第 80 个 token 开始犯错；</p></li>
+<li><p>第 150 个 token 才把答案救回来。</p></li>
+</ul>
+<p>因此不能写成：</p>
+<blockquote>
+<div><p>“GRPO 用 group mean 精确等价替换了 <span class="math notranslate nohighlight">\(V(s_t)\)</span>。”</p>
+</div></blockquote>
+<p>更准确的是：</p>
+<blockquote>
+<div><p><strong>GRPO 放弃逐-prefix learned value estimation，改用 prompt-level group-relative outcome 作为更便宜、更粗的 advantage signal。</strong></p>
+</div></blockquote>
+<p>这也是为什么 process supervision 后面又会重新加入 step-level 信息。</p>
+</section>
+<hr class="docutils" />
+<section id="group-baseline-baseline">
+<h2>5. 一个经常被忽略的问题：group baseline 自己包含当前样本，它还是标准的无偏 baseline 吗？<a class="headerlink" href="#group-baseline-baseline" title="Link to this heading"></a></h2>
+<p>不能直接照搬：</p>
+<div class="math notranslate nohighlight">
+\[
+b(s_t)
+\]</div>
+<p>的 baseline 无偏证明。</p>
+<p>原因很简单。</p>
+<p>标准 baseline 要求：</p>
+<blockquote>
+<div><p>在给定 state 后，baseline 不依赖当前 sampled action。</p>
+</div></blockquote>
+<p>但 GRPO 的 group mean：</p>
+<div class="math notranslate nohighlight">
+\[
+\bar r
+=
+\frac1G
+\sum_{j=1}^{G}r_j
+\]</div>
+<p>里面包含当前 response 自己的：</p>
+<div class="math notranslate nohighlight">
+\[
+r_i.
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+r_i-\bar r
+\]</div>
+<p>与当前样本不是独立的。</p>
+<section id="id4">
+<h3>5.1 先看“不除标准差”的简化版本<a class="headerlink" href="#id4" title="Link to this heading"></a></h3>
+<p>令：</p>
+<div class="math notranslate nohighlight">
+\[
+\bar A_i
+=
+r_i-\bar r.
+\]</div>
+<p>再把整条 response 的 score function 简写成：</p>
+<div class="math notranslate nohighlight">
+\[
+g_i
+=
+\nabla_\theta
+\log\pi_\theta(o_i\mid q).
+\]</div>
+<p>那么：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E[\bar A_i g_i]
+=
+\mathbb E
+\left[
+\left(
+r_i-\frac1G\sum_{j=1}^{G}r_j
+\right)
+g_i
+\right].
+\]</div>
+<p>展开：</p>
+<div class="math notranslate nohighlight">
+\[
+=
+\mathbb E[r_i g_i]
+-
+\frac1G
+\mathbb E[r_i g_i]
+-
+\frac1G
+\sum_{j\ne i}
+\mathbb E[r_j g_i].
+\]</div>
+<p>若同一 prompt 下各 rollout 条件独立，则对：</p>
+<div class="math notranslate nohighlight">
+\[
+j\ne i,
+\]</div>
+<p>有：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E[r_j g_i]
+=
+\mathbb E[r_j]\mathbb E[g_i].
+\]</div>
+<p>而 score function：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E[g_i]=0.
+\]</div>
+<p>因此：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\mathbb E[\bar A_i g_i]
+=
+\left(1-\frac1G\right)
+\mathbb E[r_i g_i]
+}
+\]</div>
+<p>也就是说，在这个极简条件下：</p>
+<blockquote>
+<div><p>self-including group mean 会带来一个 <span class="math notranslate nohighlight">\(1-\frac1G\)</span> 的缩放。</p>
+</div></blockquote>
+<p>方向没有被这个纯 centering 改掉，但它不是你熟悉的“任意 action-independent baseline 完全不改期望”的同一个证明。</p>
+</section>
+<section id="group-std">
+<h3>5.2 一旦再除以 group std，事情更复杂<a class="headerlink" href="#group-std" title="Link to this heading"></a></h3>
+<p>DeepSeekMath 实际使用：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A_i
+=
+\frac{r_i-\bar r}{\operatorname{std}(\mathbf r)}.
+\]</div>
+<p>分母也是随机量，而且由整组 samples 决定。</p>
+<p>于是它不再只是一个固定常数缩放。</p>
+<p>这意味着：</p>
+<blockquote>
+<div><p><strong>不要把“group normalization”随口描述成严格无偏的 Value baseline 替代。</strong></p>
+</div></blockquote>
+<p>原论文的工程论点是：</p>
+<ul class="simple">
+<li><p>不训练 Critic；</p></li>
+<li><p>用组内相对 reward 得到 advantage；</p></li>
+<li><p>显著降低 Value Model 带来的资源负担；</p></li>
+<li><p>实验上有效。</p></li>
+</ul>
+<p>它并没有在主文里证明：</p>
+<blockquote>
+<div><p>finite-<span class="math notranslate nohighlight">\(G\)</span>、带 sample standardization 的 GRPO advantage 与理想 <span class="math notranslate nohighlight">\(V(s)\)</span> baseline 在统计意义上完全等价。</p>
+</div></blockquote>
+<p>这是论文解读必须保留的边界。</p>
+</section>
+<section id="leave-one-out-mean">
+<h3>5.3 如果用 leave-one-out mean 会怎样？<a class="headerlink" href="#leave-one-out-mean" title="Link to this heading"></a></h3>
+<p>仅作为理解对照，若定义：</p>
+<div class="math notranslate nohighlight">
+\[
+b_i
+=
+\frac1{G-1}
+\sum_{j\ne i}r_j,
+\]</div>
+<p>那么在条件独立假设下：</p>
+<div class="math notranslate nohighlight">
+\[
+b_i
+\]</div>
+<p>不包含当前 <span class="math notranslate nohighlight">\(r_i\)</span>。</p>
+<p>这会更接近传统“baseline 对当前 action 独立”的逻辑。</p>
+<p>但：</p>
+<blockquote>
+<div><p><strong>这不是 DeepSeekMath 原论文的 GRPO 定义。</strong></p>
+</div></blockquote>
+<p>不要为了理论上更顺手，把原方法偷偷改写掉。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="grpo-ppo-clipping-ratio">
+<h2>6. GRPO 并没有删除 PPO clipping：ratio 仍然是核心<a class="headerlink" href="#grpo-ppo-clipping-ratio" title="Link to this heading"></a></h2>
+<p>对 response <span class="math notranslate nohighlight">\(i\)</span> 的第 <span class="math notranslate nohighlight">\(t\)</span> 个 token，定义：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho_{i,t}(\theta)
+=
+\frac{
+\pi_\theta(o_{i,t}\mid q,o_{i,&lt;t})
+}{
+\pi_{\theta_{\mathrm{old}}}(o_{i,t}\mid q,o_{i,&lt;t})
+}.
+\]</div>
+<p>这在问：</p>
+<blockquote>
+<div><p>当前 policy 相对 rollout 时的 old policy，把这个已经采到的 token 概率改了多少？</p>
+</div></blockquote>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho=1,
+\]</div>
+<p>说明当前 policy 与 old policy 对这个 token 的概率相同。</p>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&gt;1,
+\]</div>
+<p>说明当前 policy 更偏向这个 token。</p>
+<p>如果：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&lt;1,
+\]</div>
+<p>说明当前 policy 降低了这个 token 的概率。</p>
+<p>GRPO 保留 PPO-style clipped term：</p>
+<div class="math notranslate nohighlight">
+\[
+\min
+\left[
+\rho_{i,t}\hat A_{i,t},
+\operatorname{clip}
+(\rho_{i,t},1-\epsilon,1+\epsilon)
+\hat A_{i,t}
+\right].
+\]</div>
+<section id="hat-a-0">
+<h3>6.1 当 <span class="math notranslate nohighlight">\(\hat A&gt;0\)</span><a class="headerlink" href="#hat-a-0" title="Link to this heading"></a></h3>
+<p>这是“比同题其他回答好”的 response。</p>
+<p>我们希望：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&gt;1,
+\]</div>
+<p>即提高这些 token 的概率。</p>
+<p>但当：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&gt;1+\epsilon,
+\]</div>
+<p>clipped branch 把正向收益封顶。</p>
+<p>含义是：</p>
+<blockquote>
+<div><p>已经把一个好 token 概率推高很多后，不再继续因为同一批旧数据获得无限奖励。</p>
+</div></blockquote>
+</section>
+<section id="id5">
+<h3>6.2 当 <span class="math notranslate nohighlight">\(\hat A&lt;0\)</span><a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
+<p>这是“比同题其他回答差”的 response。</p>
+<p>我们希望：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&lt;1,
+\]</div>
+<p>降低这些 token 的概率。</p>
+<p>但如果已经降到：</p>
+<div class="math notranslate nohighlight">
+\[
+\rho&lt;1-\epsilon,
+\]</div>
+<p>clip 会阻止继续利用同一批样本无限压低它。</p>
+<p>所以 clip 的本质没有变：</p>
+<blockquote>
+<div><p><strong>同一批 old-policy rollout 可以被重复用于若干 gradient steps，但单次数据不能允许 current policy 离 rollout policy 漂得太远。</strong></p>
+</div></blockquote>
+<p>这和“有没有 Critic”是两个正交问题。</p>
+<p>GRPO 改的是：</p>
+<blockquote>
+<div><p>advantage 从哪里来。</p>
+</div></blockquote>
+<p>PPO clip 解决的是：</p>
+<blockquote>
+<div><p>old-policy 数据被当前 policy 重用时，更新步子不能无限大。</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="grpo-objective">
+<h2>7. 把完整 GRPO objective 写出来：它其实是三块拼起来的<a class="headerlink" href="#grpo-objective" title="Link to this heading"></a></h2>
+<p>DeepSeekMath Eq. (3)：</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}
+\boxed{
+\begin{aligned}
+J_{\mathrm{GRPO}}(\theta)
+=
+\mathbb E
+\Bigg[
+&amp;
+\frac1G
+\sum_{i=1}^{G}
+\frac1{|o_i|}
+\sum_{t=1}^{|o_i|}
+\Bigg\{
+\\
+&amp;
+\min
+\left[
+\rho_{i,t}\hat A_{i,t},
+\operatorname{clip}
+(\rho_{i,t},1-\epsilon,1+\epsilon)
+\hat A_{i,t}
+\right]
+\\
+&amp;
+-
+\beta
+D_{\mathrm{KL}}
+[\pi_\theta\Vert\pi_{\mathrm{ref}}]
+\Bigg\}
+\Bigg].
+\end{aligned}
+}
+\end{split}\]</div>
+<p>它可以拆成三个完全不同的控制器。</p>
+<section id="group-relative-advantage">
+<h3>第一块：group-relative advantage<a class="headerlink" href="#group-relative-advantage" title="Link to this heading"></a></h3>
+<p>回答：</p>
+<blockquote>
+<div><p><strong>这条 response 相对同题其他 response 是好还是坏？</strong></p>
+</div></blockquote>
+</section>
+<section id="ppo-ratio-clip">
+<h3>第二块：PPO ratio + clip<a class="headerlink" href="#ppo-ratio-clip" title="Link to this heading"></a></h3>
+<p>回答：</p>
+<blockquote>
+<div><p><strong>基于 old-policy rollout，current policy 这次允许改多远？</strong></p>
+</div></blockquote>
+</section>
+<section id="reference-kl">
+<h3>第三块：reference KL<a class="headerlink" href="#reference-kl" title="Link to this heading"></a></h3>
+<p>回答：</p>
+<blockquote>
+<div><p><strong>即使当前这批 reward 很诱人，也不能让 policy 无限制偏离 reference distribution。</strong></p>
+</div></blockquote>
+<p>这三件事不要混成一句“GRPO loss”。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="ppo-grpo-kl">
+<h2>8. PPO 与 GRPO 的 KL 放置位置不同，这不是排版细节<a class="headerlink" href="#ppo-grpo-kl" title="Link to this heading"></a></h2>
+<p>DeepSeekMath 先写 PPO-style RLHF 中的 per-token reward：</p>
+<div class="math notranslate nohighlight">
+\[
+r_t
+=
+r_\phi(q,o_{\le t})
+-
+\beta
+\log
+\frac{
+\pi_\theta(o_t\mid q,o_{&lt;t})
+}{
+\pi_{\mathrm{ref}}(o_t\mid q,o_{&lt;t})
+}.
+\]</div>
+<p>也就是说，KL-like penalty 先进入 reward。</p>
+<p>然后：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>reward
+↓
+return / GAE
+↓
+advantage
+↓
+policy update
+</pre></div>
+</div>
+<p>于是 KL 会间接进入 advantage。</p>
+<p>GRPO 则把 KL 直接放在 policy objective 中：</p>
+<div class="math notranslate nohighlight">
+\[
+\text{policy surrogate}
+-
+\beta D_{\mathrm{KL}}
+[\pi_\theta\Vert\pi_{\mathrm{ref}}].
+\]</div>
+<p>论文明确说明这样做的一个动机是：</p>
+<blockquote>
+<div><p>避免 KL penalty 把 group-relative advantage 的计算继续复杂化。</p>
+</div></blockquote>
+<section id="deepseekmath-kl-estimator">
+<h3>8.1 DeepSeekMath 使用的单样本 KL estimator<a class="headerlink" href="#deepseekmath-kl-estimator" title="Link to this heading"></a></h3>
+<p>定义：</p>
+<div class="math notranslate nohighlight">
+\[
+x
+=
+\frac{
+\pi_{\mathrm{ref}}(o_{i,t}\mid s_{i,t})
+}{
+\pi_\theta(o_{i,t}\mid s_{i,t})
+}.
+\]</div>
+<p>论文使用：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\hat D_{\mathrm{KL}}
+=
+x-\log x-1
+}
+\]</div>
+<p>即：</p>
+<div class="math notranslate nohighlight">
+\[
+\frac{\pi_{\mathrm{ref}}}{\pi_\theta}
+-
+\log
+\frac{\pi_{\mathrm{ref}}}{\pi_\theta}
+-
+1.
+\]</div>
+</section>
+<section id="id6">
+<h3>8.2 为什么它逐样本非负？<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
+<p>利用：</p>
+<div class="math notranslate nohighlight">
+\[
+\log x
+\le
+x-1.
+\]</div>
+<p>所以：</p>
+<div class="math notranslate nohighlight">
+\[
+x-\log x-1
+\ge
+0.
+\]</div>
+</section>
+<section id="pi-theta-forward-kl-estimator">
+<h3>8.3 为什么它在 <span class="math notranslate nohighlight">\(\pi_\theta\)</span> 采样下是 forward KL 的无偏 estimator？<a class="headerlink" href="#pi-theta-forward-kl-estimator" title="Link to this heading"></a></h3>
+<p>对：</p>
+<div class="math notranslate nohighlight">
+\[
+a\sim\pi_\theta(\cdot\mid s),
+\]</div>
+<p>有：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E_{\pi_\theta}
+\left[
+\frac{\pi_{\mathrm{ref}}(a\mid s)}
+{\pi_\theta(a\mid s)}
+\right]
+=
+\sum_a
+\pi_\theta(a\mid s)
+\frac{\pi_{\mathrm{ref}}(a\mid s)}
+{\pi_\theta(a\mid s)}
+=
+1.
+\]</div>
+<p>另一方面：</p>
+<div class="math notranslate nohighlight">
+\[
+-\mathbb E_{\pi_\theta}
+\left[
+\log
+\frac{\pi_{\mathrm{ref}}}
+{\pi_\theta}
+\right]
+=
+D_{\mathrm{KL}}
+(\pi_\theta\Vert\pi_{\mathrm{ref}}).
+\]</div>
+<p>因此：</p>
+<div class="math notranslate nohighlight">
+\[
+\mathbb E_{\pi_\theta}
+[
+x-\log x-1
+]
+=
+1
++
+D_{\mathrm{KL}}
+(\pi_\theta\Vert\pi_{\mathrm{ref}})
+-1.
+\]</div>
+<p>得到：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\mathbb E[\hat D_{\mathrm{KL}}]
+=
+D_{\mathrm{KL}}
+(\pi_\theta\Vert\pi_{\mathrm{ref}})
+}
+\]</div>
+<p>这里要非常小心：</p>
+<blockquote>
+<div><p>原论文明确称“无偏 estimator”的，是这个 KL estimator。</p>
+</div></blockquote>
+<p>不要把这句话错误外推成：</p>
+<blockquote>
+<div><p>“整个 group-normalized advantage 也是无偏 Value estimator。”</p>
+</div></blockquote>
+<p>它们是两件不同的事。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="outcome-supervision-response-token">
+<h2>9. Outcome supervision 的真正代价：整条 response 的 token 共用一个信用信号<a class="headerlink" href="#outcome-supervision-response-token" title="Link to this heading"></a></h2>
+<p>Outcome supervision 中：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A_{i,t}
+=
+\tilde r_i.
+\]</div>
+<p>于是如果一条 200-token response 最后答对：</p>
+<blockquote>
+<div><p>前面正确步骤、无关废话、偶然绕路、真正关键推导，都被乘上同一个正 advantage。</p>
+</div></blockquote>
+<p>如果最后答错：</p>
+<blockquote>
+<div><p>前面可能完全正确的 190 个 token，也会和最后错误步骤一起收到负 advantage。</p>
+</div></blockquote>
+<p>所以 outcome reward 的 credit assignment 很粗。</p>
+<p>这不代表它没用。</p>
+<p>它仍然可以通过大量 rollout 统计地提高：</p>
+<blockquote>
+<div><p>更常出现在高 reward trajectories 中的 token / pattern。</p>
+</div></blockquote>
+<p>但它无法直接回答：</p>
+<blockquote>
+<div><p>到底是哪一步推理导致最后成功。</p>
+</div></blockquote>
+<p>这正是 process supervision 出现的原因。</p>
+</section>
+<hr class="docutils" />
+<section id="process-supervision-reasoning-step-reward">
+<h2>10. Process Supervision：把“整条轨迹一个分数”改成“每个 reasoning step 有 reward”<a class="headerlink" href="#process-supervision-reasoning-step-reward" title="Link to this heading"></a></h2>
+<p>假设 response <span class="math notranslate nohighlight">\(i\)</span> 有：</p>
+<div class="math notranslate nohighlight">
+\[
+K_i
+\]</div>
+<p>个 reasoning steps。</p>
+<p>第 <span class="math notranslate nohighlight">\(j\)</span> 个 step 的结束 token：</p>
+<div class="math notranslate nohighlight">
+\[
+\operatorname{index}(j).
+\]</div>
+<p>Process Reward Model 给每一步 reward：</p>
+<div class="math notranslate nohighlight">
+\[
+r_i^{\operatorname{index}(j)}.
+\]</div>
+<p>论文同样先对 process rewards 做 group normalization：</p>
+<div class="math notranslate nohighlight">
+\[
+\tilde r_i^{\operatorname{index}(j)}
+=
+\frac{
+r_i^{\operatorname{index}(j)}
+-
+\operatorname{mean}(\mathbf R)
+}{
+\operatorname{std}(\mathbf R)
+}.
+\]</div>
+<p>然后 token <span class="math notranslate nohighlight">\(t\)</span> 的 advantage 定义为它之后所有 step rewards 的和：</p>
+<div class="math notranslate nohighlight">
+\[
+\boxed{
+\hat A_{i,t}
+=
+\sum_{\operatorname{index}(j)\ge t}
+\tilde r_i^{\operatorname{index}(j)}
+}
+\]</div>
+<p>这和 reward-to-go 的思想非常接近。</p>
+<p>当前 token 不应该被它之前已经发生的 step reward 重新归因。</p>
+<p>而是只看：</p>
+<blockquote>
+<div><p><strong>从当前 token 往后，还会发生哪些被评价的 reasoning steps。</strong></p>
+</div></blockquote>
+<section id="outcome-process-vs">
+<h3>10.1 Outcome 与 Process 的区别不要写成“稀疏 vs 稠密”这么简单<a class="headerlink" href="#outcome-process-vs" title="Link to this heading"></a></h3>
+<p>更关键的是 credit granularity：</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>维度</p></th>
+<th class="head"><p>Outcome Supervision</p></th>
+<th class="head"><p>Process Supervision</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>reward 位置</p></td>
+<td><p>response 末端</p></td>
+<td><p>reasoning step 末端</p></td>
+</tr>
+<tr class="row-odd"><td><p>同一 response 的 token advantage</p></td>
+<td><p>通常整条共享一个值</p></td>
+<td><p>随 token 所处 step 改变</p></td>
+</tr>
+<tr class="row-even"><td><p>credit assignment</p></td>
+<td><p>粗</p></td>
+<td><p>更细</p></td>
+</tr>
+<tr class="row-odd"><td><p>reward 标注 / verifier 成本</p></td>
+<td><p>相对低</p></td>
+<td><p>更高</p></td>
+</tr>
+<tr class="row-even"><td><p>对错误中间步骤定位</p></td>
+<td><p>弱</p></td>
+<td><p>更强</p></td>
+</tr>
+</tbody>
+</table>
+<p>DeepSeekMath 的实验后面也发现：</p>
+<blockquote>
+<div><p>GRPO + Process Supervision 在其设置下优于 GRPO + Outcome Supervision。</p>
+</div></blockquote>
+<p>但这是论文实验结论，不应扩写成：</p>
+<blockquote>
+<div><p>“任何 reasoning RL 都必须使用 PRM。”</p>
+</div></blockquote>
+<p>后来的 R1 恰恰大量依赖可验证 outcome reward，也说明 reward design 与任务可验证性之间还有更复杂的权衡。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="iterative-grpo-policy-reward-model">
+<h2>11. Iterative GRPO：Policy 在变，Reward Model 也不能永远停在最初分布<a class="headerlink" href="#iterative-grpo-policy-reward-model" title="Link to this heading"></a></h2>
+<p>静态 Reward Model 有一个很现实的问题。</p>
+<p>训练初期：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_\theta
+\approx
+\pi_{\mathrm{SFT}}.
+\]</div>
+<p>Reward Model 看到的 response 分布和原训练数据相近。</p>
+<p>但随着 RL 推进：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_\theta
+\]</div>
+<p>不断改变。</p>
+<p>新的 policy 会开始生成：</p>
+<ul class="simple">
+<li><p>更长的 reasoning；</p></li>
+<li><p>新的错误模式；</p></li>
+<li><p>新的 reward-hacking pattern；</p></li>
+<li><p>原 Reward Model 很少见过的 response。</p></li>
+</ul>
+<p>于是：</p>
+<blockquote>
+<div><p>固定 Reward Model 可能逐渐 out-of-distribution。</p>
+</div></blockquote>
+<p>DeepSeekMath 的 iterative GRPO 因此做：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>当前 policy
+↓
+采新的 outputs
+↓
+为 Reward Model 构造新训练数据
+↓
+混入历史 replay
+↓
+继续训练 Reward Model
+↓
+更新 reference
+↓
+继续 Policy RL
+</pre></div>
+</div>
+<p>论文 Algorithm 1 中：</p>
+<ul class="simple">
+<li><p>每个 outer iteration 把当前 policy 设为新的 reference；</p></li>
+<li><p>rollout 前更新 old policy；</p></li>
+<li><p>同题采 <span class="math notranslate nohighlight">\(G\)</span> 个 outputs；</p></li>
+<li><p>计算 group-relative advantage；</p></li>
+<li><p>做 <span class="math notranslate nohighlight">\(\mu\)</span> 次 GRPO update；</p></li>
+<li><p>Reward Model 用 replay 机制持续训练；</p></li>
+<li><p>replay 中保留 10% 历史数据。</p></li>
+</ul>
+<p>这个设计非常重要，因为它已经在 2024 年明确碰到了后来 reasoning RL 大规模化时的核心问题：</p>
+<blockquote>
+<div><p><strong>Policy exploration 会不断改变训练数据分布；verifier / reward 也必须跟上。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="deepseekmath-grpo">
+<h2>12. DeepSeekMath 实际怎么训练 GRPO？先把实验规模摆出来<a class="headerlink" href="#deepseekmath-grpo" title="Link to this heading"></a></h2>
+<p>论文对 DeepSeekMath-RL 7B 的主要设置包括：</p>
+<ul class="simple">
+<li><p>起点：DeepSeekMath-Instruct 7B；</p></li>
+<li><p>RL prompts：SFT 数据中 GSM8K / MATH 相关 CoT questions，约 144K；</p></li>
+<li><p>policy learning rate：
+$<span class="math notranslate nohighlight">\(
+10^{-6};
+\)</span>$</p></li>
+<li><p>KL coefficient：
+$<span class="math notranslate nohighlight">\(
+\beta=0.04;
+\)</span>$</p></li>
+<li><p>每个 question 采样：
+$<span class="math notranslate nohighlight">\(
+G=64
+\)</span>$
+个 outputs；</p></li>
+<li><p>max generation length：
+$<span class="math notranslate nohighlight">\(
+1024;
+\)</span>$</p></li>
+<li><p>training batch size：
+$<span class="math notranslate nohighlight">\(
+1024;
+\)</span>$</p></li>
+<li><p>该主实验设置中，每次 exploration stage 后 policy 只做一次 update。</p></li>
+</ul>
+<p>这里有一个很值得注意的工程现实：</p>
+<blockquote>
+<div><p><strong>Critic 被删掉了，但每题 64 条 rollout 并不便宜。</strong></p>
+</div></blockquote>
+<p>所以“GRPO 更省资源”的准确表述是：</p>
+<blockquote>
+<div><p>它显著减少了 PPO 中 learned Value Model 对显存与训练计算的需求。</p>
+</div></blockquote>
+<p>而不是：</p>
+<blockquote>
+<div><p>“GRPO 的总 RL 成本一定低很多。”</p>
+</div></blockquote>
+<p>当 rollout / generation 成本变成主要瓶颈时，group size：</p>
+<div class="math notranslate nohighlight">
+\[
+G
+\]</div>
+<p>本身就是系统代价。</p>
+</section>
+<hr class="docutils" />
+<section id="figure-5">
+<h2>13. 原论文 Figure 5：作者真正想比较的是“数据从哪里来”和“梯度系数怎样变”<a class="headerlink" href="#figure-5" title="Link to this heading"></a></h2>
+<p><img alt="DeepSeekMath 原论文 Figure 5：多种 RL / preference 方法对比" src="../../../../_images/fig5-rl-method-comparison.svg" /></p>
+<p>DeepSeekMath 很有意思的一点，是作者没有只说：</p>
+<blockquote>
+<div><p>“GRPO 比 PPO 省 Critic。”</p>
+</div></blockquote>
+<p>他们试图把 SFT、RFT、Online RFT、DPO、PPO、GRPO 放进统一视角。</p>
+<p>作者把方法拆成三个维度：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Data Source
++
+Reward Function
++
+Gradient Coefficient
+</pre></div>
+</div>
+<section id="offline-vs-online">
+<h3>13.1 Offline vs Online<a class="headerlink" href="#offline-vs-online" title="Link to this heading"></a></h3>
+<p>Offline：</p>
+<blockquote>
+<div><p>训练数据主要来自初始 SFT policy 的采样。</p>
+</div></blockquote>
+<p>Online：</p>
+<blockquote>
+<div><p>训练过程中不断从当前 real-time policy 重新采样。</p>
+</div></blockquote>
+<p>论文把：</p>
+<ul class="simple">
+<li><p>RFT；</p></li>
+<li><p>DPO</p></li>
+</ul>
+<p>归到其分析中的 offline style。</p>
+<p>把：</p>
+<ul class="simple">
+<li><p>Online RFT；</p></li>
+<li><p>PPO；</p></li>
+<li><p>GRPO</p></li>
+</ul>
+<p>归到 online style。</p>
+<p>论文实验观察到：</p>
+<blockquote>
+<div><p>Online RFT 在后期明显优于 offline RFT。</p>
+</div></blockquote>
+<p>作者的解释是：</p>
+<p>训练早期：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_\theta
+\approx
+\pi_{\mathrm{SFT}},
+\]</div>
+<p>两种数据源差别不大。</p>
+<p>训练后期：</p>
+<div class="math notranslate nohighlight">
+\[
+\pi_\theta
+\]</div>
+<p>已经移动，实时采样更能覆盖当前 policy 真正会访问的区域。</p>
+<p>这其实就是一个 distribution shift 问题。</p>
+</section>
+<section id="grpo-online-rft">
+<h3>13.2 为什么 GRPO 又优于 Online RFT？<a class="headerlink" href="#grpo-online-rft" title="Link to this heading"></a></h3>
+<p>Online RFT 的简化逻辑更像：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>答对
+→ 正向训练
+
+答错
+→ 不训练
+</pre></div>
+</div>
+<p>而 GRPO 的 group-relative advantage 可以：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>高于组平均
+→ 正 gradient coefficient
+
+低于组平均
+→ 负 gradient coefficient
+</pre></div>
+</div>
+<p>所以它不仅奖励正确 / 高分轨迹，还能主动降低差轨迹概率。</p>
+<p>论文把这描述成：</p>
+<blockquote>
+<div><p>不同 reward magnitude 对 gradient coefficient 产生差异化强化与惩罚。</p>
+</div></blockquote>
+<p>这比“在线采样”又多了一层信息。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="figure-6-iterative-rl">
+<h2>14. 原论文 Figure 6：Iterative RL 为什么第一轮提升最大？<a class="headerlink" href="#figure-6-iterative-rl" title="Link to this heading"></a></h2>
+<p><img alt="DeepSeekMath 原论文 Figure 6：Iterative RL" src="../../../../_images/fig6-iterative-rl.svg" /></p>
+<p>论文做了两轮 iterative RL。</p>
+<p>Figure 6 中：</p>
+<ul class="simple">
+<li><p>iteration-0 是初始阶段；</p></li>
+<li><p>iteration-1 明显继续提高 GSM8K / MATH；</p></li>
+<li><p>iteration-2 仍有收益，但边际提升更小、更噪声。</p></li>
+</ul>
+<p>作者据此认为：</p>
+<blockquote>
+<div><p>iterative update Reward Model / Policy 有明显价值，尤其第一轮最突出。</p>
+</div></blockquote>
+<p>这里不要过度解释成：</p>
+<blockquote>
+<div><p>“两轮就是最优轮数。”</p>
+</div></blockquote>
+<p>实验只说明：</p>
+<blockquote>
+<div><p>在他们当前数据、Reward Model 与 7B policy 设置下，继续刷新 data / reward system 可以进一步提升表现。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="figure-7-rl-maj-k-pass-k">
+<h2>15. 原论文 Figure 7：RL 提高 Maj&#64;K，却没有明显提高 Pass&#64;K，这意味着什么？<a class="headerlink" href="#figure-7-rl-maj-k-pass-k" title="Link to this heading"></a></h2>
+<p><img alt="DeepSeekMath 原论文 Figure 7：Maj&#64;K 与 Pass&#64;K" src="../../../../_images/fig7-maj-pass.svg" /></p>
+<p>这一张图很值得细读。</p>
+<p>先区分两个指标。</p>
+<section id="pass-k">
+<h3>Pass&#64;K<a class="headerlink" href="#pass-k" title="Link to this heading"></a></h3>
+<p>问的是：</p>
+<blockquote>
+<div><p>采 <span class="math notranslate nohighlight">\(K\)</span> 次，只要至少有一次正确就算成功。</p>
+</div></blockquote>
+<p>它更接近：</p>
+<blockquote>
+<div><p>模型分布里“有没有”正确解法。</p>
+</div></blockquote>
+</section>
+<section id="maj-k">
+<h3>Maj&#64;K<a class="headerlink" href="#maj-k" title="Link to this heading"></a></h3>
+<p>看多次 sample 的多数 / self-consistency 结果。</p>
+<p>它更接近：</p>
+<blockquote>
+<div><p>正确答案在 sampling distribution 中是否拥有更稳定的概率质量。</p>
+</div></blockquote>
+<p>DeepSeekMath 观察到：</p>
+<blockquote>
+<div><p>RL 更明显提高 Maj&#64;K，而没有同步显著提高 Pass&#64;K。</p>
+</div></blockquote>
+<p>作者因此提出一个很谨慎的解释：</p>
+<blockquote>
+<div><p>RL 的收益可能更多来自把已有 candidate space 中的正确 response 推到更高概率，而不一定意味着模型突然获得了原来完全不存在的新基础能力。</p>
+</div></blockquote>
+<p>这是一个很重要的边界。</p>
+<p>可以把它理解成：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>SFT model
+已经“会”某些正确路径
+但概率不够高
+        ↓
+RL
+重新分配 probability mass
+        ↓
+正确路径更常被采出来
+        ↓
+Maj@K 提高
+</pre></div>
+</div>
+<p>但“Pass&#64;K 没涨”也不能被无限外推。</p>
+<p>它只对应本文的：</p>
+<ul class="simple">
+<li><p>当前模型；</p></li>
+<li><p>当前 RL 数据；</p></li>
+<li><p>当前 reward；</p></li>
+<li><p>当前 sampling 设置。</p></li>
+</ul>
+<p>后续更大规模 reasoning RL 是否只做 probability reshaping，是另一个需要单独实验的问题。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="sft-rft-ppo-grpo">
+<h2>16. 从“梯度系数”角度，把 SFT / RFT / PPO / GRPO 放在同一条线上<a class="headerlink" href="#sft-rft-ppo-grpo" title="Link to this heading"></a></h2>
+<p>DeepSeekMath Appendix 做了一件非常值得学习的事情：</p>
+<blockquote>
+<div><p>不再只按算法名字分类，而是看每个 token 的 <span class="math notranslate nohighlight">\(\nabla\log\pi\)</span> 前面到底乘了什么。</p>
+</div></blockquote>
+<p>统一写成：</p>
+<div class="math notranslate nohighlight">
+\[
+\nabla_\theta J
+=
+\mathbb E
+\left[
+\sum_t
+C_t
+\nabla_\theta
+\log\pi_\theta(o_t\mid s_t)
+\right].
+\]</div>
+<p>核心差别变成：</p>
+<div class="math notranslate nohighlight">
+\[
+C_t
+\]</div>
+<p>是什么。</p>
+<section id="sft">
+<h3>SFT<a class="headerlink" href="#sft" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+C_t=1.
+\]</div>
+<p>每个 teacher token 都被正向提高概率。</p>
+</section>
+<section id="rft">
+<h3>RFT<a class="headerlink" href="#rft" title="Link to this heading"></a></h3>
+<p>大致是：</p>
+<div class="math notranslate nohighlight">
+\[
+C_t
+=
+\mathbb I(\text{response correct}).
+\]</div>
+<p>答对才训练。</p>
+</section>
+<section id="ppo">
+<h3>PPO<a class="headerlink" href="#ppo" title="Link to this heading"></a></h3>
+<div class="math notranslate nohighlight">
+\[
+C_t
+=
+A_t,
+\]</div>
+<p>其中：</p>
+<div class="math notranslate nohighlight">
+\[
+A_t
+\]</div>
+<p>来自 GAE + learned Value Function。</p>
+</section>
+<section id="grpo">
+<h3>GRPO<a class="headerlink" href="#grpo" title="Link to this heading"></a></h3>
+<p>在论文的简化梯度分析下，核心系数包含：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A_{i,t}
+\]</div>
+<p>以及 reference KL 的梯度贡献。</p>
+<p>这个视角非常重要，因为它把一堆名字统一成一个问题：</p>
+<blockquote>
+<div><p><strong>训练数据从哪里来？什么信号决定当前 token 应该被增加还是减少多少概率？</strong></p>
+</div></blockquote>
+<p>这比死记：</p>
+<blockquote>
+<div><p>PPO、DPO、RFT、GRPO 是四套完全互不相关的算法</p>
+</div></blockquote>
+<p>更接近它们在 LLM post-training 中真正的计算结构。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="grpo-reward-reasoning">
+<h2>17. GRPO 为什么特别适合“同题可多次采样 + reward 可比较”的 reasoning 场景？<a class="headerlink" href="#grpo-reward-reasoning" title="Link to this heading"></a></h2>
+<p>GRPO 的优势不是无条件的。</p>
+<p>它非常依赖一个结构：</p>
+<blockquote>
+<div><p>同一个 prompt 可以采出多条有意义的候选 response。</p>
+</div></blockquote>
+<p>于是：</p>
+<div class="math notranslate nohighlight">
+\[
+\{o_1,\ldots,o_G\}
+\]</div>
+<p>形成了一个天然 comparison set。</p>
+<p>数学 / 代码 reasoning 又经常有：</p>
+<ul class="simple">
+<li><p>exact answer；</p></li>
+<li><p>test case；</p></li>
+<li><p>verifier；</p></li>
+<li><p>process reward；</p></li>
+<li><p>rule-based score。</p></li>
+</ul>
+<p>所以 reward 在同题内部尤其容易比较。</p>
+<p>这使：</p>
+<div class="math notranslate nohighlight">
+\[
+\operatorname{mean}(r_1,\ldots,r_G)
+\]</div>
+<p>成为一个很自然的 difficulty-adaptive reference。</p>
+<p>对简单题：</p>
+<blockquote>
+<div><p>大家都高分，只有特别差的 response 才明显低于均值。</p>
+</div></blockquote>
+<p>对难题：</p>
+<blockquote>
+<div><p>大家都低分，偶尔成功的 response 会显著高于均值。</p>
+</div></blockquote>
+<p>这正是 R1 后来大规模 reasoning RL 很容易继承 GRPO 的原因之一。</p>
+<p>但反过来也说明：</p>
+<blockquote>
+<div><p>如果一个任务很难产生多个可比较 rollout，或者 reward 极噪，group-relative signal 的质量也会变差。</p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="id7">
+<h2>18. “Group std”其实是一个非常强的归一化操作<a class="headerlink" href="#id7" title="Link to this heading"></a></h2>
+<p>DeepSeekMath 不只减 mean，还除以：</p>
+<div class="math notranslate nohighlight">
+\[
+\sigma_r.
+\]</div>
+<p>直觉上，它在做：</p>
+<blockquote>
+<div><p>不同 prompt 的 reward scale 对齐。</p>
+</div></blockquote>
+<p>假设题 A：</p>
+<div class="math notranslate nohighlight">
+\[
+r=(0.9,0.8,0.7,0.6),
+\]</div>
+<p>题 B：</p>
+<div class="math notranslate nohighlight">
+\[
+r=(0.51,0.50,0.49,0.48).
+\]</div>
+<p>只减均值时，题 A 的梯度幅度会明显更大。</p>
+<p>除以 std 后：</p>
+<blockquote>
+<div><p>两组内部“高于平均几个标准差”可以得到相近尺度。</p>
+</div></blockquote>
+<p>这有利于不同 question 之间的 gradient scale 对齐。</p>
+<p>但也带来一个隐含 trade-off：</p>
+<blockquote>
+<div><p>当一组 reward spread 很小时，除以很小的 std 会放大微小差异。</p>
+</div></blockquote>
+<p>原论文主公式写的是：</p>
+<div class="math notranslate nohighlight">
+\[
+\operatorname{std}(\mathbf r),
+\]</div>
+<p>并没有在理论部分把所有 numerical edge case 详细展开。</p>
+<p>因此工程实现通常必须认真处理：</p>
+<ul class="simple">
+<li><p>全组 reward 相同；</p></li>
+<li><p>std 极小；</p></li>
+<li><p>reward quantization；</p></li>
+<li><p>group size 太小；</p></li>
+<li><p>binary verifier 导致大量 ties。</p></li>
+</ul>
+<p>这些问题后来成为 reasoning RL 继续改 GRPO 的重要方向之一。</p>
+<p>在原始方法解读里，最重要的是先看见：</p>
+<blockquote>
+<div><p><strong>std normalization 不只是“顺手标准化”，它改变了每个 prompt 对总梯度的权重。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="id8">
+<h2>19. 论文细读：DeepSeekMath 为什么不是一篇“只提出 GRPO”的算法论文？<a class="headerlink" href="#id8" title="Link to this heading"></a></h2>
+<p>DeepSeekMath 的标题是数学模型论文。</p>
+<p>整篇主线实际有两条：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Math Data / Continual Pretraining
+        +
+Instruction Tuning / RL
+</pre></div>
+</div>
+<p>论文把 DeepSeekMath-Base 从 DeepSeek-Coder-Base-v1.5 7B 继续训练，在总计 500B continual-training tokens 中包含 120B math-related tokens。</p>
+<p>然后：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>DeepSeekMath-Base
+↓
+Math Instruction Tuning
+↓
+DeepSeekMath-Instruct
+↓
+GRPO
+↓
+DeepSeekMath-RL
+</pre></div>
+</div>
+<p>因此 GRPO 的实验前提非常重要：</p>
+<blockquote>
+<div><p>它不是拿一个毫无数学能力的 Base Model，通过 RL 凭空变成数学专家。</p>
+</div></blockquote>
+<p>它站在已经经过：</p>
+<ul class="simple">
+<li><p>code pretraining；</p></li>
+<li><p>math continual pretraining；</p></li>
+<li><p>mathematical SFT</p></li>
+</ul>
+<p>的强初始化上。</p>
+<p>这点和后来 R1 的逻辑高度一致：</p>
+<blockquote>
+<div><p><strong>RL 更像在强 prior 上搜索、重排和放大高 reward trajectories，而不是从空白策略空间凭空发明任意能力。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="reward">
+<h2>20. 论文细读：作者为什么先讲“资源问题”，再讲“相对 reward”？<a class="headerlink" href="#reward" title="Link to this heading"></a></h2>
+<p>GRPO 的叙事顺序很清楚。</p>
+<p>作者不是从：</p>
+<blockquote>
+<div><p>“group normalization 很优雅”</p>
+</div></blockquote>
+<p>开始。</p>
+<p>而是先指出 PPO 的两个现实问题：</p>
+<ol class="arabic simple">
+<li><p>Value Model 与 Policy Model 规模相当，内存 / 计算重；</p></li>
+<li><p>LLM reward 常在 response 末端，逐 token 学 Value Function 本身并不轻松。</p></li>
+</ol>
+<p>然后才问：</p>
+<blockquote>
+<div><p>同一 question 的多个 sampled outputs 能不能直接给 baseline？</p>
+</div></blockquote>
+<p>所以 GRPO 的方法不是从数学形式凭空长出来，而是一个非常典型的工程驱动算法：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>训练资源瓶颈
+↓
+识别 Value Model 的职责
+↓
+寻找不训练 Value Model 的 baseline 来源
+↓
+利用同 prompt 多 rollout
+↓
+group-relative advantage
+↓
+保留 PPO clip 保证 old-policy 数据重用稳定
+</pre></div>
+</div>
+<p>这条因果链比“GRPO 公式长什么样”更值得记。</p>
+</section>
+<hr class="docutils" />
+<section id="id9">
+<h2>21. 论文细读：哪些措辞是作者结论，哪些是我们不能擅自加强的？<a class="headerlink" href="#id9" title="Link to this heading"></a></h2>
+<section id="id10">
+<h3>21.1 “显著减少训练资源”<a class="headerlink" href="#id10" title="Link to this heading"></a></h3>
+<p>论文明确把这和：</p>
+<blockquote>
+<div><p>foregoes the critic / value model</p>
+</div></blockquote>
+<p>联系起来。</p>
+<p>可以写：</p>
+<blockquote>
+<div><p>GRPO 避免训练一个与 policy 同量级的 Value Model，从而显著降低这一部分的 memory / computation burden。</p>
+</div></blockquote>
+<p>不宜直接写：</p>
+<blockquote>
+<div><p>GRPO 总训练 FLOPs 必然比 PPO 小多少倍。</p>
+</div></blockquote>
+<p>因为实际 GRPO 还要：</p>
+<div class="math notranslate nohighlight">
+\[
+G=64
+\]</div>
+<p>rollouts / question。</p>
+<p>rollout 成本是否主导，要看具体系统。</p>
+</section>
+<section id="group-score-baseline">
+<h3>21.2 “group score 估 baseline”<a class="headerlink" href="#group-score-baseline" title="Link to this heading"></a></h3>
+<p>可以写：</p>
+<blockquote>
+<div><p>GRPO 用同题组内 reward 统计构造相对 advantage。</p>
+</div></blockquote>
+<p>不宜写：</p>
+<blockquote>
+<div><p>group mean 就是准确的 <span class="math notranslate nohighlight">\(V(s_t)\)</span>。</p>
+</div></blockquote>
+<p>它没有 prefix-level state information。</p>
+</section>
+<section id="process-supervision">
+<h3>21.3 “Process Supervision 更好”<a class="headerlink" href="#process-supervision" title="Link to this heading"></a></h3>
+<p>论文当前实验支持：</p>
+<blockquote>
+<div><p>在其设置中 GRPO+PS 优于 GRPO+OS。</p>
+</div></blockquote>
+<p>不宜写：</p>
+<blockquote>
+<div><p>process reward 在所有 reasoning RL 中必然优于 outcome verifier。</p>
+</div></blockquote>
+<p>R1 后来的结果本身就提醒我们：</p>
+<blockquote>
+<div><p>可验证 outcome reward 在大规模数学 / 代码 RL 中同样可以非常强。</p>
+</div></blockquote>
+</section>
+<section id="rl">
+<h3>21.4 “RL 为什么有效”<a class="headerlink" href="#rl" title="Link to this heading"></a></h3>
+<p>作者根据 Maj&#64;K / Pass&#64;K 给出的解释，本身用了类似：</p>
+<blockquote>
+<div><p>it seems</p>
+</div></blockquote>
+<p>的谨慎强度。</p>
+<p>因此中文也应该保留：</p>
+<blockquote>
+<div><p><strong>当前证据更符合“重排已有候选概率质量”的解释，而不是已经证明 RL 创造了新的基础 reasoning capability。</strong></p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="deepseekmath-deepseek-v2-v3-r1-grpo">
+<h2>22. 从 DeepSeekMath 回到 DeepSeek-V2 / V3 / R1：GRPO 是怎么变成主干技术的？<a class="headerlink" href="#deepseekmath-deepseek-v2-v3-r1-grpo" title="Link to this heading"></a></h2>
+<section id="deepseekmath">
+<h3>DeepSeekMath<a class="headerlink" href="#deepseekmath" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PROPOSES GRPO
+↓
+critic-free group-relative advantage
++ PPO clip
++ direct KL regularization
+</pre></div>
+</div>
+</section>
+<section id="deepseek-v2">
+<h3>DeepSeek-V2<a class="headerlink" href="#deepseek-v2" title="Link to this heading"></a></h3>
+<p><a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html"><span class="std std-doc">DeepSeek-V2</span></a> 的 post-training 已经采用 GRPO。</p>
+<p>这说明 GRPO 很快从：</p>
+<blockquote>
+<div><p>数学模型实验算法</p>
+</div></blockquote>
+<p>进入完整 LLM alignment pipeline。</p>
+</section>
+<section id="deepseek-v3">
+<h3>DeepSeek-V3<a class="headerlink" href="#deepseek-v3" title="Link to this heading"></a></h3>
+<p><a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html"><span class="std std-doc">DeepSeek-V3</span></a> 继续使用 GRPO 做 post-training。</p>
+<p>此时模型规模已经来到 671B total / 37B active，Value Model 的资源问题更加现实。</p>
+</section>
+<section id="deepseek-r1">
+<h3>DeepSeek-R1<a class="headerlink" href="#deepseek-r1" title="Link to this heading"></a></h3>
+<p><a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html"><span class="std std-doc">DeepSeek-R1</span></a> 把 GRPO 放进 reasoning RL 主线。</p>
+<p>但 R1 的 reward system 与 DeepSeekMath 已经发生变化：</p>
+<ul class="simple">
+<li><p>更强调 rule-based verifiable reward；</p></li>
+<li><p>R1-Zero 直接从 V3-Base 进行 reasoning RL；</p></li>
+<li><p>最终 R1 又加入 cold start、rejection sampling、SFT 与 all-scenario RL。</p></li>
+</ul>
+<p>所以技术关系应该写成：</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>DeepSeekMath
+PROPOSES GRPO
+        ↓
+DeepSeek-V2 / V3
+ADOPTS in post-training
+        ↓
+DeepSeek-R1
+ADOPTS GRPO
++ changes reward / training pipeline
++ scales reasoning RL
+</pre></div>
+</div>
+<p>不能反过来说：</p>
+<blockquote>
+<div><p>“GRPO 是 R1 首次提出的。”</p>
+</div></blockquote>
+</section>
+</section>
+<hr class="docutils" />
+<section id="grpo-trade-off-critic">
+<h2>23. GRPO 的真实 trade-off：删掉 Critic 后，成本和偏差被搬到了哪里？<a class="headerlink" href="#grpo-trade-off-critic" title="Link to this heading"></a></h2>
+<p>一个算法几乎不会“白送”收益。</p>
+<p>GRPO 删除 Value Model 后，代价主要转移到四个地方。</p>
+<section id="group-rollout">
+<h3>23.1 Group rollout<a class="headerlink" href="#group-rollout" title="Link to this heading"></a></h3>
+<p>为了估计同题相对表现，需要：</p>
+<div class="math notranslate nohighlight">
+\[
+G&gt;1.
+\]</div>
+<p>DeepSeekMath 主实验甚至用：</p>
+<div class="math notranslate nohighlight">
+\[
+G=64.
+\]</div>
+<p>采样本身可能成为主要系统开销。</p>
+</section>
+<section id="credit-assignment">
+<h3>23.2 Credit assignment 更粗<a class="headerlink" href="#credit-assignment" title="Link to this heading"></a></h3>
+<p>Outcome GRPO：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A_{i,t}
+=
+\hat A_i.
+\]</div>
+<p>整条 response 共用一个 advantage。</p>
+</section>
+<section id="group-statistics">
+<h3>23.3 Group statistics 引入有限样本效应<a class="headerlink" href="#group-statistics" title="Link to this heading"></a></h3>
+<p>mean / std 都来自当前小批 sampled responses。</p>
+<p>它们会受：</p>
+<ul class="simple">
+<li><p>group size；</p></li>
+<li><p>reward ties；</p></li>
+<li><p>reward noise；</p></li>
+<li><p>prompt difficulty；</p></li>
+<li><p>extreme samples</p></li>
+</ul>
+<p>影响。</p>
+</section>
+<section id="reward-quality">
+<h3>23.4 Reward quality 变得更关键<a class="headerlink" href="#reward-quality" title="Link to this heading"></a></h3>
+<p>没有 Value Model 并不意味着：</p>
+<blockquote>
+<div><p>reward 错了也没关系。</p>
+</div></blockquote>
+<p>恰恰相反。</p>
+<p>policy update 仍然直接相信：</p>
+<div class="math notranslate nohighlight">
+\[
+\hat A.
+\]</div>
+<p>Reward Model / verifier 如果被 exploit，Policy 仍会朝错误方向优化。</p>
+<p>DeepSeekMath 后面专门讨论：</p>
+<ul class="simple">
+<li><p>reward generalization；</p></li>
+<li><p>reward uncertainty；</p></li>
+<li><p>高质量 process reward；</p></li>
+<li><p>weak-to-strong robustness</p></li>
+</ul>
+<p>不是跑题，而是方法自然暴露出的下一层瓶颈。</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="id11">
+<h2>24. 一张表把 PPO 与原始 GRPO 真正的差别定死<a class="headerlink" href="#id11" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>维度</p></th>
+<th class="head"><p>PPO（DeepSeekMath 文中的 LLM PPO）</p></th>
+<th class="head"><p>GRPO</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>rollout 来源</p></td>
+<td><p>old / current policy</p></td>
+<td><p>old / current policy</p></td>
+</tr>
+<tr class="row-odd"><td><p>是否需要 Policy</p></td>
+<td><p>是</p></td>
+<td><p>是</p></td>
+</tr>
+<tr class="row-even"><td><p>是否需要 Reference</p></td>
+<td><p>通常是</p></td>
+<td><p>是，原论文目标含 KL</p></td>
+</tr>
+<tr class="row-odd"><td><p>是否需要 Reward Model / reward</p></td>
+<td><p>是</p></td>
+<td><p>是</p></td>
+</tr>
+<tr class="row-even"><td><p>是否训练 Value Model</p></td>
+<td><p><strong>是</strong></p></td>
+<td><p><strong>否</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>baseline</p></td>
+<td><p>learned <span class="math notranslate nohighlight">\(V_\psi(s_t)\)</span></p></td>
+<td><p>group-relative reward statistics</p></td>
+</tr>
+<tr class="row-even"><td><p>advantage 粒度</p></td>
+<td><p>可逐 token / prefix</p></td>
+<td><p>outcome 时整条 response 共用；process 时更细</p></td>
+</tr>
+<tr class="row-odd"><td><p>importance ratio</p></td>
+<td><p>有</p></td>
+<td><p>有</p></td>
+</tr>
+<tr class="row-even"><td><p>PPO clip</p></td>
+<td><p>有</p></td>
+<td><p><strong>保留</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p>KL 位置</p></td>
+<td><p>常进入 per-token reward 再影响 advantage</p></td>
+<td><p>直接作为 objective regularizer</p></td>
+</tr>
+<tr class="row-even"><td><p>主要节省</p></td>
+<td><p>—</p></td>
+<td><p>Value Model 的参数、optimizer state、前后向</p></td>
+</tr>
+<tr class="row-odd"><td><p>新成本</p></td>
+<td><p>Value training</p></td>
+<td><p>group sampling / group statistics</p></td>
+</tr>
+<tr class="row-even"><td><p>关键适用条件</p></td>
+<td><p>能训练可靠 Critic</p></td>
+<td><p>同 prompt 可多采样且 reward 可比较</p></td>
+</tr>
+</tbody>
+</table>
+<p>如果只记一句：</p>
+<blockquote>
+<div><p><strong>GRPO 不是“没有 Advantage 的 PPO”，而是“Advantage 不再由 learned Critic 产生的 PPO-style update”。</strong></p>
+</div></blockquote>
+</section>
+<hr class="docutils" />
+<section id="id12">
+<h2>25. 最后把整个逻辑链压成一遍<a class="headerlink" href="#id12" title="Link to this heading"></a></h2>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Policy Gradient
+需要低方差 relative signal
+        ↓
+PPO / Actor-Critic
+训练 Value Model V(s_t)
+        ↓
+LLM 场景问题：
+Value Model 很重
++
+reward 常稀疏 / 末端
+        ↓
+同一道题本来就能采 G 条回答
+        ↓
+为什么不让它们互相做 baseline？
+        ↓
+Group Relative Advantage
+(r_i - mean(r)) / std(r)
+        ↓
+不再训练 Critic
+        ↓
+但 old-policy data reuse 仍存在
+        ↓
+所以 PPO ratio + clip 仍保留
+        ↓
+reference drift 仍要限制
+        ↓
+KL 直接放进 objective
+        ↓
+Outcome credit 太粗
+        ↓
+Process Supervision
+        ↓
+Policy 分布持续变化
+        ↓
+Iterative Reward / RL
+        ↓
+DeepSeek-V2 / V3 / R1 继续采用
+</pre></div>
+</div>
+</section>
+<hr class="docutils" />
+<section id="id13">
+<h2>26. 读完本篇，你至少应该能自己回答这些问题<a class="headerlink" href="#id13" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>为什么没有 Critic 也能写 policy gradient？</p></li>
+<li><p>Critic / Value Model 真正降低的是什么？</p></li>
+<li><p>为什么标准 state baseline 不改变期望？</p></li>
+<li><p>GRPO 的 group mean 与 <span class="math notranslate nohighlight">\(V(s_t)\)</span> 为什么不是同一个对象？</p></li>
+<li><p>为什么同一 prompt 下采多个 response 可以形成 difficulty-adaptive baseline？</p></li>
+<li><p>outcome-GRPO 为什么给同一 response 的所有 token 相同 advantage？</p></li>
+<li><p>group mean 包含当前样本时，为什么不能直接照搬 action-independent baseline 的无偏证明？</p></li>
+<li><p>在不除 std 的简化情况下，为什么 self-including group mean 会得到 <span class="math notranslate nohighlight">\(1-1/G\)</span> 的缩放？</p></li>
+<li><p>std normalization 为什么会进一步改变不同 prompt 的梯度权重？</p></li>
+<li><p>GRPO 已经不用 Critic，为什么还要 <span class="math notranslate nohighlight">\(\pi_{\mathrm{old}}\)</span>？</p></li>
+<li><p>ratio 在 LLM token 层具体表示什么？</p></li>
+<li><p>clip 对正 advantage 与负 advantage 分别限制什么？</p></li>
+<li><p>为什么 GRPO 没有删除 reference model？</p></li>
+<li><p>PPO 把 KL 放 reward 与 GRPO 把 KL 放 objective，有什么计算链差异？</p></li>
+<li><p>为什么 <span class="math notranslate nohighlight">\(x-\log x-1\)</span> 非负？</p></li>
+<li><p>为什么这个 KL estimator 在 <span class="math notranslate nohighlight">\(\pi_\theta\)</span> 采样下是 <span class="math notranslate nohighlight">\(D_{\mathrm{KL}}(\pi_\theta\Vert\pi_{\mathrm{ref}})\)</span> 的无偏 estimator？</p></li>
+<li><p>process supervision 的 token advantage 为什么要累加“未来 step rewards”？</p></li>
+<li><p>iterative GRPO 为什么要更新 Reward Model 的数据分布？</p></li>
+<li><p>为什么“删掉 Value Model”不能直接推出“总 RL 训练一定更便宜”？</p></li>
+<li><p>Figure 7 中 Maj&#64;K 提升但 Pass&#64;K 不明显提升，作者为什么更倾向于“概率质量重排”的解释？</p></li>
+<li><p>DeepSeekMath、V2、V3、R1 与 GRPO 的 PROPOSES / ADOPTS 关系分别是什么？</p></li>
+</ol>
+<p>如果这些问题可以从第一性原理重新推出来，GRPO 就不再是：</p>
+<blockquote>
+<div><p>“DeepSeek 那个不用 Critic 的 RL 算法。”</p>
+</div></blockquote>
+<p>而会变成一条非常清楚的设计逻辑：</p>
+<blockquote>
+<div><p><strong>识别 PPO 中 Value Model 的数学职责 → 找到同题多采样这一替代统计量 → 保留 PPO 的稳定更新机制 → 接受更粗 credit 与 group-sampling 代价 → 再通过 process reward / iterative RL 补回信息。</strong></p>
+</div></blockquote>
+<section id="id14">
+<h3>继续阅读：按你的困惑分流<a class="headerlink" href="#id14" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>“R1-Zero 为什么直接用这套方法就能强化 reasoning trajectory？”</strong> → <a class="reference internal" href="../../B/05-moe-complete-llm/B010-deepseek-r1.html"><span class="std std-doc">DeepSeek-R1</span></a></p></li>
+<li><p><strong>“GRPO 在超大 MoE 模型后训练里放在哪？”</strong> → <a class="reference internal" href="../../B/05-moe-complete-llm/B009-deepseek-v3.html"><span class="std std-doc">DeepSeek-V3</span></a></p></li>
+<li><p><strong>“V2 什么时候已经开始用 GRPO？”</strong> → <a class="reference internal" href="../../B/05-moe-complete-llm/B008-deepseek-v2.html"><span class="std std-doc">DeepSeek-V2</span></a></p></li>
+<li><p><strong>“PPO 的 GAE / old-policy 多轮更新还想再从头严格推一遍”</strong> → <a class="reference external" href="https://arxiv.org/abs/1707.06347">PPO 原论文</a>，后续再建立独立 PPO 方法页</p></li>
+<li><p><strong>“Outcome reward 太粗以后，reasoning RL 怎么继续改？”</strong> → 后续进入 Process Reward / DAPO / GSPO / verifier-based RL 分支</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
+        <a href="../../../../post-training/index.html" class="btn btn-neutral float-left" title="推理后训练" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; 版权所有 。</p>
+  </div>
+
+  利用 <a href="https://www.sphinx-doc.org/">Sphinx</a> 构建，使用的 
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">主题</a>
+    由 <a href="https://readthedocs.org">Read the Docs</a> 开发.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
