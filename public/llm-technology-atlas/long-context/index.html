@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Scaling Laws 与训练规划 &mdash; LLM Technology Atlas</title>
+  <title>长上下文：位置外推、Attention 组织与运行时 &mdash; LLM Technology Atlas</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
       <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
@@ -24,8 +24,8 @@
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="索引" href="../genindex.html" />
     <link rel="search" title="搜索" href="../search.html" />
-    <link rel="next" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" />
-    <link rel="prev" title="YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它" href="../generated/papers/A/03-transformer/A018-yarn.html" /> 
+    <link rel="next" title="YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它" href="../generated/papers/A/03-transformer/A018-yarn.html" />
+    <link rel="prev" title="GQA：在 MHA 表达能力与 MQA 推理效率之间折中" href="../generated/papers/A/04-efficient-attention/A020-gqa.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -656,7 +656,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../long-context/index.html">长上下文：位置外推、Attention 组织与运行时</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">长上下文：位置外推、Attention 组织与运行时</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html">YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id1">阅读导航</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-head-dimension">1. 先回到 RoPE：每个 head dimension 其实是一组不同频率的二维时钟</a></li>
@@ -840,7 +840,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">Scaling Laws 与训练规划</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../scaling/index.html">Scaling Laws 与训练规划</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id1">阅读导航</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
@@ -2041,7 +2041,7 @@
           <div role="navigation" aria-label="页面导航">
   <ul class="wy-breadcrumbs">
       <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">Scaling Laws 与训练规划</li>
+      <li class="breadcrumb-item active">长上下文：位置外推、Attention 组织与运行时</li>
       <li class="wy-breadcrumbs-aside">
       </li>
   </ul>
@@ -2050,161 +2050,113 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section class="tex2jax_ignore mathjax_ignore" id="scaling-laws">
-<h1>Scaling Laws 与训练规划<a class="headerlink" href="#scaling-laws" title="Link to this heading"></a></h1>
-<p>这一组文章研究的不是某个 Transformer block，而是<strong>怎样用小规模受控实验预测昂贵大模型训练，并在固定预算下分配模型参数、训练 token 与其他训练资源</strong>。</p>
-<p>先读 Kaplan，建立 (N/D/C) 的经验 scaling、数据瓶颈、critical batch 与 compute-efficient planning；再读 Chinchilla，看固定 FLOPs 下的 (N)–(D) 前沿为什么被重新估计，以及 IsoFLOP 方法如何成为现代旗舰模型设计工具。</p>
+  <section class="tex2jax_ignore mathjax_ignore" id="attention">
+<h1>长上下文：位置外推、Attention 组织与运行时<a class="headerlink" href="#attention" title="Link to this heading"></a></h1>
+<p>这一部分不把“支持 128K / 1M”视为单一能力，而是拆成三层：<strong>位置编码如何离开训练长度、Attention relation 如何组织、超长 prompt 如何以可接受的 TTFT 运行</strong>。</p>
+<p>当前先从 YaRN 建立位置外推主线：RoPE → Position Interpolation → NTK-aware → NTK-by-parts → YaRN。后续继续补 Dual Chunk Attention 与 MInference。</p>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html">Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id1">阅读导航</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id2">1. 这篇论文真正面对的工程问题是什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#scaling-law">2. 先把所有符号钉死：Scaling Law 最容易混淆的就是“数据量”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id3">3. 下层仍然是普通语言模型，上层研究对象变成了“训练运行”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure-1">4. 原论文 Figure 1：最重要的发现是“很多数量级仍近似直线”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#log-log-power-law">5. 为什么 log-log 直线意味着 power law？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#power-law">6. 为什么 power law 对工程特别有用？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id4">7. 三条最著名的单资源 scaling law</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id7">8. 为什么控制瓶颈如此重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id8">9. 模型“形状”为什么不是第一主变量？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#non-embedding-parameters">10. 这里为什么使用 non-embedding parameters？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id9">11. 数据瓶颈：模型和数据不是两个可以独立无限扩展的旋钮</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-l-n-d-empirical-ansatz">12. Kaplan 的 (L(N,D)) 从哪里来？不是严格推导，是 empirical ansatz</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#d-propto-n-0-74">13. (D\propto N^{0.74}) 到底在回答什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#compute-optimal-tokens-n-0-74">14. 这绝对不是“compute-optimal tokens 应该按 (N^{0.74}) 增长”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#flops-6n">15. 训练 FLOPs 的 (6N) 近似从哪里来？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#nd-gpu">16. 为什么 (6ND) 不是 GPU 账单公式？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#sample-efficiency">17. 为什么大模型“sample efficiency 更高”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#learning-curve-scaling">18. Learning Curve 也可以 scaling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#batch-size-scaling-law">19. Batch size 为什么也必须进入 scaling law？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#critical-batch-size-scaling">20. Critical Batch Size 的 scaling</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#c-min-c">21. 为什么论文还引入 (C_{\min})，而不是直接用实测 (C)？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#compute-efficient-frontier">22. 原论文 Compute-Efficient Frontier</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-compute">23. Kaplan 当时怎样解“固定 compute 应该做多大的模型”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure-compute-efficient">24. 原论文 Figure：为什么“更大模型 + 更早停”会看起来 compute-efficient？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#convergence-is-inefficient">25. “Convergence is inefficient”真正是什么意思？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-data-scaling-processed-token">26. 为什么 Kaplan 的 data scaling 会推出一个非常慢的 processed-token 增长？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id13">27. 为什么这个结论在 2020 年会显得合理？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#scaling-law-extrapolation-risk">28. Scaling law 为什么天然存在 extrapolation risk？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan">29. Kaplan 自己已经看到了内部“矛盾”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#contradiction">30. 原论文的“Contradiction”图为什么特别重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#chinchilla">31. 所以 Chinchilla 后来到底修正了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#kaplan-power-law">32. 为什么不能把 Kaplan 的失败理解成“power law 不存在”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#training-compute-optimal-vs-deployment-optimal">33. 一个必须区分的概念：training-compute optimal vs deployment optimal</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#llama-3-8b-70b-compute-optimal">34. 为什么 Llama 3 8B / 70B 会故意训练超过 compute-optimal？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#inference-cost">35. 为什么 inference cost 会改变最优模型选择？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id14">36. 为什么 scaling law 与“涌现能力”并不矛盾？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id15">37. Scaling law 为什么适合做大模型研发“前置实验”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#qwen2-5-scaling-law-learning-rate-batch">38. Qwen2.5 为什么把 scaling law 用到 learning rate / batch？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#llama-3-scaling-runs">39. Llama 3 为什么又重新做自己的 scaling runs？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id16">40. “Scaling law 是经验规律”与“它很有工程价值”并不冲突</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id17">41. 哪些量不能跨论文直接比较？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#architecture-independence">42. 为什么 architecture independence 不能被过度解释？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id18">43. 为什么模型参数越多不一定代表训练 FLOPs 同比例增加？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#law">44. 一个具体的预算例子：为什么资源分配 law 会极大影响训练计划？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#figure">45. 为什么 Figure 里的直线不能成为“无限扩张许可证”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#exponent">46. 原论文最值得保留的不是某个 exponent，而是实验方法</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id23">47. 论文真正证明了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id24">48. 论文没有证明什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id26">49. 从今天回头看，Kaplan 哪些结论“活下来了”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id30">50. 哪些结论被后续工作重新估计？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id31">51. 下一篇为什么必须马上读 Chinchilla？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id32">52. 一张因果图收束 Kaplan</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id33">53. 最容易学错的十个地方</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html#id37">54. 最终自检</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html">Chinchilla：固定训练 FLOPs 时，为什么模型参数和训练 Token 应该一起扩展</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id1">阅读导航</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla">1. 先把问题写对：Chinchilla 研究的不是“模型多大最好”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute">2. 固定 compute 后为什么天然存在一个“太大”和“太小”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-kaplan">3. Chinchilla 为什么要重新研究 Kaplan？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#figure-1-token">4. 原论文 Figure 1：三种方法都把最优点推向“小模型 + 更多 token”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id4">5. Chinchilla 做了多大的实验矩阵？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id5">6. 三种方法分别在问什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-1-training-curve-compute">7. Approach 1：从 training curve 上找“同 compute 最低点”</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-1">8. 原论文 Approach 1 图怎样读？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#learning-rate-schedule-scaling-law">9. 为什么 Learning-Rate Schedule 会影响 scaling-law 结论？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id6">10. 为什么这个问题如此隐蔽？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-isoflop-compute-optimal">11. Approach 2：IsoFLOP 为什么是最直观的 compute-optimal 实验？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-curve">12. IsoFLOP curve 为什么应该有谷底？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-2-valley">13. 原论文 Approach 2：真正应该盯着左图 valley</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-loss">14. IsoFLOP 比“模型越大 loss 越低”多了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-l-n-d">15. Approach 3：为什么还要拟合显式 (L(N,D))？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id9">16. 三项分别代表什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id12">17. 为什么用“加法”分解？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3">18. 原论文 Approach 3 图：蓝线是什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#c-hat-l-n-d">19. 现在开始完整推导：固定 (C) 下怎样最小化 (\hat L(N,D))？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#n">20. 对 (N) 求偏导</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#d">21. 对 (D) 求偏导</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id13">22. 两个式子一对比，得到最优平衡条件</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#alpha-beta">23. 为什么这里出现 (\alpha) 和 (\beta)？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id14">24. 用约束消掉 (D)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#d-rm-opt-c">25. 再推出 (D_{\rm opt}(C))</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#fitted-exponent">26. 方法三的 fitted exponent 到底是多少？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id15">27. 三种方法放在一起，真正结论是什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#approach-3-token">28. 为什么 Approach 3 更偏向 token？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#bootstrap-interval">29. 为什么作者还要做 bootstrap interval？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokens-per-parameter">30. “20 tokens per parameter”到底从哪里来？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id16">31. 为什么 20 不能被当作自然常数？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#optimal-tokens-vs-parameters">32. 原论文把 optimal tokens vs parameters 直接画出来了</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-undertrained">33. 为什么 Chinchilla 认为当时的大模型普遍“undertrained”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-gopher">34. 一个具体例子：为什么 280B Gopher 可能太大？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-40b">35. 为什么最终选 70B，而方法三甚至预测约 40B？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-architecture">36. Chinchilla 为什么不是一个新 architecture？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-gopher-n-d">37. 但是 Chinchilla 和 Gopher 又不只差 (N,D)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#b-chinchilla-flagship">38. 那 70B Chinchilla 的 flagship 对照还能证明什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-head-to-head">39. 原论文对 Kaplan 做了直接小规模 head-to-head</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-equal-scaling">40. 为什么 Chinchilla 的“equal scaling”会让模型显著变小？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#token-inference-economics">41. 为什么“小模型 + 更多 token”同时改善 inference economics？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id17">42. 这为什么改变了“大模型越大越好”的产业直觉？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokens-parameter">43. 为什么今天很多模型又训练得远超 20 tokens/parameter？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#training-compute-optimal-fixed-model-size-optimal">44. Training-compute optimal 和 fixed-model-size optimal</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#inference-heavy-chinchilla">45. 为什么 inference-heavy 产品甚至应该“比 Chinchilla 更偏小模型”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-ratio">46. 为什么数据质量会让 Chinchilla ratio 再次改变？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#tokenizer-token">47. Tokenizer 为什么也会改变“每参数多少 token”的意义？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-moe">48. 为什么 Chinchilla 的结果不能直接套到 MoE？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#context-length-6nd">49. 为什么 context length 也会破坏简单 (6ND)？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-loss-form-scaling">50. 为什么 Chinchilla 的第三种 loss form 对现代 scaling 仍有启发？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id20">51. 为什么三种方法比一个漂亮公式更重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#isoflop-llama-3">52. 为什么 IsoFLOP 是后来 Llama 3 最值得继承的方法？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute-valley">53. 为什么大 compute 下 valley 会变平？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#flagship">54. 原论文的 flagship 结果为什么仍然重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#benchmark">55. 但 benchmark 不是这篇论文最核心的证据</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id21">56. Chinchilla 真正修正 Kaplan 的原因可以压成什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#kaplan-chinchilla">57. Kaplan 和 Chinchilla 其实共享哪些结论？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-scaling-law">58. 为什么 Chinchilla 也不是 scaling law 的终点？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-chinchilla">59. 从 Llama 3 回看 Chinchilla</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-chinchilla">60. 从 Qwen2.5 回看 Chinchilla</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#training-design-objective">61. 一个更现代的 training design objective</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id24">62. 为什么这对本地部署模型尤其重要？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id25">63. 对具身智能有什么直接启示？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#quality-adjusted-scaling">64. 为什么机器人数据比文本更需要“quality-adjusted scaling”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id26">65. 为什么“训练数据越多越好”仍然不是 Chinchilla 的结论？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id27">66. 为什么“模型越小越好”同样不是结论？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#flops">67. 为什么“同 FLOPs”也不等于“同真实训练成本”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#availability-optimum">68. 为什么数据 availability 会把 optimum 推离数学前沿？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id28">69. 为什么 Chinchilla 之后高质量数据成为更关键的壁垒？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#modern-synthetic-data-chinchilla">70. 为什么 modern synthetic data 让 Chinchilla 问题更复杂？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#causal-evidence">71. 论文最强的 causal evidence 到底是哪几层？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id30">72. 论文哪些结论最不应该被过度扩张？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#compute-optimal">73. “Compute-optimal”这个词本身要带约束读</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id34">74. 一张图把 Kaplan → Chinchilla 的逻辑串起来</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id35">75. 为什么这两篇论文应该成对学习？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-llama-3">76. 从 Chinchilla 到 Llama 3：方法怎样进化？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#chinchilla-qwen2-5">77. 从 Chinchilla 到 Qwen2.5：变量怎样继续扩展？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-law-ai">78. 为什么 scaling law 不是“AI 玄学曲线拟合”？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id36">79. 为什么 Chinchilla 的思维很适合工程师？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-study">80. 如果现在自己要做一个小规模 scaling study，流程应该是什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#grid-search">81. 为什么不要一开始就做超大 grid search？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id37">82. 最容易学错的十个地方</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id39">83. 论文真正证明了什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id40">84. 论文没有证明什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#scaling-laws">85. 两篇 Scaling Laws 专题最后应该留下什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#llama-3-405b">86. 现在回看 Llama 3 的 405B 选择就不再抽象</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#qwen2-5-scaling-law">87. 现在回看 Qwen2.5 的 scaling law 也更清晰</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id42">88. 下一步应该下钻什么？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/02-text-representation/A010-chinchilla-compute-optimal.html#id43">89. 最终自检</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html">YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id1">阅读导航</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-head-dimension">1. 先回到 RoPE：每个 head dimension 其实是一组不同频率的二维时钟</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope">2. 为什么 RoPE 点积只依赖相对位置？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id2">3. 那为什么“只依赖相对位置”还不能天然无限外推？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id3">4. 为什么“旋转是周期函数”也救不了直接外推？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-vs">5. Position Interpolation 原论文为什么专门画“外推 vs 插值”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation">6. Position Interpolation 的公式其实非常简单</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-32k-2k">7. PI 为什么把新的 32K 映射回旧的 2K？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-fine-tuning">8. PI 为什么只需要较少 fine-tuning？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#fine-tune-position">9. 为什么直接 fine-tune “更长 position”还是不够？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id4">10. Position Interpolation 的数学优势是什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-yarn">11. PI 看起来很漂亮，为什么 YaRN 还要继续改？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-rope-token">12. 先定义 wavelength：一个 RoPE 维度多少 token 转一整圈？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength">13. 一个具体 wavelength 例子</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id5">14. 为什么短 wavelength 维度更像局部相对位置？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-absolute-like">15. 为什么长 wavelength 维度可能保留 absolute-like 信息？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-l-lambda">16. 用 (r=L/\lambda) 表示“训练时转了几圈”</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-interpolation-pi">17. NTK-aware interpolation 先解决了 PI 的什么问题？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-base-change">18. NTK-aware base change 是怎么来的？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#base-change">19. 为什么 base change 会自然形成“高频少缩、低频多缩”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware">20. 为什么叫 NTK-aware？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id6">21. NTK-aware 为什么仍然不够？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-ntk-yarn">22. 原论文如何总结 PI → NTK → YaRN 的谱系？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-base-wavelength">23. NTK-by-parts：不要再改 base，直接按 wavelength 分类</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ramp-function-gamma-r">24. Ramp function (\gamma(r))</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#frequency-mixing">25. 最终 frequency mixing 公式</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id8">26. 这个公式怎么读最自然？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-family-alpha-beta">27. LLaMA family 的 (\alpha,\beta) 是多少？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id9">28. 一个具体维度例子</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id10">29. 中频维度怎么算？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-yarn">30. 到 NTK-by-parts 为止，YaRN 还没完整出现</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context-attention-distribution">31. 为什么 context 变长可能影响 attention distribution？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#temperature-t-attention">32. Temperature (t) 怎样进入 Attention？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-kernel-rope">33. 为什么可以不改 Attention kernel，只缩放 RoPE 输出？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-magnitude-scaling">34. YaRN 推荐的 magnitude scaling</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scaling-formula">35. 这个 scaling formula 是理论推导出来的吗？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#magnitude-scaling">36. 原论文的 magnitude-scaling 实验</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn">37. 完整 YaRN 可以压成两步</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id11">38. 一个完整的数据流</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-inference-time-policy-yarn">39. Dynamic Scaling：这是 inference-time policy，不是 YaRN 本体公式</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn">40. Dynamic YaRN 的基本思想</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-short-context-penalty">41. 为什么 Dynamic Scaling 能减少 short-context penalty？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling">42. 为什么 Dynamic Scaling 还能让超出目标长度后的退化更平滑？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-kv-cache">43. Dynamic Scaling 为什么会和 KV Cache 冲突？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#cached-k">44. 为什么论文强调要谨慎处理 cached K？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id12">45. 原论文 Dynamic YaRN 图</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-128k">46. YaRN 的训练方式：它不是从头训练一个 128K 模型</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#k-128k">47. 一个非常重要的结果：训练 64K，评估到 128K</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-pi">48. 为什么 YaRN 可以比 PI 更快适应？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training-loss-budget-yarn">49. 原论文 Training Loss：相同 budget 下 YaRN 收敛更快</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-evaluation">50. Long-context evaluation 为什么不能只看一个数字？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#sliding-window-perplexity">51. Sliding-window perplexity 在测什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-perplexity">52. 原论文 long-context perplexity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-retrieval">53. Passkey Retrieval 在测什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey">54. 原论文 passkey 结果怎样读？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-benchmark">55. 为什么 passkey 是必要但远不充分的 benchmark？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-retrieval">56. Position Interpolation 的 retrieval 图为什么也值得保留？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id13">57. YaRN 与 PI 的关系应该怎样准确描述？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-ntk-aware">58. YaRN 与 NTK-aware 的关系</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id15">59. 为什么 YaRN 论文还承担了“形式化开源社区方法”的角色？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-rope-base">60. 为什么“YaRN = 改 RoPE Base”是错的？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-position-interpolation">61. 为什么“YaRN = Position Interpolation”也不对？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pytorch">62. 一个 PyTorch 风格的教学伪实现</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-magnitude-scaling">63. Attention magnitude scaling 的教学伪实现</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id16">64. 为什么实际库实现可能和论文公式长得不一样？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-flashattention-compatibility">65. 为什么 YaRN 可以保持 FlashAttention compatibility？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-o-l-2">66. 但 YaRN 完全没有解决 (O(L^2))</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-dca-minference">67. 这正是 Qwen2.5 为什么同时需要 DCA 和 MInference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-qwen2-5">68. YaRN 在 Qwen2.5 中真正承担哪一层？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-1m-yarn">69. 为什么 Qwen2.5 的 1M 不能归因于 YaRN？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-llama-3">70. YaRN 与 Llama 3 的长上下文路线有什么差别？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context">71. 为什么“训练长度”和“声明 context 长度”必须分开？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id18">72. 为什么 Position Interpolation 仍是最关键的前置？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-basis-expansion">73. PI 的 basis-expansion 解释为什么非常值得保留？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-resolution-cost">74. 为什么 interpolation 本身也有 resolution cost？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-local-order">75. 为什么低频 interpolation 不会同样毁掉 local order？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id19">76. 为什么这种方法很像多尺度信号处理？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id20">77. 但不能把“高频=局部、低频=绝对位置”说成严格语义分工</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#alpha-beta">78. 为什么 (\alpha,\beta) 仍然是经验超参数？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-scaling">79. 为什么 Attention Scaling 特别容易被教程漏掉？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#short-context-benchmark">80. 为什么 short-context benchmark 必须一起测？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-extension-long-context-learning">81. Position Extension 和 Long-Context Learning 是两回事</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-3-long-context-sft">82. 这和 Llama 3 的 long-context SFT 观察完全一致</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id21">83. YaRN 论文最强的证据链</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id23">84. 论文没有证明什么？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id25">85. YaRN 的工程优势</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id26">86. YaRN 的主要局限</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id27">87. 一张因果图收束整个方法</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id28">88. 为什么这条技术链比最终公式更重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-base">89. 为什么现代模型仍然经常使用“改 RoPE base”？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-yarn-dca">90. 为什么 Qwen2.5 同时提 YaRN 与 DCA？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#minference">91. MInference 又在哪一层？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id29">92. 一个必须保留的术语表</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#effective-context-max-position-embeddings">93. 为什么 Effective Context 比 max_position_embeddings 更重要？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#vla">94. 对 VLA / 机器人时序有什么启示？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id30">95. 为什么世界模型也会遇到类似问题？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id31">96. 最容易学错的十个地方</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id34">97. 五个应该真正记住的第一性原理</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id40">98. 从这里继续怎么读？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id41">99. 最终自检</a></li>
 </ul>
 </li>
 </ul>
@@ -2215,8 +2167,8 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="../generated/papers/A/03-transformer/A018-yarn.html" class="btn btn-neutral float-left" title="YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
-        <a href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" class="btn btn-neutral float-right" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="../generated/papers/A/04-efficient-attention/A020-gqa.html" class="btn btn-neutral float-left" title="GQA：在 MHA 表达能力与 MQA 推理效率之间折中" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="../generated/papers/A/03-transformer/A018-yarn.html" class="btn btn-neutral float-right" title="YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

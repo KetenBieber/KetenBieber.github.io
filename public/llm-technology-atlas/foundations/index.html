@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#id4">第六阶段：第二条现代模型主线</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#preference-learning">第七阶段：回到 Preference Learning 方法层</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#scaling-laws">第八阶段：回溯 Scaling Laws 与训练规划</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reading-path.html#id5">第九阶段：长上下文位置外推</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../technology-map.html">技术图谱</a><ul>
@@ -549,6 +550,7 @@
 </li>
 <li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A014-roformer-rope.html#id10">技术 → 模型</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A014-roformer-rope.html#id11">模型 → 技术</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A014-roformer-rope.html#id12">从这里继续：RoPE 为什么还不能天然支持无限上下文？</a></li>
 </ul>
 </li>
 </ul>
@@ -650,6 +652,190 @@
 <li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A020-gqa.html#id13">模型 → 技术</a></li>
 </ul>
 </li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../long-context/index.html">长上下文：位置外推、Attention 组织与运行时</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html">YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-head-dimension">1. 先回到 RoPE：每个 head dimension 其实是一组不同频率的二维时钟</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope">2. 为什么 RoPE 点积只依赖相对位置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id2">3. 那为什么“只依赖相对位置”还不能天然无限外推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id3">4. 为什么“旋转是周期函数”也救不了直接外推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-vs">5. Position Interpolation 原论文为什么专门画“外推 vs 插值”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation">6. Position Interpolation 的公式其实非常简单</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-32k-2k">7. PI 为什么把新的 32K 映射回旧的 2K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-fine-tuning">8. PI 为什么只需要较少 fine-tuning？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#fine-tune-position">9. 为什么直接 fine-tune “更长 position”还是不够？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id4">10. Position Interpolation 的数学优势是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-yarn">11. PI 看起来很漂亮，为什么 YaRN 还要继续改？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-rope-token">12. 先定义 wavelength：一个 RoPE 维度多少 token 转一整圈？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength">13. 一个具体 wavelength 例子</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id5">14. 为什么短 wavelength 维度更像局部相对位置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-absolute-like">15. 为什么长 wavelength 维度可能保留 absolute-like 信息？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-l-lambda">16. 用 (r=L/\lambda) 表示“训练时转了几圈”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-128">(r=128)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-0-25">(r=0.25)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-interpolation-pi">17. NTK-aware interpolation 先解决了 PI 的什么问题？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-base-change">18. NTK-aware base change 是怎么来的？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#base-change">19. 为什么 base change 会自然形成“高频少缩、低频多缩”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware">20. 为什么叫 NTK-aware？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id6">21. NTK-aware 为什么仍然不够？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-ntk-yarn">22. 原论文如何总结 PI → NTK → YaRN 的谱系？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-base-wavelength">23. NTK-by-parts：不要再改 base，直接按 wavelength 分类</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-alpha">情况 1：(r&lt;\alpha)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-beta">情况 2：(r&gt;\beta)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id7">情况 3：中间</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ramp-function-gamma-r">24. Ramp function (\gamma(r))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#frequency-mixing">25. 最终 frequency mixing 公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id8">26. 这个公式怎么读最自然？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-family-alpha-beta">27. LLaMA family 的 (\alpha,\beta) 是多少？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-1">(r&lt;1)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-32">(r&gt;32)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id9">28. 一个具体维度例子</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#a">维度 A</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#b">维度 B</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id10">29. 中频维度怎么算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-yarn">30. 到 NTK-by-parts 为止，YaRN 还没完整出现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context-attention-distribution">31. 为什么 context 变长可能影响 attention distribution？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#temperature-t-attention">32. Temperature (t) 怎样进入 Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-kernel-rope">33. 为什么可以不改 Attention kernel，只缩放 RoPE 输出？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-magnitude-scaling">34. YaRN 推荐的 magnitude scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scaling-formula">35. 这个 scaling formula 是理论推导出来的吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#magnitude-scaling">36. 原论文的 magnitude-scaling 实验</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn">37. 完整 YaRN 可以压成两步</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#step-1">Step 1：频率分段</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#step-2-magnitude-scaling">Step 2：magnitude scaling</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id11">38. 一个完整的数据流</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-inference-time-policy-yarn">39. Dynamic Scaling：这是 inference-time policy，不是 YaRN 本体公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn">40. Dynamic YaRN 的基本思想</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-short-context-penalty">41. 为什么 Dynamic Scaling 能减少 short-context penalty？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling">42. 为什么 Dynamic Scaling 还能让超出目标长度后的退化更平滑？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-kv-cache">43. Dynamic Scaling 为什么会和 KV Cache 冲突？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#cached-k">44. 为什么论文强调要谨慎处理 cached K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id12">45. 原论文 Dynamic YaRN 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-128k">46. YaRN 的训练方式：它不是从头训练一个 128K 模型</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scale-s-16">Scale (s=16)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scale-s-32">Scale (s=32)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#k-128k">47. 一个非常重要的结果：训练 64K，评估到 128K</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-pi">48. 为什么 YaRN 可以比 PI 更快适应？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training-loss-budget-yarn">49. 原论文 Training Loss：相同 budget 下 YaRN 收敛更快</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-evaluation">50. Long-context evaluation 为什么不能只看一个数字？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#language-modeling">50.1 Language Modeling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#retrieval">50.2 Retrieval</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#capability-retention">50.3 Capability Retention</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#sliding-window-perplexity">51. Sliding-window perplexity 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-perplexity">52. 原论文 long-context perplexity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-retrieval">53. Passkey Retrieval 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey">54. 原论文 passkey 结果怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-benchmark">55. 为什么 passkey 是必要但远不充分的 benchmark？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-retrieval">56. Position Interpolation 的 retrieval 图为什么也值得保留？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id13">57. YaRN 与 PI 的关系应该怎样准确描述？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi">PI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id14">YaRN</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-ntk-aware">58. YaRN 与 NTK-aware 的关系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id15">59. 为什么 YaRN 论文还承担了“形式化开源社区方法”的角色？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-rope-base">60. 为什么“YaRN = 改 RoPE Base”是错的？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-position-interpolation">61. 为什么“YaRN = Position Interpolation”也不对？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pytorch">62. 一个 PyTorch 风格的教学伪实现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-magnitude-scaling">63. Attention magnitude scaling 的教学伪实现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id16">64. 为什么实际库实现可能和论文公式长得不一样？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-flashattention-compatibility">65. 为什么 YaRN 可以保持 FlashAttention compatibility？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-o-l-2">66. 但 YaRN 完全没有解决 (O(L^2))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-dca-minference">67. 这正是 Qwen2.5 为什么同时需要 DCA 和 MInference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-extrapolation">Position extrapolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-organization">Attention organization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#runtime-acceleration">Runtime acceleration</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-qwen2-5">68. YaRN 在 Qwen2.5 中真正承担哪一层？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-1m-yarn">69. 为什么 Qwen2.5 的 1M 不能归因于 YaRN？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-llama-3">70. YaRN 与 Llama 3 的长上下文路线有什么差别？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-3">Llama 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id17">YaRN</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context">71. 为什么“训练长度”和“声明 context 长度”必须分开？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id18">72. 为什么 Position Interpolation 仍是最关键的前置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-basis-expansion">73. PI 的 basis-expansion 解释为什么非常值得保留？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-resolution-cost">74. 为什么 interpolation 本身也有 resolution cost？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-local-order">75. 为什么低频 interpolation 不会同样毁掉 local order？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id19">76. 为什么这种方法很像多尺度信号处理？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id20">77. 但不能把“高频=局部、低频=绝对位置”说成严格语义分工</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#alpha-beta">78. 为什么 (\alpha,\beta) 仍然是经验超参数？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-scaling">79. 为什么 Attention Scaling 特别容易被教程漏掉？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#short-context-benchmark">80. 为什么 short-context benchmark 必须一起测？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-extension-long-context-learning">81. Position Extension 和 Long-Context Learning 是两回事</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-3-long-context-sft">82. 这和 Llama 3 的 long-context SFT 观察完全一致</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id21">83. YaRN 论文最强的证据链</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#controlled-interpolation-ablation">第一层：Controlled interpolation ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training-efficiency">第二层：Training efficiency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-ppl">第三层：Long PPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id22">第四层：Passkey</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#standard-benchmarks">第五层：Standard benchmarks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id23">84. 论文没有证明什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#k-passkey-128k-reasoning">84.1 128K passkey = 128K reasoning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-context">84.2 YaRN 可以无限延长 context</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ln-s-1">84.3 (0.1\ln s+1) 对所有模型最优</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#alpha-1-beta-32-universal-constants">84.4 (\alpha=1,\beta=32) 是 universal constants</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id24">84.5 YaRN 降低 (O(L^2))</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn-fine-tuning">84.6 Dynamic YaRN 无需 fine-tuning 就等价于完整长上下文模型</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id25">85. YaRN 的工程优势</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id26">86. YaRN 的主要局限</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id27">87. 一张因果图收束整个方法</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id28">88. 为什么这条技术链比最终公式更重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-base">89. 为什么现代模型仍然经常使用“改 RoPE base”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-yarn-dca">90. 为什么 Qwen2.5 同时提 YaRN 与 DCA？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#minference">91. MInference 又在哪一层？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id29">92. 一个必须保留的术语表</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#effective-context-max-position-embeddings">93. 为什么 Effective Context 比 max_position_embeddings 更重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#vla">94. 对 VLA / 机器人时序有什么启示？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id30">95. 为什么世界模型也会遇到类似问题？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id31">96. 最容易学错的十个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-relative-context">错法 1：RoPE 是 relative，所以天然无限 context</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-max-length">错法 2：PI 就是把 max length 配置改大</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id32">错法 3：PI 和 YaRN 一样</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-yarn">错法 4：NTK-aware 就是 YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#local-feature">错法 5：高频维度被人工训练成 local feature</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-base">错法 6：YaRN 只改 base</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-scaling-yarn">错法 7：Attention Scaling 与 YaRN 无关</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn-yarn">错法 8：Dynamic YaRN 与静态 YaRN 是同一机制</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id33">错法 9：128K passkey 证明 128K reasoning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-1m-context">错法 10：YaRN 解决 1M context 的运行成本</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id34">97. 五个应该真正记住的第一性原理</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id35">原理 1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id36">原理 2</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id37">原理 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id38">原理 4</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id39">原理 5</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id40">98. 从这里继续怎么读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id41">99. 最终自检</a></li>
 </ul>
 </li>
 </ul>
