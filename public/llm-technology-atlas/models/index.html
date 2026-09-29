@@ -56,6 +56,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#id3">第四阶段：现代大模型主线</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#reasoning-post-training">第五阶段：Reasoning Post-training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../reading-path.html#id4">第六阶段：第二条现代模型主线</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reading-path.html#preference-learning">第七阶段：回到 Preference Learning 方法层</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../technology-map.html">技术图谱</a><ul>
@@ -1279,7 +1280,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../post-training/index.html">推理后训练</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../post-training/index.html">偏好学习与推理后训练</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html">DeepSeekMath / GRPO：真正被删掉的是 Critic，不是 PPO 的 Policy Optimization</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#ppo-grpo">阅读导航：这是一篇“从 PPO 到 GRPO”的方法页</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#grpo-ppo-critic">1. 先别急着看 GRPO：PPO 为什么要有 Critic？</a><ul>
@@ -1377,6 +1378,170 @@
 <li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A051-deepseekmath-grpo.html#id14">继续阅读：按你的困惑分流</a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html">DPO：怎样把 KL-Regularized RLHF 消元成一个二分类损失</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preference-learning">1. 从问题场景开始：Preference Learning 缺的究竟是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preferred-response-sft">2. 为什么只拿 preferred response 做 SFT 不够？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#preferred-rejected">3. 那直接“preferred 加、rejected 减”不就行了？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rlhf-preference-reward-policy">4. 标准 RLHF 为什么要绕一圈：Preference → Reward → Policy？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sft">4.1 SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-modeling">4.2 Reward Modeling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rl-fine-tuning">4.3 RL Fine-tuning</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model-scalar-reward">5. Reward Model 第一性原理：人类只给排序，为什么能学 scalar reward？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model-loss-log-sigma-delta-r">6. Reward Model loss 为什么是 (-\log\sigma(\Delta r))？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rlhf-kl">7. 经典 RLHF 的第二个核心：为什么必须加 KL？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta">(\beta) 大</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id2">(\beta) 小</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-policy">8. DPO 最关键的一步：先别想 PPO，直接求这个优化问题的最优 policy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#policy">9. 用拉格朗日乘子推导最优 policy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#closed-form">10. 这个 closed form 到底意味着什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-closed-form">11. (\beta) 在 closed form 中做什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#kl">12. 用 KL 重写再证明一次：为什么这是全局最优解？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id3">13. 为什么 closed form 还不能直接拿来训练？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward">问题 1：reward 本来未知</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#partition-function">问题 2：partition function 几乎不可算</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#optimal-policy-reward">14. 从 optimal policy 反解 reward</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id4">15. reward 被拆成了哪两部分？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-preference">16. 为什么 reward 本来就不可能从 preference 中唯一确定？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-equivalence-class-reward">17. Reward Equivalence Class：我们真正能辨识的是一个 reward 类</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-class-kl-regularized-policy">18. 更关键：同一 reward class 连 KL-regularized 最优 policy 都一样</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-representative">19. DPO 选择了哪个 reward representative？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-model">20. “语言模型就是 Reward Model”不能怎样理解？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reward-expressiveness">21. 这个重参数化有没有偷偷限制 reward expressiveness？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id5">22. partition function 为什么现在会严格消失？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#pi-trainable-pi-theta">23. 最后一步：把未知 (\pi^*) 换成 trainable (\pi_\theta)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-loss">24. 把 DPO loss 重写成最容易理解的形式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id6">25. 一个数值例子：preferred 的绝对概率仍然可以比 rejected 小</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#response-probability">26. response probability 到底是什么？为什么一个完整回答会有极小概率？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-response-level-preference-token">27. DPO 是 response-level preference，为什么最终能训练每个 token？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-response-token">28. DPO 对一个 response 内的所有 token 权重都一样吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-implicit-reward-token">29. DPO 的 implicit reward 也可以展开到 token 级</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-policy-dpo">30. reference policy 到底在 DPO 中做了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-policy-sft-model">31. reference policy 为什么通常是 SFT model？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id7">理论上</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id8">分布上</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sft-model">32. 如果原始 SFT model 不可用怎么办？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-kl-dpo-logit">33. (\beta) 的“表面矛盾”：为什么 KL 越强，DPO logit 前的系数反而越大？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#policy-beta-loss">34. 再用最优 policy 看一遍 (\beta)，避免只盯 loss</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-0-1">若 (\beta=0.1)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-2">若 (\beta=2)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-gradient">35. DPO gradient：真正训练时到底在做什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#implicit-reward-gradient">36. 用 implicit reward 重写 gradient</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dynamic-weight">37. 为什么这个 dynamic weight 非常关键？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#a">情况 A：模型完全排反了</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#b">情况 B：两者差不多</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#c-preferred">情况 C：preferred 已明显更高</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#naive-unlikelihood">38. 为什么 naive Unlikelihood 容易退化？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-classification">39. DPO 其实在做什么 classification？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-pytorch">40. DPO 的 PyTorch 核心为什么可以这么短？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-forward">41. 为什么 reference forward 可以冻结？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-policy-rollout">42. DPO 与 PPO 最大的结构差别：训练阶段不需要当前 policy rollout</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sampling">43. 但“DPO 不需要 sampling”这句话也要说完整</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-critic">44. DPO 为什么不需要 Critic？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#grpo-critic">45. 这和 GRPO“不需要 Critic”是一回事吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sft-absolute-imitation-relative-preference">46. DPO 与 SFT：一个是 absolute imitation，一个是 relative preference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#pipeline-sft-dpo">47. 为什么现代 pipeline 常常先 SFT 再 DPO？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id9">48. 一个更完整的数值例子：DPO gradient 怎样自动衰减？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id10">初始 policy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id11">训练后</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id12">再继续</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preferred-probability-rejected-probability">49. DPO 到底是在最大化 preferred probability，还是最小化 rejected probability？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-nll">50. 这也解释了为什么有些模型会给 DPO 再加 NLL</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-rlhf">51. DPO 和经典 RLHF 到底“等价”在哪里？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo">52. “DPO 与 PPO 完全等价”为什么是错误说法？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-exact-exact">53. DPO 的“exact”到底 exact 在哪里？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-offline-method-ppo-grpo">54. 为什么 DPO 是 offline method，而 PPO/GRPO 更容易在线更新？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#qwen2-5-offline-dpo-online-grpo">55. 为什么 Qwen2.5 要 Offline DPO → Online GRPO？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#offline-dpo">Offline DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#online-grpo">Online GRPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#llama-3-dpo">56. 为什么 Llama 3 会迭代刷新 DPO 数据？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sequence-log-prob">57. Sequence log-prob 求和会不会产生长度效应？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#reference-subtraction-sequence-probability">58. 为什么 reference subtraction 比直接比较 sequence probability 更合理？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-absolute-utility">59. DPO 的 reward 是 absolute utility 吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rewardkl-frontier-controlled-evidence">60. 原论文实验 1：Reward–KL frontier 为什么是最重要的 controlled evidence？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#ppo-gt">61. PPO-GT 都被比较了，能说明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#tl-dr-summarization">62. 原论文实验 2：TL;DR summarization 看什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#temperature-robustness">63. 为什么 temperature robustness 值得看？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dialogue-dpo-sentiment">64. Dialogue 实验：DPO 是否只能优化简单 sentiment？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#training-dynamics-step">65. Training dynamics：为什么几百 step 内就能看到明显变化？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#best-of-n-baseline">66. Best-of-N 为什么是一个重要 baseline？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id13">67. 原论文实验真正证明了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id14">68. 原论文实验没有证明什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-grpo">68.1 DPO 永远优于 PPO / GRPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id15">68.2 不再需要 Reward Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#sampling">68.3 不再需要 sampling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-hacking">68.4 DPO 自动解决所有 reward hacking</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward">68.5 DPO 得到“真实人类 reward”</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#bradleyterry">69. Bradley–Terry 假设本身有什么边界？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-model-reward-parameterization">70. DPO 不是“无 Reward Model”，而是“隐式 reward parameterization”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo">71. DPO 的工程成本到底少在哪里？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-sft">72. 但 DPO 仍然比普通 SFT 贵在哪里？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#response-pair-reference-policy">73. 为什么 response pair 最好来自接近 reference 的 policy？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preference-dataset">74. 为什么 DPO 特别适合“已有 preference dataset”的组织？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpoppogrpo">75. DPO、PPO、GRPO：把三条路线放到同一张表</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id16">76. 用“监督信号在哪里”重新统一三种方法</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id17">SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id18">DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#ppo-grpo">PPO / GRPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id19">77. 什么时候 DPO 很自然？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#online-rl">78. 什么时候 Online RL 更自然？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-rl">79. 对具身智能的直接启示：DPO 可以学“轨迹偏好”，但不替代环境 RL</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id20">80. 原论文最核心的三层贡献</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id21">第一层：数学消元</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id22">第二层：工程简化</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id23">第三层：实证</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id24">81. 一条完整因果链把 DPO 串起来</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id25">82. 最容易学错的八个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-chosen-rejected">错法 1：DPO 就是 chosen ↑ rejected ↓</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-reward-model">错法 2：DPO 完全不需要 Reward Model</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id26">错法 3：DPO 不需要 sampling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-hat-r-reward">错法 4：DPO 的 (\hat r) 是人类绝对 reward</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#beta-preference">错法 5：(\beta) 越大 preference 越激进</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-ppo-loss">错法 6：DPO 和 PPO loss 等价</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preferred-likelihood">错法 7：DPO preferred likelihood 一定上升</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-online-rl">错法 8：有 DPO 就不需要 Online RL</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id27">83. 从 Llama 3 再回看 DPO</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#rm-rs">RM + RS</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id28">SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id29">DPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#qwen2-5-dpo">84. 从 Qwen2.5 再回看 DPO</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id30">SFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id31">Offline DPO</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id32">Online GRPO</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#dpo-preference-methods">85. DPO 之后该如何理解后续 preference methods？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id33">86. 论文的证据边界</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id34">87. 为什么这篇论文现在仍然重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/08-post-training/A052-dpo.html#id35">88. 最终自检</a></li>
 </ul>
 </li>
 </ul>
