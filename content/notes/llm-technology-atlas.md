@@ -11,7 +11,7 @@ tags:
   - MoE
   - Reasoning
 featured: true
-externalUrl: "llm-technology-atlas/index.html"
+externalUrl: "https://ketenbieber.github.io/llm-technology-atlas/"
 ---
 
 # LLM Technology Atlas
@@ -22,4 +22,4 @@ externalUrl: "llm-technology-atlas/index.html"
 
 文章之间提供前置阅读、相关技术、后续阅读和正文就地跳转，可沿技术依赖连续阅读。
 
-[进入完整文档站](../../llm-technology-atlas/index.html)
+[进入完整文档站](https://ketenbieber.github.io/llm-technology-atlas/)
