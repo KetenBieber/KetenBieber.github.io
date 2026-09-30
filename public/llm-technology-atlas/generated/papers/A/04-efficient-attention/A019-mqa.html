@@ -61,6 +61,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#preference-learning">第七阶段：回到 Preference Learning 方法层</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#scaling-laws">第八阶段：回溯 Scaling Laws 与训练规划</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id5">第九阶段：长上下文位置外推</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#attention-relation">第十阶段：长上下文 Attention Relation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../technology-map.html">技术图谱</a><ul>
@@ -840,6 +841,317 @@
 <li class="toctree-l3"><a class="reference internal" href="../03-transformer/A018-yarn.html#id41">99. 最终自检</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html">Dual Chunk Attention：不训练模型，怎样重新组织 RoPE 相对位置把 4K 扩到 32K+？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id1">阅读导航</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-frequency-relative-position-matrix">一、先把问题从 RoPE frequency 换成 Relative-Position Matrix</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-attention">1. 标准 RoPE 最终到底把什么交给 Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-m">2. 为什么把 RoPE 看成矩阵 (M) 很有用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#figure-rope">3. 原论文 Figure：标准 RoPE 超窗时发生什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#rope">4. 为什么“RoPE 是相对位置”仍然解决不了？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#relative-position">二、已有方法：统一缩放 Relative Position</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#position-interpolation-m">5. Position Interpolation 在矩阵 (M) 视角下是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca">6. DCA 为什么不满意“把所有距离一起缩小”？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-chunk">三、DCA 第一层：先切 Chunk</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id2">7. 基本变量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#key-position">8. Key position 为什么循环复用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-token-key">9. 但是这会不会把不同 chunk 的 token 混成同一个 key？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#content-vector">Content vector</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-positional-phase">RoPE positional phase</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#intra-chunk-attention">四、Intra-Chunk Attention：局部位置一个都不要丢</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-query-position">10. 同 chunk 的 query position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#relative-distance">11. 为什么这精确保留局部 relative distance？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#intra-chunk-relative-distance">12. Intra-Chunk 最大 relative distance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#intra-chunk">13. 只用 Intra-Chunk 会发生什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#position-id-chunk">五、为什么循环 Position ID 不能直接跨 Chunk？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id3">14. 一个最直接的失败例子</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-p-k-query-position">15. 为什么 DCA 保持 (P_k) 不动，主要改 query position？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#inter-chunk-attention-ood">六、Inter-Chunk Attention：远距离可以粗，但不能 OOD</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id4">16. 最简单的目标</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#inter-chunk-relative-distance">17. Inter-Chunk relative distance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id5">18. 这是一种什么信息压缩？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#aliasing">19. 为什么这种 aliasing 仍可能有用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id6">20. 一个必须保留的边界：DCA 没有保存精确远距离</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#inter-chunk-chunk-locality">七、Inter-Chunk 还不够：相邻 Chunk 的 Locality 被毁了</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-token">21. 看 chunk 边界的两个相邻 token</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#ppl">22. 为什么这会明显伤 PPL？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#successive-chunk-attention-chunk-boundary">八、Successive-Chunk Attention：专门修复 Chunk Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id7">23. 目标是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#successive-query-position">24. Successive query position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#locality">25. 为什么这样能恢复边界 locality？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#w-le-c-s">26. 为什么 (w\le c-s)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#query-position">27. 三类 Query Position 的统一图</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#attention-piecewise-relative-position-matrix">九、把三种 Attention 合成一个 Piecewise Relative-Position Matrix</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-index">28. 先定义 Chunk Index</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk">同 chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id8">前一个 chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id9">更早 chunk</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id10">29. DCA 的最终相对位置公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#qk">30. 对应的 QK 内积</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id11">31. 一个原论文公式阅读提醒</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#relative-position-matrix">32. 原论文的三块 Relative-Position Matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-relative-position">33. 为什么所有 DCA relative position 都不会超出原窗口？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#intra">Intra</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#inter">Inter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#successive">Successive</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-position-interpolation">34. DCA 与 Position Interpolation 最大区别</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#pi">PI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id12">DCA</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#c-8-s-4-l-12">十、一个完整手算例子：(c=8,s=4,l=12)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id13">35. Key Position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#current-chunk-intra">36. 对 Current Chunk：Intra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#previous-chunk-successive">37. 对 Previous Chunk：Successive</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-inter">38. 对更早 Chunk：Inter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-identity">39. 因此远距离 Chunk Identity 从哪里来？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#attention-softmax">十一、最容易被忽略的实现问题：三次 Attention 不是三个独立 Softmax</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id14">40. 为什么需要分三次算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#softmax-output">41. 如果每组各做一次 Softmax，然后直接把 output 相加，会怎样？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id15">42. 正确的合并公式怎么推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#z-g-sum-e-z">43. 实际实现为什么不能直接计算 (Z_g=\sum e^{z})？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#flashattention-online-softmax">44. 为什么这和 FlashAttention 的 online softmax 天然兼容？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-flashattention">十二、DCA 与 FlashAttention 的实际组织</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#query-key-segment">45. 对一个 query，三个 Key Segment 分别多大？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#current-chunk">Current chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#previous-chunk">Previous chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#earlier-chunks">Earlier chunks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-sparse-attention">46. 所以 DCA 是 Sparse Attention 吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#chunk-attention">47. 那为什么叫 Chunk Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#appendix-flashattention">48. 原论文 Appendix 给出的三次 FlashAttention 调用</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-k">49. 为什么 DCA 不需要重新旋转历史 K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-kv-cache">50. DCA 的 KV Cache 代价是什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id16">不需要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id17">仍然需要</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-figure-matrix">十三、DCA 原论文 Figure：为什么三块 Matrix 缺一不可？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id18">51. Intra 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id19">52. Inter 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id20">53. Successive 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#pareto-trade-off">54. 这三项其实构成一个 Pareto trade-off</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-training-free">十四、为什么 DCA 叫 Training-Free？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#training-free">55. Training-Free 的精确定义</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id21">56. Training-Free 不等于什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id22">零代码改动</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id23">零计算成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id24">零显存成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id25">模型真正学过长上下文</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#context">无限 context</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#training-free-long-context">57. 为什么 training-free 仍然可能提升 long-context 能力？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#ablation">十五、实验怎么读：先看 Ablation，不要先看排行榜</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id26">58. 原论文最重要的因果证据其实是 Ablation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#only-intra-ppl-retrieval">59. Only Intra：为什么 PPL 好，Retrieval 差？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#inter-retrieval-ppl">60. 加 Inter：为什么 Retrieval 上来了，PPL 反而可能恶化？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id27">61. 再加 Successive：为什么两个指标一起改善？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#perplexity-dca-4k">十六、Perplexity：DCA 真能把 4K 模型直接跑到更长吗？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#language-modeling">62. 论文如何测 Language Modeling？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id28">63. 为什么 PPL 是必要但不充分的指标？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id29">64. 原论文 PPL 证据应该怎样表述？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#passkey-retrieval">十七、Passkey Retrieval：模型到底有没有看到远处？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#passkey-task">65. Passkey task 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#passkey">66. 原论文 Passkey 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#lost-in-the-beginning">67. “Lost in the Beginning” 是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#k-passkey">68. 更长的 192K Passkey 图说明什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#orthogonality-dca-pi-ntk-yarn">十八、Orthogonality：为什么 DCA 可以叠加 PI / NTK / YaRN？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id30">69. 两类方法改的是不同对象</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#pi-ntk-yarn">PI / NTK / YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id31">DCA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id32">70. 用函数复合看最清楚</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#qwen2-5-yarn-dca">71. 这正是 Qwen2.5 的 “YaRN + DCA”</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#real-world-long-context-tasks-passkey">十九、Real-World Long-Context Tasks：比 Passkey 更接近真正应用</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id33">72. 论文测了哪些任务？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#b">73. 论文为什么强调 70B？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#of-gpt-3-5-16k">74. “94% of GPT-3.5-16k”应该怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#real-world-benchmark-long-context-reasoning">75. 为什么 Real-World Benchmark 仍然不能完全证明 Long-Context Reasoning？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#efficiency-flashattention">二十、Efficiency：三次 FlashAttention 为什么论文说开销并不大？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#efficiency-figure">76. 原论文 Efficiency Figure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#kernel-call">77. 三次 Kernel Call 为什么不等于三倍计算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-attention">78. 为什么 DCA 又没有让 Attention 更便宜？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#prompt">79. 超长 Prompt 下真正的新瓶颈是什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-streamingllm-local-attention">二十一、为什么 DCA 和 StreamingLLM / Local Attention 不一样？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#streaming">80. Streaming 类方法的核心取舍</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id34">81. DCA 的选择不同</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id35">二十二、DCA 的隐含归纳偏置到底是什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id36">82. Locality 是最高优先级</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#very-far-distance">83. Very Far Distance 被降成粗粒度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-hierarchical-position-prior">84. 所以 DCA 是一种 Hierarchical Position Prior</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id37">二十三、一个更第一性原理的解释：位置编码本身就是有限带宽</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#range-resolution">85. 为什么不可能同时免费保留无限 Range 与无限 Resolution？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#yarn-rangeresolution-trade-off">86. 这与 YaRN 的 Range–Resolution Trade-off 是同一主题</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#evidence-boundary">二十四、论文中最值得保留的 Evidence Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#k-32k-8">87. 4K → 32K 不等于“模型学会了 8× 更长任务”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#ppl-retrieval">88. PPL 低不等于 Retrieval 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#passkey-reasoning">89. Passkey 强不等于 Reasoning 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#benchmark-100k">90. Benchmark 强不等于任意 100K 输入都稳定</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id38">二十五、为什么 Qwen2.5 同时使用 YaRN + DCA？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#training-length">91. 先看 Training Length</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#yarn">92. 再看 YaRN</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id39">93. 再看 DCA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#minference">94. 最后才是 MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-rope">二十六、为什么 DCA 特别适合和 RoPE 模型组合？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id40">95. 它依赖 RoPE 的一个关键性质</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id41">96. 如果位置编码不是 RoPE 呢？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#rerope-selfextend">二十七、与 ReRoPE / SelfExtend 这类方法怎样理解关系？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id42">97. 共性</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id43">98. DCA 的特色</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id44">二十八、从工程实现角度重新走一次</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#prefill">99. Prefill</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#decode">100. Decode</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#q-k">101. 为什么同一个 Q 要旋转三次而 K 只旋一次？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id45">二十九、DCA 的复杂度要怎样严谨表述？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id46">102. 计算复杂度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id47">103. 显存复杂度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#kernel-overhead">104. Kernel overhead</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id48">三十、DCA 适合什么，不适合什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id49">105. 适合</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id50">已有模型无法重新训练</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#full-history-access">想保留 full-history access</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-flashattention">使用 RoPE + FlashAttention</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id51">需要在更大模型上快速验证</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id52">106. 不一定适合</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#metric-position">需要精确远距离 metric position</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#full-attention-ttft">需要百万级 full attention 低 TTFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#reasoning-skill">需要真正新增长程 reasoning skill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#rope-architecture">非 RoPE architecture</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id53">三十一、把 DCA 与现有站内技术放回一张图</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id54">107. RoPE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id55">108. YaRN</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id56">109. DCA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#gqa-mla">110. GQA / MLA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#flashattention">111. FlashAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id57">112. MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#vla">三十二、一个值得迁移到机器人 / VLA 的设计思想</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id58">113. 历史越远，时间精度可以越粗吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id59">114. 但不能直接把 DCA 套到控制序列</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id60">三十三、论文最容易学错的十二个地方</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id61">错法 1：DCA 是 Sparse Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id62">错法 2：DCA 把旧 chunk 压成一个向量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#modulo-key-position-token">错法 3：Modulo key position 会让不同 token 完全相同</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id63">错法 4：Inter 保留精确远距离</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id64">错法 5：Successive 是为了增加更多远距离信息</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id65">错法 6：三路 softmax output 可以直接相加</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#flashattention-3-qk-flops">错法 7：三次 FlashAttention 等于 3× QK FLOPs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-o-l-2">错法 8：DCA 解决 (O(L^2))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id66">错法 9：Training-Free = 零工程改动</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#passkey-long-reasoning">错法 10：Passkey 强 = long reasoning 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#dca-yarn">错法 11：DCA 与 YaRN 是替代关系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#qwen2-5-1m-context-dca">错法 12：Qwen2.5 1M context 来自 DCA</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id67">三十四、把整篇论文压成一条因果链</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#failure-design">115. Failure → Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id68">116. 一句话记忆</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id69">三十五、论文论证强度怎么分层？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id70">117. 强因果证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id71">三分支 Ablation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id72">118. 强工程证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#id73">Efficiency Figure</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id74">119. 中等证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#pg19-ppl-passkey">PG19 PPL + passkey</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id75">120. 更弱的综合能力外推</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="A053-dual-chunk-attention.html#long-benchmark-aggregate">Long benchmark aggregate</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id76">三十六、从这里继续怎么读？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id77">121. 如果 Relative-Position Matrix 没建立起来</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id78">122. 如果不理解为什么 DCA 与 YaRN 能同时使用</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id79">123. 如果想回真实模型系统</a></li>
+<li class="toctree-l3"><a class="reference internal" href="A053-dual-chunk-attention.html#id80">124. 下一篇：MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="A053-dual-chunk-attention.html#id81">三十七、最终自检</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../scaling/index.html">Scaling Laws 与训练规划</a><ul>
