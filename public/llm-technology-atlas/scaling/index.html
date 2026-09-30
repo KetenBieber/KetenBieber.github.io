@@ -25,7 +25,7 @@
     <link rel="index" title="索引" href="../genindex.html" />
     <link rel="search" title="搜索" href="../search.html" />
     <link rel="next" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" />
-    <link rel="prev" title="MInference 1.0：长上下文已经能“看见”，为什么 1M Prompt 仍要等几十分钟？" href="../generated/papers/A/04-efficient-attention/A054-minference.html" /> 
+    <link rel="prev" title="长上下文：位置外推、Attention 组织与运行时" href="../long-context/index.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -482,7 +482,7 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="../transformer/index.html">Transformer 核心与高效注意力</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="../transformer/index.html">Transformer、位置外推与高效注意力</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A013-transformer-attention-is-all-you-need.html">Transformer：Attention 如何替代循环序列建模</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A013-transformer-attention-is-all-you-need.html#id1">模型定位与谱系</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A013-transformer-attention-is-all-you-need.html#id2">论文属于哪一类，究竟替换了什么</a></li>
@@ -583,6 +583,187 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html">YaRN：RoPE 长上下文外推为什么不能只“缩放位置”，以及频率分段 + Attention Scaling 如何解决它</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id1">阅读导航</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-head-dimension">1. 先回到 RoPE：每个 head dimension 其实是一组不同频率的二维时钟</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope">2. 为什么 RoPE 点积只依赖相对位置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id2">3. 那为什么“只依赖相对位置”还不能天然无限外推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id3">4. 为什么“旋转是周期函数”也救不了直接外推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-vs">5. Position Interpolation 原论文为什么专门画“外推 vs 插值”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation">6. Position Interpolation 的公式其实非常简单</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-32k-2k">7. PI 为什么把新的 32K 映射回旧的 2K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-fine-tuning">8. PI 为什么只需要较少 fine-tuning？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#fine-tune-position">9. 为什么直接 fine-tune “更长 position”还是不够？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id4">10. Position Interpolation 的数学优势是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-yarn">11. PI 看起来很漂亮，为什么 YaRN 还要继续改？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-rope-token">12. 先定义 wavelength：一个 RoPE 维度多少 token 转一整圈？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength">13. 一个具体 wavelength 例子</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id5">14. 为什么短 wavelength 维度更像局部相对位置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#wavelength-absolute-like">15. 为什么长 wavelength 维度可能保留 absolute-like 信息？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-l-lambda">16. 用 (r=L/\lambda) 表示“训练时转了几圈”</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-128">(r=128)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-0-25">(r=0.25)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-interpolation-pi">17. NTK-aware interpolation 先解决了 PI 的什么问题？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-base-change">18. NTK-aware base change 是怎么来的？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#base-change">19. 为什么 base change 会自然形成“高频少缩、低频多缩”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware">20. 为什么叫 NTK-aware？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id6">21. NTK-aware 为什么仍然不够？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-ntk-yarn">22. 原论文如何总结 PI → NTK → YaRN 的谱系？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-base-wavelength">23. NTK-by-parts：不要再改 base，直接按 wavelength 分类</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-alpha">情况 1：(r&lt;\alpha)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-beta">情况 2：(r&gt;\beta)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id7">情况 3：中间</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ramp-function-gamma-r">24. Ramp function (\gamma(r))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#frequency-mixing">25. 最终 frequency mixing 公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id8">26. 这个公式怎么读最自然？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-family-alpha-beta">27. LLaMA family 的 (\alpha,\beta) 是多少？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-1">(r&lt;1)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#r-32">(r&gt;32)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id9">28. 一个具体维度例子</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#a">维度 A</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#b">维度 B</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id10">29. 中频维度怎么算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-by-parts-yarn">30. 到 NTK-by-parts 为止，YaRN 还没完整出现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context-attention-distribution">31. 为什么 context 变长可能影响 attention distribution？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#temperature-t-attention">32. Temperature (t) 怎样进入 Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-kernel-rope">33. 为什么可以不改 Attention kernel，只缩放 RoPE 输出？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-magnitude-scaling">34. YaRN 推荐的 magnitude scaling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scaling-formula">35. 这个 scaling formula 是理论推导出来的吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#magnitude-scaling">36. 原论文的 magnitude-scaling 实验</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn">37. 完整 YaRN 可以压成两步</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#step-1">Step 1：频率分段</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#step-2-magnitude-scaling">Step 2：magnitude scaling</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id11">38. 一个完整的数据流</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-inference-time-policy-yarn">39. Dynamic Scaling：这是 inference-time policy，不是 YaRN 本体公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn">40. Dynamic YaRN 的基本思想</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-short-context-penalty">41. 为什么 Dynamic Scaling 能减少 short-context penalty？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling">42. 为什么 Dynamic Scaling 还能让超出目标长度后的退化更平滑？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-scaling-kv-cache">43. Dynamic Scaling 为什么会和 KV Cache 冲突？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#cached-k">44. 为什么论文强调要谨慎处理 cached K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id12">45. 原论文 Dynamic YaRN 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-128k">46. YaRN 的训练方式：它不是从头训练一个 128K 模型</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scale-s-16">Scale (s=16)</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#scale-s-32">Scale (s=32)</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#k-128k">47. 一个非常重要的结果：训练 64K，评估到 128K</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-pi">48. 为什么 YaRN 可以比 PI 更快适应？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training-loss-budget-yarn">49. 原论文 Training Loss：相同 budget 下 YaRN 收敛更快</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-evaluation">50. Long-context evaluation 为什么不能只看一个数字？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#language-modeling">50.1 Language Modeling</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#retrieval">50.2 Retrieval</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#capability-retention">50.3 Capability Retention</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#sliding-window-perplexity">51. Sliding-window perplexity 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-context-perplexity">52. 原论文 long-context perplexity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-retrieval">53. Passkey Retrieval 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey">54. 原论文 passkey 结果怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#passkey-benchmark">55. 为什么 passkey 是必要但远不充分的 benchmark？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-interpolation-retrieval">56. Position Interpolation 的 retrieval 图为什么也值得保留？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id13">57. YaRN 与 PI 的关系应该怎样准确描述？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi">PI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id14">YaRN</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-ntk-aware">58. YaRN 与 NTK-aware 的关系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id15">59. 为什么 YaRN 论文还承担了“形式化开源社区方法”的角色？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-rope-base">60. 为什么“YaRN = 改 RoPE Base”是错的？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-position-interpolation">61. 为什么“YaRN = Position Interpolation”也不对？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pytorch">62. 一个 PyTorch 风格的教学伪实现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-magnitude-scaling">63. Attention magnitude scaling 的教学伪实现</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id16">64. 为什么实际库实现可能和论文公式长得不一样？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-flashattention-compatibility">65. 为什么 YaRN 可以保持 FlashAttention compatibility？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-o-l-2">66. 但 YaRN 完全没有解决 (O(L^2))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-dca-minference">67. 这正是 Qwen2.5 为什么同时需要 DCA 和 MInference</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training">Training</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-extrapolation">Position extrapolation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-organization">Attention organization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#runtime-acceleration">Runtime acceleration</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-qwen2-5">68. YaRN 在 Qwen2.5 中真正承担哪一层？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-1m-yarn">69. 为什么 Qwen2.5 的 1M 不能归因于 YaRN？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-llama-3">70. YaRN 与 Llama 3 的长上下文路线有什么差别？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-3">Llama 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id17">YaRN</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#context">71. 为什么“训练长度”和“声明 context 长度”必须分开？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id18">72. 为什么 Position Interpolation 仍是最关键的前置？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-basis-expansion">73. PI 的 basis-expansion 解释为什么非常值得保留？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-resolution-cost">74. 为什么 interpolation 本身也有 resolution cost？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#interpolation-local-order">75. 为什么低频 interpolation 不会同样毁掉 local order？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id19">76. 为什么这种方法很像多尺度信号处理？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id20">77. 但不能把“高频=局部、低频=绝对位置”说成严格语义分工</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#alpha-beta">78. 为什么 (\alpha,\beta) 仍然是经验超参数？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-scaling">79. 为什么 Attention Scaling 特别容易被教程漏掉？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#short-context-benchmark">80. 为什么 short-context benchmark 必须一起测？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#position-extension-long-context-learning">81. Position Extension 和 Long-Context Learning 是两回事</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#llama-3-long-context-sft">82. 这和 Llama 3 的 long-context SFT 观察完全一致</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id21">83. YaRN 论文最强的证据链</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#controlled-interpolation-ablation">第一层：Controlled interpolation ablation</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#training-efficiency">第二层：Training efficiency</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#long-ppl">第三层：Long PPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id22">第四层：Passkey</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#standard-benchmarks">第五层：Standard benchmarks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id23">84. 论文没有证明什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#k-passkey-128k-reasoning">84.1 128K passkey = 128K reasoning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-context">84.2 YaRN 可以无限延长 context</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ln-s-1">84.3 (0.1\ln s+1) 对所有模型最优</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#alpha-1-beta-32-universal-constants">84.4 (\alpha=1,\beta=32) 是 universal constants</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id24">84.5 YaRN 降低 (O(L^2))</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn-fine-tuning">84.6 Dynamic YaRN 无需 fine-tuning 就等价于完整长上下文模型</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id25">85. YaRN 的工程优势</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id26">86. YaRN 的主要局限</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id27">87. 一张因果图收束整个方法</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id28">88. 为什么这条技术链比最终公式更重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-base">89. 为什么现代模型仍然经常使用“改 RoPE base”？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#qwen2-5-yarn-dca">90. 为什么 Qwen2.5 同时提 YaRN 与 DCA？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#minference">91. MInference 又在哪一层？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id29">92. 一个必须保留的术语表</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#effective-context-max-position-embeddings">93. 为什么 Effective Context 比 max_position_embeddings 更重要？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#vla">94. 对 VLA / 机器人时序有什么启示？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id30">95. 为什么世界模型也会遇到类似问题？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id31">96. 最容易学错的十个地方</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#rope-relative-context">错法 1：RoPE 是 relative，所以天然无限 context</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#pi-max-length">错法 2：PI 就是把 max length 配置改大</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id32">错法 3：PI 和 YaRN 一样</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#ntk-aware-yarn">错法 4：NTK-aware 就是 YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#local-feature">错法 5：高频维度被人工训练成 local feature</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-base">错法 6：YaRN 只改 base</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#attention-scaling-yarn">错法 7：Attention Scaling 与 YaRN 无关</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#dynamic-yarn-yarn">错法 8：Dynamic YaRN 与静态 YaRN 是同一机制</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id33">错法 9：128K passkey 证明 128K reasoning</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#yarn-1m-context">错法 10：YaRN 解决 1M context 的运行成本</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id34">97. 五个应该真正记住的第一性原理</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id35">原理 1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id36">原理 2</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id37">原理 3</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id38">原理 4</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id39">原理 5</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id40">98. 从这里继续怎么读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/03-transformer/A018-yarn.html#id41">99. 最终自检</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A019-mqa.html">MQA：为什么共享 K/V 能显著降低 Decode Cache</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A019-mqa.html#id1">模型定位与谱系</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A019-mqa.html#id2">输入、输出与任务</a><ul>
@@ -656,6 +837,732 @@
 </li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html">Dual Chunk Attention：不训练模型，怎样重新组织 RoPE 相对位置把 4K 扩到 32K+？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id1">阅读导航</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-frequency-relative-position-matrix">一、先把问题从 RoPE frequency 换成 Relative-Position Matrix</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-attention">1. 标准 RoPE 最终到底把什么交给 Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-m">2. 为什么把 RoPE 看成矩阵 (M) 很有用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#figure-rope">3. 原论文 Figure：标准 RoPE 超窗时发生什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope">4. 为什么“RoPE 是相对位置”仍然解决不了？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#relative-position">二、已有方法：统一缩放 Relative Position</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#position-interpolation-m">5. Position Interpolation 在矩阵 (M) 视角下是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca">6. DCA 为什么不满意“把所有距离一起缩小”？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-chunk">三、DCA 第一层：先切 Chunk</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id2">7. 基本变量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#key-position">8. Key position 为什么循环复用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-token-key">9. 但是这会不会把不同 chunk 的 token 混成同一个 key？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#content-vector">Content vector</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-positional-phase">RoPE positional phase</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#intra-chunk-attention">四、Intra-Chunk Attention：局部位置一个都不要丢</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-query-position">10. 同 chunk 的 query position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#relative-distance">11. 为什么这精确保留局部 relative distance？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#intra-chunk-relative-distance">12. Intra-Chunk 最大 relative distance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#intra-chunk">13. 只用 Intra-Chunk 会发生什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#position-id-chunk">五、为什么循环 Position ID 不能直接跨 Chunk？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id3">14. 一个最直接的失败例子</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-p-k-query-position">15. 为什么 DCA 保持 (P_k) 不动，主要改 query position？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#inter-chunk-attention-ood">六、Inter-Chunk Attention：远距离可以粗，但不能 OOD</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id4">16. 最简单的目标</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#inter-chunk-relative-distance">17. Inter-Chunk relative distance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id5">18. 这是一种什么信息压缩？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#aliasing">19. 为什么这种 aliasing 仍可能有用？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id6">20. 一个必须保留的边界：DCA 没有保存精确远距离</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#inter-chunk-chunk-locality">七、Inter-Chunk 还不够：相邻 Chunk 的 Locality 被毁了</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-token">21. 看 chunk 边界的两个相邻 token</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#ppl">22. 为什么这会明显伤 PPL？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#successive-chunk-attention-chunk-boundary">八、Successive-Chunk Attention：专门修复 Chunk Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id7">23. 目标是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#successive-query-position">24. Successive query position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#locality">25. 为什么这样能恢复边界 locality？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#w-le-c-s">26. 为什么 (w\le c-s)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#query-position">27. 三类 Query Position 的统一图</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#attention-piecewise-relative-position-matrix">九、把三种 Attention 合成一个 Piecewise Relative-Position Matrix</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-index">28. 先定义 Chunk Index</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk">同 chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id8">前一个 chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id9">更早 chunk</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id10">29. DCA 的最终相对位置公式</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#qk">30. 对应的 QK 内积</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id11">31. 一个原论文公式阅读提醒</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#relative-position-matrix">32. 原论文的三块 Relative-Position Matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-relative-position">33. 为什么所有 DCA relative position 都不会超出原窗口？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#intra">Intra</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#inter">Inter</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#successive">Successive</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-position-interpolation">34. DCA 与 Position Interpolation 最大区别</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#pi">PI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id12">DCA</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#c-8-s-4-l-12">十、一个完整手算例子：(c=8,s=4,l=12)</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id13">35. Key Position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#current-chunk-intra">36. 对 Current Chunk：Intra</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#previous-chunk-successive">37. 对 Previous Chunk：Successive</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-inter">38. 对更早 Chunk：Inter</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-identity">39. 因此远距离 Chunk Identity 从哪里来？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#attention-softmax">十一、最容易被忽略的实现问题：三次 Attention 不是三个独立 Softmax</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id14">40. 为什么需要分三次算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#softmax-output">41. 如果每组各做一次 Softmax，然后直接把 output 相加，会怎样？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id15">42. 正确的合并公式怎么推？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#z-g-sum-e-z">43. 实际实现为什么不能直接计算 (Z_g=\sum e^{z})？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#flashattention-online-softmax">44. 为什么这和 FlashAttention 的 online softmax 天然兼容？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-flashattention">十二、DCA 与 FlashAttention 的实际组织</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#query-key-segment">45. 对一个 query，三个 Key Segment 分别多大？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#current-chunk">Current chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#previous-chunk">Previous chunk</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#earlier-chunks">Earlier chunks</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-sparse-attention">46. 所以 DCA 是 Sparse Attention 吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#chunk-attention">47. 那为什么叫 Chunk Attention？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#appendix-flashattention">48. 原论文 Appendix 给出的三次 FlashAttention 调用</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-k">49. 为什么 DCA 不需要重新旋转历史 K？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-kv-cache">50. DCA 的 KV Cache 代价是什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id16">不需要</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id17">仍然需要</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-figure-matrix">十三、DCA 原论文 Figure：为什么三块 Matrix 缺一不可？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id18">51. Intra 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id19">52. Inter 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id20">53. Successive 负责什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#pareto-trade-off">54. 这三项其实构成一个 Pareto trade-off</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-training-free">十四、为什么 DCA 叫 Training-Free？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#training-free">55. Training-Free 的精确定义</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id21">56. Training-Free 不等于什么？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id22">零代码改动</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id23">零计算成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id24">零显存成本</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id25">模型真正学过长上下文</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#context">无限 context</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#training-free-long-context">57. 为什么 training-free 仍然可能提升 long-context 能力？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#ablation">十五、实验怎么读：先看 Ablation，不要先看排行榜</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id26">58. 原论文最重要的因果证据其实是 Ablation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#only-intra-ppl-retrieval">59. Only Intra：为什么 PPL 好，Retrieval 差？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#inter-retrieval-ppl">60. 加 Inter：为什么 Retrieval 上来了，PPL 反而可能恶化？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id27">61. 再加 Successive：为什么两个指标一起改善？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#perplexity-dca-4k">十六、Perplexity：DCA 真能把 4K 模型直接跑到更长吗？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#language-modeling">62. 论文如何测 Language Modeling？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id28">63. 为什么 PPL 是必要但不充分的指标？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id29">64. 原论文 PPL 证据应该怎样表述？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#passkey-retrieval">十七、Passkey Retrieval：模型到底有没有看到远处？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#passkey-task">65. Passkey task 在测什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#passkey">66. 原论文 Passkey 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#lost-in-the-beginning">67. “Lost in the Beginning” 是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#k-passkey">68. 更长的 192K Passkey 图说明什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#orthogonality-dca-pi-ntk-yarn">十八、Orthogonality：为什么 DCA 可以叠加 PI / NTK / YaRN？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id30">69. 两类方法改的是不同对象</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#pi-ntk-yarn">PI / NTK / YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id31">DCA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id32">70. 用函数复合看最清楚</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#qwen2-5-yarn-dca">71. 这正是 Qwen2.5 的 “YaRN + DCA”</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#real-world-long-context-tasks-passkey">十九、Real-World Long-Context Tasks：比 Passkey 更接近真正应用</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id33">72. 论文测了哪些任务？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#b">73. 论文为什么强调 70B？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#of-gpt-3-5-16k">74. “94% of GPT-3.5-16k”应该怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#real-world-benchmark-long-context-reasoning">75. 为什么 Real-World Benchmark 仍然不能完全证明 Long-Context Reasoning？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#efficiency-flashattention">二十、Efficiency：三次 FlashAttention 为什么论文说开销并不大？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#efficiency-figure">76. 原论文 Efficiency Figure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#kernel-call">77. 三次 Kernel Call 为什么不等于三倍计算？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-attention">78. 为什么 DCA 又没有让 Attention 更便宜？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#prompt">79. 超长 Prompt 下真正的新瓶颈是什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-streamingllm-local-attention">二十一、为什么 DCA 和 StreamingLLM / Local Attention 不一样？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#streaming">80. Streaming 类方法的核心取舍</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id34">81. DCA 的选择不同</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id35">二十二、DCA 的隐含归纳偏置到底是什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id36">82. Locality 是最高优先级</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#very-far-distance">83. Very Far Distance 被降成粗粒度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-hierarchical-position-prior">84. 所以 DCA 是一种 Hierarchical Position Prior</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id37">二十三、一个更第一性原理的解释：位置编码本身就是有限带宽</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#range-resolution">85. 为什么不可能同时免费保留无限 Range 与无限 Resolution？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#yarn-rangeresolution-trade-off">86. 这与 YaRN 的 Range–Resolution Trade-off 是同一主题</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#evidence-boundary">二十四、论文中最值得保留的 Evidence Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#k-32k-8">87. 4K → 32K 不等于“模型学会了 8× 更长任务”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#ppl-retrieval">88. PPL 低不等于 Retrieval 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#passkey-reasoning">89. Passkey 强不等于 Reasoning 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#benchmark-100k">90. Benchmark 强不等于任意 100K 输入都稳定</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id38">二十五、为什么 Qwen2.5 同时使用 YaRN + DCA？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#training-length">91. 先看 Training Length</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#yarn">92. 再看 YaRN</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id39">93. 再看 DCA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#minference">94. 最后才是 MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-rope">二十六、为什么 DCA 特别适合和 RoPE 模型组合？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id40">95. 它依赖 RoPE 的一个关键性质</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id41">96. 如果位置编码不是 RoPE 呢？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rerope-selfextend">二十七、与 ReRoPE / SelfExtend 这类方法怎样理解关系？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id42">97. 共性</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id43">98. DCA 的特色</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id44">二十八、从工程实现角度重新走一次</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#prefill">99. Prefill</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#decode">100. Decode</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#q-k">101. 为什么同一个 Q 要旋转三次而 K 只旋一次？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id45">二十九、DCA 的复杂度要怎样严谨表述？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id46">102. 计算复杂度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id47">103. 显存复杂度</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#kernel-overhead">104. Kernel overhead</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id48">三十、DCA 适合什么，不适合什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id49">105. 适合</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id50">已有模型无法重新训练</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#full-history-access">想保留 full-history access</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-flashattention">使用 RoPE + FlashAttention</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id51">需要在更大模型上快速验证</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id52">106. 不一定适合</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#metric-position">需要精确远距离 metric position</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#full-attention-ttft">需要百万级 full attention 低 TTFT</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#reasoning-skill">需要真正新增长程 reasoning skill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#rope-architecture">非 RoPE architecture</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id53">三十一、把 DCA 与现有站内技术放回一张图</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id54">107. RoPE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id55">108. YaRN</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id56">109. DCA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#gqa-mla">110. GQA / MLA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#flashattention">111. FlashAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id57">112. MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#vla">三十二、一个值得迁移到机器人 / VLA 的设计思想</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id58">113. 历史越远，时间精度可以越粗吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id59">114. 但不能直接把 DCA 套到控制序列</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id60">三十三、论文最容易学错的十二个地方</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id61">错法 1：DCA 是 Sparse Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id62">错法 2：DCA 把旧 chunk 压成一个向量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#modulo-key-position-token">错法 3：Modulo key position 会让不同 token 完全相同</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id63">错法 4：Inter 保留精确远距离</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id64">错法 5：Successive 是为了增加更多远距离信息</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id65">错法 6：三路 softmax output 可以直接相加</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#flashattention-3-qk-flops">错法 7：三次 FlashAttention 等于 3× QK FLOPs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-o-l-2">错法 8：DCA 解决 (O(L^2))</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id66">错法 9：Training-Free = 零工程改动</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#passkey-long-reasoning">错法 10：Passkey 强 = long reasoning 强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#dca-yarn">错法 11：DCA 与 YaRN 是替代关系</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#qwen2-5-1m-context-dca">错法 12：Qwen2.5 1M context 来自 DCA</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id67">三十四、把整篇论文压成一条因果链</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#failure-design">115. Failure → Design</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id68">116. 一句话记忆</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id69">三十五、论文论证强度怎么分层？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id70">117. 强因果证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id71">三分支 Ablation</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id72">118. 强工程证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id73">Efficiency Figure</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id74">119. 中等证据</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#pg19-ppl-passkey">PG19 PPL + passkey</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id75">120. 更弱的综合能力外推</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#long-benchmark-aggregate">Long benchmark aggregate</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id76">三十六、从这里继续怎么读？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id77">121. 如果 Relative-Position Matrix 没建立起来</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id78">122. 如果不理解为什么 DCA 与 YaRN 能同时使用</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id79">123. 如果想回真实模型系统</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id80">124. 下一篇：MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A053-dual-chunk-attention.html#id81">三十七、最终自检</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html">MInference 1.0：长上下文已经能“看见”，为什么 1M Prompt 仍要等几十分钟？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id1">阅读导航</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#prefill-decode-minference">一、先区分 Prefill 与 Decode：这是理解 MInference 的起点</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#llm">1. 一次 LLM 请求其实有两个完全不同的阶段</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#prefill">Prefill</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#decode">Decode</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#prefill-attention-shape">2. Prefill 的 Attention Shape</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#decode-l-2">3. Decode 为什么不是 (L^2)？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#ttft">4. 为什么长上下文用户首先感受到 TTFT？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference">5. MInference 论文给出的基线有多夸张？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#flashattention">二、FlashAttention 已经很快了，为什么还不够？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dense-attention">6. Dense Attention 有两个不同成本</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#flashattention-o-l-2-o-l">7. FlashAttention 不是把 (O(L^2)) 变成 (O(L))</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-weight">三、第一观察：Attention Weight 实际上高度稀疏</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dense-matrix-entry">8. Dense Matrix 中真的每个 Entry 都重要吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#k-attention">9. 128K Attention 的一个论文观察</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention">10. “Attention 稀疏”不能怎样理解？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#softmax-normalization">Softmax normalization</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#value-vector">Value vector</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id2">多层累积</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#head">Head 差异</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#task">Task 差异</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id3">四、第二观察：Attention 稀疏，但具体位置是动态的</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#top-k-token">11. 为什么不能离线保存一套 Top-K Token？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id4">12. 于是出现一个矛盾</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#indices-pattern-family">五、第三观察：Indices 动态，但 Pattern Family 相对稳定</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id5">13. 最关键的工程突破</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern">14. 三种典型 Pattern</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#a-shape-streamingllm">六、A-shape：最简单，也最像 StreamingLLM</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#a-shape">15. A-shape 长什么样？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-band">左侧 vertical band</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#local-band">对角线附近 local band</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id6">16. A-shape 为什么最便宜？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id7">17. A-shape 的弱点是什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-slash-minference-pattern">七、Vertical-Slash：MInference 最重要的一类 Pattern</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-line">18. Vertical Line 是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#slash-line">19. Slash Line 是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-slash">20. 为什么 Vertical 和 Slash 要组合？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse">八、Block-Sparse：当重要区域不是线，而是空间簇</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#spatial-clustering">21. 什么叫 Spatial Clustering？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse-fine-grained-top-k-gpu">22. 为什么 Block-Sparse 比 Fine-Grained Top-K 更 GPU 友好？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-vertical-slash">九、为什么 MInference 不直接统一用 Vertical-Slash？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vs-head">23. 论文里 VS 的确占大多数 Head</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id8">24. 这告诉我们什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kernel-aware-flops">十、Kernel-Aware：为什么“同 FLOPs”也可能速度差很多？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-pattern">25. 论文比较四类 Sparse Pattern</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#flops-kernel-flops">26. 概念 FLOPs 与 Kernel FLOPs 有什么区别？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kernel-aware-search">27. 为什么这叫 Kernel-Aware Search？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#offline-search-head">十一、Offline Search：先给每个 Head 选“结构类型”</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#offline-search">28. Offline Search 输入什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-matrix-recall">29. 为什么不是只看 Attention Matrix Recall？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#offline-search-prompt">30. Offline Search 要对每个 Prompt 重做吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#search">31. Search 成本大吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#offline-online">32. 整个 Offline / Online 分离</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#online-vertical-slash-64-query">十二、Online Vertical-Slash：为什么只看最后 64 个 Query 就能找全局重要位置？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#online">33. Online 阶段真正缺的是什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-slash-query-probe">34. Vertical-Slash 用最后一小段 Query 做 Probe</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#query">35. 为什么偏偏用最后几个 Query？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id9">36. 这里有什么隐含假设？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-indices-probe-matrix">十三、Vertical Indices 怎样从 Probe Matrix 得到？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#key-token">37. 一列为什么代表一个 Key Token？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id10">38. 一个简单例子</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#slash-indices">十四、Slash Indices 怎样得到？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#diagonal-relative-offset">39. Diagonal 为什么对应 Relative Offset？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#slash-local-window">40. Slash 不等于 Local Window</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-slash-gpu-sparse-format">41. Vertical 与 Slash 怎样转成 GPU Sparse Format？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse-online-estimation-mean-pooling">十五、Block-Sparse Online Estimation：为什么 Mean Pooling 有用？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id11">42. 目标</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sequence">43. 先把 Sequence 分块</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#coarse-attention-matrix">44. Coarse Attention Matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#mean-pooled-q-k-dot-product">45. 为什么 Mean-Pooled Q/K 的 Dot Product 有意义？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#softmax">46. 但 Softmax 后还是精确的吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#top-blocks">47. Top Blocks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#a-shape-online">十六、A-shape Online 阶段为什么什么都不用估计？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-geometry">48. 因为它的 Sparse Geometry 是固定的</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-online-cost">十七、三种 Pattern 的 Online Cost 对比</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id12">49. A-shape</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#index-cost">Index cost</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-cost">Attention cost</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id13">50. Vertical-Slash</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#estimation-cost">Estimation cost</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-attention">Sparse attention</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id14">51. Block-Sparse</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id15">Estimation cost</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id16">Sparse attention</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#formal-mask-objective-minference">十八、Formal Mask Objective：MInference 真正在优化什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dynamic-sparse-mask">52. Dynamic Sparse Mask</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id17">53. 两个互相冲突的优化目标</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#entry">54. 为什么保留更多 Entry 不一定更优？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id18">55. 还有第三个隐藏变量：Index Cost</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#context-minference">十九、为什么 Context 越长，MInference 越划算？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id19">56. Dense Attention 的增长</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#index-estimator">57. Index Estimator 的增长更慢</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#context">58. 为什么短 Context 反而可能不值得？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#amdahl-s-law-minference">二十、从 Amdahl's Law 看 MInference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-90">59. 假设 Attention 占 90%</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#index-overhead">60. 再加 Index Overhead</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-kernel-index">二十一、Sparse Kernel：选了 Index 后，真正怎样计算？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse-flashattention">61. Block-Sparse FlashAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#appendix-speedup">62. Appendix 给出的近似 Speedup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-slash-kernel">二十二、Vertical-Slash Kernel 为什么更复杂？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#geometry">63. 两种 Geometry 混在一起</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#slash-block-range">64. Slash 怎样转成 Block Range？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vertical-column">65. Vertical Column 怎样处理？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-kernel-online-softmax">二十三、为什么 Sparse Kernel 内仍然需要 Online Softmax？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-attention-softmax-attention">66. Sparse Attention 仍然是 Softmax Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-tile">67. 两个 Sparse Tile 怎样合并？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-exact-attention">68. MInference 是 Exact Attention 吗？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-mask">给定 Sparse Mask 后</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id20">相对于原 Dense Attention</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#framework">二十四、原论文 Framework 图</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id21">69. 三种 Pattern 怎样放进一个系统？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-recall-structured-pattern-fine-grained-top-k">二十五、Pattern Recall：为什么 Structured Pattern 比 Fine-Grained Top-K 更有效率？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-recall">70. 原论文 Pattern Recall 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#fine-grained-top-k">71. 为什么 Fine-Grained Top-K 可能理论上更精确？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id22">72. 但为什么系统上反而可能差？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#algorithmhardware-co-design">二十六、这是 Algorithm–Hardware Co-design</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id23">73. 如果只从算法角度优化</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id24">74. 如果只从硬件角度优化</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id25">75. MInference 的折中</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#static-vs-dynamic">二十七、实验先看什么？先看 Static vs Dynamic</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id26">76. 最有因果意义的一项比较</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-stable-index-stable">77. 这说明 Pattern Stable 与 Index Stable 是两回事</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#ablation-pattern">二十八、Ablation：为什么三种 Pattern 都要保留？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#llama-3-8b-262k-infinitebench">78. LLaMA-3-8B-262K InfiniteBench</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kv-retrieval-minority-head">79. KV Retrieval 暴露 Minority Head 的价值</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#additional-ablation-vertical-slash">80. Additional Ablation：Vertical 与 Slash 也不能随便删</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#only-vertical">only vertical</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#only-slash">only slash</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#infinitebench-local-window-baseline-retrieval">二十九、InfiniteBench：为什么 Local Window Baseline 在 Retrieval 上崩？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#streamingllm">81. StreamingLLM 的结构限制</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id27">82. MInference 为什么能避免这类硬删除？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#infinitebench">83. InfiniteBench 结果怎样读？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-dense">84. 为什么 Sparse 有时分数会略高于 Dense？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#ruler-claimed-context-effective-context">三十、RULER：Claimed Context 与 Effective Context 不是一回事</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claimed-context">85. 什么叫 Claimed Context？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#effective-context">86. 什么叫 Effective Context？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id28">87. 一个有意思的结果</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-ruler">88. 为什么 Sparse 可能偶尔提升 RULER？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pg-19-language-modeling">三十一、PG-19：Language Modeling 误差有多大？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#ppl">89. 为什么还需要 PPL？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id29">90. 论文报告</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#ppl-long-reasoning">91. 但 PPL 与 Long Reasoning 仍然不是一回事</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#needle-in-a-haystack-1m">三十二、Needle in a Haystack：1M 还能找到信息吗？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#m-needle">92. 原论文 1M Needle 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id30">93. 为什么 StreamingLLM 会出现明显空洞？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#latency-context-speedup">三十三、Latency：Context 越长，Speedup 越大</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#end-to-end-speedup">94. 原论文 End-to-End Speedup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#speedup">95. 为什么 Speedup 不是常数？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kernel-sparsity-mask-sparsity">三十四、实际 Kernel Sparsity 与理论 Mask Sparsity</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kernel-sparsity">96. 为什么还要单独测 Kernel Sparsity？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id31">97. 论文观察</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#latency-breakdown-index-build">三十五、Latency Breakdown：Index Build 到底占多少？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#latency">98. 原论文详细 latency 图</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#k-index-cost-30">99. 为什么 10K 时 Index Cost 可能到 30%？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-kernel">三十六、三种 Sparse Kernel 本身速度也不同</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#appendix-microbenchmark">100. Appendix Microbenchmark</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id32">101. 为什么 Block-Sparse 最容易跑快？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id33">102. 为什么 Vertical-Slash 慢一点？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-prefill-sparse-decode-dense">三十七、为什么 MInference 只做 Prefill Sparse，Decode 保持 Dense？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id34">103. Decode 本身已经不是 (L^2)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id35">104. Prefill 才是最肥的目标</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kv-cache-compression">105. 这和 KV Cache Compression 的目标不同</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-dca">三十八、为什么 MInference 与 DCA 完全不是一回事？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dca-pair-count">106. DCA 不减少 Pair Count</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-pair">107. MInference 真正删除大量 Pair</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id36">108. 两者为什么还能组合？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-yarn">三十九、为什么 MInference 与 YaRN 也不是替代关系？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#yarn-position-ood">109. YaRN 解决的是 Position OOD</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-rope">110. MInference 不会自动让模型支持更长 RoPE</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#qwen2-5-1m-pipeline">四十、把 Qwen2.5 的 1M Pipeline 再走一次</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#progressive-long-context-training">111. 第一步：Progressive Long-Context Training</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#yarn-dca">112. 第二步：YaRN + DCA</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#yarn">YaRN</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dca">DCA</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-derived-sparse-attention">113. 第三步：MInference-derived Sparse Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#qwen-12-5-minference-10">114. 为什么 Qwen 的 12.5× 与 MInference 论文 10× 不能混在一起？</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-paper">MInference paper</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#qwen2-5-turbo">Qwen2.5-Turbo</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-5-token">四十一、为什么 95% Sparse 不意味着只保留 5% Token？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-sparsity">115. Attention Sparsity 是二维的</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kv-cache">116. 这也是为什么 KV Cache 还在</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dynamic-sparse-index-prediction-problem">四十二、为什么 Dynamic Sparse Index 本身是一个 Prediction Problem？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dense-attention-teacher">117. Dense Attention 是 Teacher</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#neural-predictor">118. 为什么不训练一个 Neural Predictor？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id37">四十三、MInference 的一个非常值得学的系统原则</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id38">119. 不要预测完整目标，只预测“够执行”的结构</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#offline-pattern-search-sample">四十四、为什么 Offline Pattern Search 只用一个 Sample 仍可能泛化？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#search-token-index">120. 因为 Search 的对象不是具体 Token Index</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id39">121. 但这个结论不能无限外推</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-fine-tuning">四十五、MInference 是否需要 Fine-Tuning？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#weight-update">122. 不需要 Weight Update</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#zero-preparation">123. 但绝不是 Zero-Preparation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#short-context-minference">四十六、为什么 Short Context 不应该强制使用 MInference？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#total-latency">124. Total Latency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#runtime-adaptive">125. 因此 Runtime 应该是 Adaptive 的</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-budget">四十七、为什么 Sparse Budget 不能越低越好？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparsity">126. 更高 Sparsity 的风险</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-budget-quality-knob">127. 所以 Sparse Budget 是一个 Quality Knob</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-pattern-search-kernel-flops-wall-time">四十八、为什么 MInference 的 Pattern Search 要看 Kernel FLOPs，而不是 Wall Time？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#search-wall-time">128. Search 时直接测 Wall Time 不是更真实吗？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#million-tokens-inference">四十九、一个值得注意的命名：Million-tokens Inference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#m">129. 它不是只服务 1M</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dca-minference-complexity">五十、与 DCA 相比，MInference 终于真正改变 Complexity 了吗？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#dense">130. Dense</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id40">131. A-shape</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#vs">132. VS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id41">133. Block-Sparse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#online-estimation">134. 但 Online Estimation 也要算</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse-estimator-quadratic">五十一、为什么 Block-Sparse Estimator 仍是 Quadratic，却没问题？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id42">135. 因为常数缩小 4096 倍</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-head-specialization">五十二、MInference 对 Head Specialization 给了什么启示？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-head">136. Attention Head 并不是同质的</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id43">137. 但 Pattern 不等于可解释语义标签</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-attention-sink">五十三、MInference 与 Attention Sink</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#a-shape-vertical-band">138. A-shape 左侧 Vertical Band</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-longformer-bigbird">五十四、MInference 与 Longformer / BigBird 的差别</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#fixed-sparse-pattern">139. Fixed Sparse Pattern</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id44">140. MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-top-k-sparq">五十五、MInference 与 Top-K / SparQ 的关系</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#fine-grained-dynamic-sparse">141. Fine-Grained Dynamic Sparse 的优势</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id45">142. 缺点</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#triton-pit-flashattention">五十六、为什么论文最终要用 Triton + PIT + FlashAttention？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#triton">143. Triton</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id46">144. FlashAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pit">145. PIT</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#system-formula">五十七、论文最重要的 System Formula</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#total-speedup">146. Total Speedup 的第一性原理</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id47">147. Context 越长</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id48">148. Context 很短</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id49">149. 其他层越来越占比</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-evidence-boundary">五十八、MInference 的 Evidence Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-mass">150. 96.8% Attention Mass</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-stability">151. Pattern Stability</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id50">152. 10× Speedup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#benchmark-near-dense-accuracy">153. Benchmark Near-Dense Accuracy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id51">154. 1M Needle</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#training-free">155. Training-Free</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id52">五十九、论文的核心论证链</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claim-1-long-context-prefill-attention">156. Claim 1：Long-context Prefill 的核心瓶颈是 Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claim-2-long-attention-sparse">157. Claim 2：Long Attention 高度 Sparse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claim-3-sparse-indices-dynamic">158. Claim 3：Sparse Indices 是 Dynamic 的</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claim-4-dynamic-sparsity-structured-pattern-families">159. Claim 4：Dynamic Sparsity 存在 Structured Pattern Families</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#claim-5-structured-sparse-pattern-fast-gpu-kernel">160. Claim 5：Structured Sparse Pattern 能真正映射到 Fast GPU Kernel</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id53">六十、最容易学错的十六个地方</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-rope-context">错法 1：MInference 用来扩大 RoPE Context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#attention-sparse-top-k-index">错法 2：Attention Sparse，所以直接固定 Top-K Index</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#pattern-dynamic-pattern-type">错法 3：Pattern Dynamic，所以每次都要重新搜索 Pattern Type</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id54">错法 4：96.8% = 所有场景都能删 96.8%</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#top-k">错法 5：Top-K 越细粒度一定越快</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#block-sparse-q-k-attention">错法 6：Block-Sparse 就是把 Q/K 压缩后直接做最终 Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#last-64-q">错法 7：last 64 Q 是数学上充分统计量</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-kernel-softmax">错法 8：Sparse Kernel 内 Softmax 是近似的</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#kernel-sparsity-20-end-to-end-speedup">错法 9：95% Kernel Sparsity = 20× End-to-End Speedup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#minference-decode">错法 10：MInference 加速 Decode</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#prefill-sparse-kv-cache">错法 11：Prefill Sparse 后 KV Cache 也自动压缩</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id55">错法 12：MInference 与 DCA 是二选一</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#sparse-benchmark-dense-sparse">错法 13：Sparse Benchmark 略高于 Dense，说明 Sparse 更强</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#short-prompt-sparse">错法 14：Short Prompt 也应该启用 Sparse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#training-free-no-engineering">错法 15：Training-Free = No Engineering</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#qwen2-5-1m-minference">错法 16：Qwen2.5 的 1M 只靠 MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id56">六十一、把整篇 MInference 压成一条因果链</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id57">六十二、一句话记忆</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#qwen2-5-long-context">六十三、从 Qwen2.5 回看 Long-Context 技术栈</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#layer-1">Layer 1：模型真的训练过长序列吗？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#layer-2">Layer 2：超训练长度后位置怎么表达？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#layer-3-query-key-relation">Layer 3：不同距离 query-key relation 怎么组织？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#layer-4-prompt-full-prefill">Layer 4：百万 prompt 的 full prefill 怎么跑得动？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#layer-5-decode-kv">Layer 5：Decode 历史 KV 怎么省？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id58">六十四、下一步：FlashAttention 已经成为真正阻塞依赖</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../generated/papers/A/04-efficient-attention/A054-minference.html#id59">六十五、最终自检</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../long-context/index.html">长上下文：位置外推、Attention 组织与运行时</a><ul>
@@ -2943,7 +3850,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="页脚">
-        <a href="../generated/papers/A/04-efficient-attention/A054-minference.html" class="btn btn-neutral float-left" title="MInference 1.0：长上下文已经能“看见”，为什么 1M Prompt 仍要等几十分钟？" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
+        <a href="../long-context/index.html" class="btn btn-neutral float-left" title="长上下文：位置外推、Attention 组织与运行时" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> 上一页</a>
         <a href="../generated/papers/A/02-text-representation/A009-kaplan-scaling-laws.html" class="btn btn-neutral float-right" title="Kaplan Scaling Laws：为什么语言模型训练第一次变成了“可外推的工程问题”" accesskey="n" rel="next">下一页 <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
