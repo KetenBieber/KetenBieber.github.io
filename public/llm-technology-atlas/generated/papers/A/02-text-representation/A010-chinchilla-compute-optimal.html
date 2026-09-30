@@ -421,6 +421,7 @@ window.runMermaid = runMermaid;</script>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#id5">第九阶段：长上下文位置外推</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#attention-relation">第十阶段：长上下文 Attention Relation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#prefill-runtime">第十一阶段：百万上下文 Prefill Runtime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../reading-path.html#gpu-io-aware-attention">第十二阶段：GPU IO-aware Attention</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="../../../../technology-map.html">技术图谱</a><ul>
@@ -2833,6 +2834,192 @@ window.runMermaid = runMermaid;</script>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="../04-efficient-attention/A054-minference.html#id58">六十四、下一步：FlashAttention 已经成为真正阻塞依赖</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../04-efficient-attention/A054-minference.html#id59">六十五、最终自检</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../gpu-kernels/index.html">GPU、算子与编译</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html">FlashAttention：为什么“多算一点”反而更快？从 HBM、Tiling 到 Exact Online Softmax</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id1">阅读导航</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#gpu">一、先把一个常见误区拆掉：GPU 快，不代表“算术”是最贵的</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id2">1. 现代 GPU 至少有两类我们必须区分的资源</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel">2. 一次 kernel 真正做了什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#arithmetic-intensity">3. Arithmetic Intensity</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#standard-attention">二、Standard Attention：数学式很干净，执行图却很糟糕</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#attention">4. 标准 Attention 三步</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id3">5. 但普通实现往往把它拆成多个 kernel</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel-1">Kernel 1</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel-2">Kernel 2</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel-3">Kernel 3</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#n-times-n">6. 为什么 (N\times N) 特别可怕？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id4">7. Standard Attention 真正的问题不只是“显存占用”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention">8. 教学图：FlashAttention 究竟消掉什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel-fuse">三、为什么“把三个 Kernel Fuse 起来”还不是完整答案？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id5">9. 最直觉方案</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#gemm-tile-softmax">10. GEMM 很容易 tile，Softmax 却把所有列耦合在一起</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#online-softmax-flashattention-exactness">四、Online Softmax：FlashAttention exactness 的数学核心</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#softmax">11. 从稳定 Softmax 开始</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#block">12. 把一整行切成两个 Block</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#exp-sum-global-max">13. 第一块的 exp sum 怎样换到新的 global max？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id6">14. 这可以递归</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#attention-pv-output-online-merge">五、Attention 最后还需要 (PV)：Output 也必须 Online Merge</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#m-ell">15. 只维护 ((m,\ell)) 还不够</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#block-numerator">16. 两个 Block 的 numerator 怎样合并？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#normalized-o-text-old">17. 如果保存的是 normalized (O_{\text{old}})</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#online-softmax-state">18. 教学图：Online Softmax State</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#approximate-softmax">六、为什么这不是 Approximate Softmax？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#attention-entry">19. 没有任何合法 Attention Entry 被主动删除</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#minference">20. 和 MInference 对照</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention-forward-k-v-block">七、FlashAttention Forward：为什么外层遍历 K/V Block？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id7">21. 输入分块</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id8">22. 外层循环</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#tile">23. 每个 Tile 内发生什么？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id9">八、原论文主图应该怎么读？</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#io-complexity-hbm-access">九、IO Complexity：为什么 HBM Access 会下降？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id10">24. Standard Attention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention-s-p-q">25. FlashAttention 不写 (S,P)，但会重复读 Q</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#n-2">26. 为什么这比 (N^2) 小很多？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id11">十、重要边界：FlashAttention 没把时间复杂度变成线性</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#forward-dense-qk-top">27. Forward 仍然计算 Dense (QK^\top)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id12">28. 为什么仍能快很多？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#lower-bound">十一、论文 Lower Bound：到底证明了什么？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#proposition">29. Proposition</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#m">30. 不要夸大成“每个 M 上都绝对最优”</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#backward-flashattention">十二、Backward：为什么训练更能体现 FlashAttention 的反直觉价值？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#standard-backward-p">31. Standard Backward 为什么需要 (P)？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id13">十三、FlashAttention 的关键决策：别保存，重算</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#forward">32. Forward 保存什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#backward-p-ij">33. Backward 需要 (P_{ij}) 时怎么办？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#recomputation">十四、为什么 Recomputation 居然更快？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#checkpointing">34. 传统 checkpointing 直觉</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id14">35. 原论文最关键的一组数字</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#microbenchmark">36. 原论文 microbenchmark</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#softmax-backward-d-i-reduction">十五、Softmax Backward 的 (D_i)：为什么不用整行 Reduction？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#standard-softmax-gradient">37. Standard Softmax Gradient</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#d-i-do-i-top-o-i">38. 恒等式 (D_i=dO_i^\top O_i)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#backward-tile-ds">39. Backward Tile 内就能计算 (dS)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#dropout-mask">十六、Dropout Mask 为什么也不用保存？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#standard">40. Standard 做法</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#prng-state">41. 保存 PRNG State 就够了</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id15">十七、“线性内存”到底是什么意思？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#attention-intermediate">42. Attention Intermediate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#transformer-memory-o-n">43. 不代表整个 Transformer Memory 都是 O(N)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#memory">十八、为什么更省 Memory 还能提高模型质量？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id16">44. FlashAttention 自己没有改变模型函数</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id17">十九、训练实验怎样读？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#bert-large">45. BERT-large</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#gpt-2">46. GPT-2</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#gpt-2-training-evidence">47. 原论文 GPT-2 training evidence</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#runtime-memory-benchmark">二十、Runtime 与 Memory Benchmark</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#benchmark">48. 原论文 benchmark</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#io-optimization-arithmetic-scaling">二十一、IO Optimization 不能战胜所有 Arithmetic Scaling</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention-o-n-2d">49. FlashAttention 仍是 (O(N^2d))</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#block-sparse-flashattention-exact-flashattention">二十二、Block-Sparse FlashAttention：必须和 Exact FlashAttention 分开</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#exact-flashattention">50. Exact FlashAttention</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#block-sparse-flashattention">51. Block-Sparse FlashAttention</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flops-approximate-attention">二十三、为什么很多“更少 FLOPs”的 Approximate Attention 当年并没有更快？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id18">52. 真实 GPU 不只执行数学公式</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#kernel-fusion">二十四、Kernel Fusion 为什么必要但不充分？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#fusion">53. Fusion 的价值</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id19">54. 但 Attention Intermediate 太大</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention-gemm-tiling">二十五、FlashAttention 与普通 GEMM Tiling 有什么不同？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#gemm-tile-partial-sum">55. GEMM Tile 只需要 Partial Sum</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#softmax-tile">56. Softmax Tile 不能直接相加</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#dca-minference-online-softmax">二十六、为什么 DCA 与 MInference 都反复出现 Online Softmax？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#dca">57. DCA</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id20">58. MInference</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id21">59. FlashAttention 已变成底层代数接口</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#evidence-boundary">二十七、Evidence Boundary</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#exact">60. “Exact”能证明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#linear-memory">61. “Linear memory”能证明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#attention-speedup">62. “7.6× attention speedup”能证明什么？</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flops">63. “更多 FLOPs 更快”能否普遍化？</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#flashattention-2">二十八、为什么 FlashAttention-2 仍然有巨大空间？</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#fa1-io-gpu">64. FA1 已经降低 IO，但 GPU 不一定吃满</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#llm">二十九、与现代 LLM 系统重新连线</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#llama-3">65. Llama 3</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#qwen2-5">66. Qwen2.5</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id22">67. MInference</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id23">三十、对机器人与边缘部署最值得迁移的原则</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#macs-flops">68. 不要只看 MACs / FLOPs</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#model-a">Model A</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#model-b">Model B</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id24">69. 数据移动本身就是算法的一部分</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id25">70. Recomputation 可以是主动性能优化</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id26">三十一、论文核心论证链</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#claim-1-standard-attention-wall-clock-bottleneck-hbm-io">Claim 1：Standard Attention 的 wall-clock bottleneck 大量来自 HBM IO</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#claim-2-softmax-block-wise-exact-aggregation">Claim 2：Softmax 可以 block-wise exact aggregation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#claim-3-materialize-s-p-hbm-accesses">Claim 3：不 materialize (S,P) 可显著减少 HBM accesses</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#claim-4-recomputation-memory-backward">Claim 4：Recomputation 可以同时省 memory 并加速 backward</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#claim-5-kernel-efficiency-end-to-end-model-benefit">Claim 5：Kernel efficiency 能转化成 end-to-end model benefit</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id27">三十二、最容易学错的十二个地方</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id28">三十三、整篇论文压成一条因果链</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id29">三十四、下一步：FlashAttention-2</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../10-gpu-operators/A055-flashattention.html#id30">三十五、最终自检</a></li>
 </ul>
 </li>
 <li class="toctree-l1 current"><a class="reference internal" href="../../../../scaling/index.html">Scaling Laws 与训练规划</a><ul class="current">
